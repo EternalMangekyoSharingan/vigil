@@ -234,6 +234,17 @@ class ScorerEndToEndTests(unittest.TestCase):
         detail = self.tracker.program_detail(AGENT)
         self.assertEqual(detail["findings"][0]["alert_status"], "dismissed")
 
+    def test_one_alert_per_program_and_address(self):
+        # The dropper reaches the same server on two ports: one alert, both ports listed.
+        self.beacon(1000, 60, 20, lambda i: sock("198.51.100.20", 4444 if i % 2 else 8443,
+                                                 5000 + i, AGENT, 7000, local_port=41000 + i))
+        self.scorer.run(now=1000 + 60 * 20)
+        alerts = self.store.query("SELECT * FROM alerts")
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(json.loads(alerts[0]["ports"]), ["tcp/4444", "tcp/8443"])
+        self.assertEqual(alerts[0]["fingerprint"], f"{AGENT}|198.51.100.20|out")
+        self.assertEqual(len(self.store.query("SELECT * FROM scores WHERE program=?", (AGENT,))), 2)
+
     def test_allowlisted_beacon_scores_but_never_alerts(self):
         self.beacon(1000, 64, 20, lambda i: sock("198.51.100.123", 123, 6000 + i, CHRONY, 800,
                                                  proto="udp", local_port=42000 + i, uid=0))

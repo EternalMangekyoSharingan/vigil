@@ -28,8 +28,9 @@ POINTS = {
     "beacon_regularity": 45, "beacon_persistence": 10, "beacon_size": 10,
     "long_connection": 30, "new_destination": 15, "new_program": 20,
     "rare_destination": 5, "uncommon_port": 10, "temp_executable": 25,
-    "hidden_dir_executable": 10, "deleted_executable": 10,
+    "hidden_dir_executable": 10, "deleted_executable": 10, "rare_country": 10,
 }
+# Threat-intel points are per feed, in enrich.FEEDS: a listed botnet C2 alerts alone.
 MIN_CHECKINS = 6           # fewer than this and regularity means nothing
 CV_PERIODIC = 0.20         # the usual beacon threshold (RITA and others)
 CV_CEILING = 0.35          # above this, no beacon points at all
@@ -71,6 +72,10 @@ BUILTIN_RULES = [
 ]
 RULE_FIELDS = ("program", "ip", "port", "proto", "direction")
 SCOPES = ("internet", "lan", "loopback", "link-local", "multicast", "reserved")
+
+
+def alert_fingerprint(pair):
+    return f"{pair['program']}|{pair['ip']}|{pair['direction']}"
 
 
 def finding(check, points, reason, data):
@@ -339,14 +344,14 @@ def rule_matches(rule, pair):
 class Scorer:
     """Scores every pair active in the last LOOKBACK seconds and raises alerts.
 
-    `extra_checks` are callables (pair, context) -> [finding] added by later steps
-    (threat intelligence, geography) without changing this loop.
+    `extra` holds further checks (threat intelligence, geography): objects with
+    prepare(ctx), called once per run, and findings(pair, ctx) -> [finding].
     """
 
     def __init__(self, store, allowlist, poll_interval=2.0, threshold=ALERT_THRESHOLD):
         self.store, self.allowlist = store, allowlist
         self.poll, self.threshold = poll_interval, threshold
-        self.extra_checks = []
+        self.extra = []
         self.last_run = None
 
     def pairs(self, now):
@@ -405,8 +410,8 @@ class Scorer:
                 f"connections table: {'local' if direction == 'in' else 'remote'} port"))
         if not prog.get("hidden"):
             out += location_findings(json.loads(prog.get("info") or "{}"), program)
-        for check in self.extra_checks:
-            out += check(pair, ctx)
+        for check in self.extra:
+            out += check.findings(pair, ctx)
         for f in out:
             f["at"] = now
         score = min(100.0, round(sum(f["points"] for f in out), 1))
@@ -421,12 +426,23 @@ class Scorer:
                "prevalence": {r["ip"]: (r["n"], r["c"]) for r in self.store.query(
                    "SELECT ip, COUNT(DISTINCT program) n, SUM(connections) c FROM pairs"
                    " GROUP BY ip")}}
+        for check in self.extra:
+            check.prepare(ctx)
         rules = self.allowlist.rules()
         results = []
         for key, conns in self.pairs(now).items():
             pair, score, findings = self.score_pair(key, conns, ctx)
             rule = self.allowlist.match(pair, rules)
             results.append((pair, score, findings, rule))
+        # One alert per program, address and direction: a listed server reached on
+        # several ports is one thing to investigate, not several.
+        groups = {}
+        for pair, score, findings, rule in results:
+            if score >= self.threshold and not rule:
+                key = alert_fingerprint(pair)
+                if key not in groups or score > groups[key][1]:
+                    groups[key] = (pair, score, findings, groups.get(key, (0, 0, 0, []))[3])
+                groups[key][3].append(f"{pair['proto']}/{pair['port']}")
         new_alerts = 0
         st = self.store
         with st.lock, st.db:
@@ -440,27 +456,27 @@ class Scorer:
                     "INSERT INTO scores VALUES(?,?,?,?,?,?,?,?,?)",
                     (pair["program"], pair["ip"], pair["port"], pair["proto"], pair["direction"],
                      score, json.dumps(findings), allow, now))
-                if score >= self.threshold and not rule:
-                    new_alerts += self._raise(pair, score, findings, now, ctx)
+            for pair, score, findings, ports in groups.values():
+                new_alerts += self._raise(pair, score, findings, sorted(set(ports)), now, ctx)
         self.store.set_meta("last_scored_at", now)
         self.last_run = now
-        return {"pairs": len(results), "new_alerts": new_alerts,
-                "alerting": sum(1 for _, s, _, r in results if s >= self.threshold and not r)}
+        return {"pairs": len(results), "new_alerts": new_alerts, "alerting": len(groups)}
 
-    def _raise(self, pair, score, findings, now, ctx):
+    def _raise(self, pair, score, findings, ports, now, ctx):
         db = self.store.db
-        fp = "|".join(str(pair[k]) for k in RULE_FIELDS)
+        fp = alert_fingerprint(pair)
         row = db.execute("SELECT id, peak_score FROM alerts WHERE fingerprint=?", (fp,)).fetchone()
         if row:
             db.execute("UPDATE alerts SET score=?, peak_score=MAX(peak_score, ?), findings=?,"
-                       " last_updated=? WHERE id=?",
-                       (score, score, json.dumps(findings), now, row["id"]))
+                       " port=?, proto=?, ports=?, last_updated=? WHERE id=?",
+                       (score, score, json.dumps(findings), pair["port"], pair["proto"],
+                        json.dumps(ports), now, row["id"]))
             return 0
         cur = db.execute(
-            "INSERT INTO alerts(fingerprint,program,ip,port,proto,direction,score,peak_score,"
-            "findings,status,first_raised,last_updated) VALUES(?,?,?,?,?,?,?,?,?,'open',?,?)",
+            "INSERT INTO alerts(fingerprint,program,ip,port,proto,direction,ports,score,peak_score,"
+            "findings,status,first_raised,last_updated) VALUES(?,?,?,?,?,?,?,?,?,?,'open',?,?)",
             (fp, pair["program"], pair["ip"], pair["port"], pair["proto"], pair["direction"],
-             score, score, json.dumps(findings), now, now))
+             json.dumps(ports), score, score, json.dumps(findings), now, now))
         name = (ctx["programs"].get(pair["program"]) or {}).get("name", pair["program"])
         arrow = "←" if pair["direction"] == "in" else "→"
         top = max(findings, key=lambda f: f["points"])["reason"]

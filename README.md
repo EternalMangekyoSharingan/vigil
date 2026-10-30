@@ -5,7 +5,8 @@ talking to, and which program) and, later, a **File Inspector** (what would this
 do). The plan is in [docs/SPEC.md](docs/SPEC.md); what has been built so far, with test
 results and known limits, is in [docs/PROGRESS.md](docs/PROGRESS.md).
 
-Status: build steps 1 (Network Map core) and 2 (network scoring) are done.
+Status: build steps 1 (Network Map core), 2 (network scoring) and 3 (enrichment) are
+done.
 
 ## Run it
 
@@ -25,6 +26,10 @@ For a one-off look in the terminal, with no database and no web server:
 python3 -m vigil snapshot          # current connections and their programs
 python3 -m vigil snapshot --all    # include listening sockets
 python3 -m vigil snapshot --json   # everything the collector sees, as JSON
+python3 -m vigil lookup 203.0.113.9          # offline: owner, country, feed listings
+python3 -m vigil update-feeds                # download abuse.ch feeds (network, on request)
+python3 -m vigil update-geo                  # download the country/ASN database (network)
+python3 -m vigil update-geo --file ip2asn-combined.tsv.gz   # or load one you downloaded
 ```
 
 ## What you see
@@ -86,6 +91,9 @@ Vigil dates each close to about 10 ms even if it never saw the connection open. 
 beacon whose check-ins last milliseconds is still caught. It shows as "Closed
 before attribution", because by then no process owns the socket.
 
+There is one alert per program, address and direction. If a server is reached on
+several ports, the alert lists them all and shows the highest-scoring port's findings.
+
 **Allowlist.** Known-good periodic traffic is allowlisted, not alerted on.
 Allowlisted pairs are still scored and shown, with the rule's reason. Built-in
 rules cover loopback, NTP, DNS to a LAN resolver, mDNS, NetworkManager's
@@ -94,6 +102,36 @@ APT). They match the real executable path from `/proc`, so a copy named
 `NetworkManager` in `/tmp` does not match. Add your own rules with "Allowlist…"
 (a reason is required), or edit `data/allowlist.json`. Built-in rules can be
 switched off.
+
+## Threat feeds and country/ASN (Intel tab)
+
+Vigil enriches addresses from **local copies** of public data and downloads them
+**only when you ask**: the Intel tab's buttons, or `update-feeds` / `update-geo`.
+Nothing is fetched automatically, and lookups never leave the machine. A download
+is a plain GET of a public list: the source sees your public IP and that you fetched
+it, nothing about your traffic.
+
+| Source | What it adds | Points when matched |
+| --- | --- | --- |
+| abuse.ch Feodo Tracker | botnet C2 server addresses | 80 (alerts on its own) |
+| abuse.ch SSLBL | botnet C2 servers seen over TLS | 80 |
+| abuse.ch URLhaus | servers hosting malware (by URL host) | 60 |
+| IPtoASN (public domain) | network owner (ASN), country and range for every address | 10 for the first connection to a new country |
+
+Each finding names the feed, its download time, entry count and SHA-256, and warns
+when the feed is more than 7 days old. The raw downloaded files are kept in
+`data/feeds/`. If a download fails or the format is unrecognised, the previous data
+stays in use and the error is shown. abuse.ch may require a free Auth-Key
+(<https://auth.abuse.ch/>): set `VIGIL_ABUSECH_KEY` or add `"abusech_auth_key"` to
+`data/settings.json`. It is sent only to abuse.ch hosts. To use a mirror or an
+air-gapped copy, point any source at another URL, including `file://`:
+
+```json
+{"sources": {"feodo": "file:///srv/mirror/ipblocklist.json", "geo": "https://mirror.example/ip2asn-combined.tsv.gz"}}
+```
+
+Country names come from the `iso-codes` package when installed (most desktops have
+it); otherwise two-letter codes are shown.
 
 ## What Vigil can't see without root, and says so
 
@@ -121,7 +159,10 @@ not visible. Missing `/proc/net/tcp6` (IPv6 disabled) is reported, not an error.
   them. Pages are served with a strict Content-Security-Policy.
 - Monitoring is read-only: Vigil only reads `/proc`. It changes no firewall, route, DNS
   or kernel setting and never signals processes.
-- No network calls. Nothing about your traffic leaves the machine.
+- No network calls, except the feed and database downloads you trigger. Nothing about
+  your traffic leaves the machine. A test checks that `urlopen` appears in exactly
+  one function, and another runs a full poll, score and lookup with networking
+  patched to fail.
 - The evidence store (`data/vigil.db`) is created in a directory only you can read.
 
 ## Tests
@@ -143,6 +184,7 @@ opens a socket pair and checks the collector attributes it to the test process.
 vigil/collector.py   read-only /proc parser: sockets, processes, what is hidden
 vigil/store.py       SQLite evidence store; tracker turning polls into history
 vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
+vigil/enrich.py      threat feeds and country/ASN database (download on request)
 vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph

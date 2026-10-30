@@ -193,3 +193,100 @@ known limitations, and decisions made without asking.
   apply.
 - Byte counts are the last poll's values before a close, so slightly low. UDP has no
   byte counts.
+
+## Step 3: Enrichment (2026-10-30)
+
+### What was built
+- `vigil/enrich.py`:
+  - **Threat feeds**: abuse.ch Feodo Tracker (JSON, with a CSV fallback), SSLBL (CSV)
+    and URLhaus `csv_online` (URL hosts, IPs and domains). Downloads happen only in
+    `update_feeds()`, which is called only by the Intel tab's button (a POST that
+    needs the custom header) or `python3 -m vigil update-feeds`. Each update keeps
+    the raw file (`data/feeds/<name>.dat`), records its SHA-256 and entry count, and
+    replaces that feed's rows in one transaction. If a download or parse fails, the
+    previous data is kept and the error is shown. There is a 128 MB download cap,
+    and the abuse.ch Auth-Key is optional and sent only to abuse.ch hosts.
+  - **Country/ASN**: IPtoASN `ip2asn-combined.tsv.gz` (public domain). It is
+    imported into a separate `data/geo.db`, built beside the old one and swapped in
+    atomically. Lookups are one indexed query on 16-byte big-endian keys (IPv4
+    mapped into `::ffff:0:0/96`). "Not routed" rows are dropped. `update-geo --file`
+    loads a local copy. Country names come from `iso-codes` when installed, with
+    codes as the fallback.
+  - **Scoring hooks**: a feed hit is a `threat_intel` finding (Feodo/SSLBL 80,
+    URLhaus 60) naming the feed, the listed malware, port agreement, the listing
+    date, the feed's download time, entries and SHA-256, and staleness (> 7 days). A
+    `rare_country` finding (10) marks the first connection to a country after the
+    baseline. A country's first contact is the earliest first-seen of its
+    destinations, so installing the database later doesn't make every country "new".
+- Scorer: further checks now plug in as objects with `prepare(ctx)` and
+  `findings(pair, ctx)`.
+- **Alerts are now one per program × address × direction** (a step-2 behaviour,
+  changed here). They list every port involved, and the highest-scoring port's
+  findings are shown. Reason below.
+- API: `/api/intel` (status), `/api/intel/update` (the only network path),
+  `/api/lookup?ip=`. The map's destinations carry an owner label and a "listed"
+  chip.
+- UI: Intel tab (per-source status, errors, SHA-256, licence, "Update now" buttons,
+  a plain statement of what a download reveals, and an offline lookup box) and a
+  "Who is this" section in the destination panel.
+- CLI: `update-feeds [feed…]`, `update-geo [--file]`, `lookup IP`.
+- Friendlier start-up: if the port is taken, Vigil says so and exits before opening
+  the database or starting the poller.
+
+### Test results
+- 80 tests, all passing on Python 3.13.17 and 3.11.17. New: 17 enrichment tests
+  and 3 API tests.
+- Parsers on synthetic files in each source's published format
+  (`tests/fixtures/feeds`, labelled synthetic). Documentation addresses and RFC 5398
+  ASNs are used throughout. The Feodo JSON and CSV variants parse to the same
+  records, invalid rows are skipped, and an HTML login page parses to nothing.
+- Download path against a local HTTP server on 127.0.0.1: User-Agent set, no
+  Auth-Key sent to non-abuse.ch hosts (and sent to abuse.ch when configured), HTTP
+  404 and unrecognised content keep the previous data, size cap enforced.
+- Geo: gzip and plain import, inclusive range ends, gaps, dropped "Not routed",
+  IPv6, a bad file that keeps the old database, the country-name fallback.
+- Scoring: a Feodo-listed address alone scores 80 and alerts. A URLhaus host gets
+  "2 URLs, e.g. …" and a stale-feed note. The first contact to a new country is
+  flagged, and a country seen at baseline is not.
+- **No-network guarantee**: a static test that `urlopen` appears in exactly one
+  function (`enrich.fetch`), and a full App poll, score, graph, destination and
+  lookup cycle with `urlopen` and `socket.create_connection` patched to fail.
+- Cross-site protection: a POST to `/api/intel/update` without the custom header is
+  refused, and the update function is never called.
+- In the container: the Intel tab's buttons were pressed in headless Chromium, with
+  the sources pointed at `file://` scratch files (no network). The feed imported
+  and missing sources showed readable errors. The map's destination panel showed
+  owner, country and range, and the CLI `lookup` worked. No console errors.
+
+### Decisions made without asking
+- **I did not download the real feeds or database** from this container. CLAUDE.md
+  allows only network calls you trigger. The parsers follow the published formats
+  as I know them, and are tolerant and loud when a format doesn't match ("no
+  indicators recognised; the feed format may have changed (previous data kept)").
+  **The first real "Update" on your PC is the first contact with the live formats.**
+- **Alert grouping changed.** In a scratch check (loopback rule switched off and a
+  synthetic feed listing 127.0.0.1), one listed address produced 124 alerts: one
+  per port, mostly my own test suites' throwaway loopback servers. That was a
+  scratch artefact, since loopback is allowlisted by default. But it showed that
+  per-port alerts fan out. One alert per program × address × direction is closer to
+  "few alerts", and scores are still kept per port.
+- Feed points: Feodo/SSLBL 80 (alerts alone: "a hit turns a guess into a lead"),
+  URLhaus 60 (it lists hosts that served malware, which includes compromised shared
+  hosts, so it needs a second signal).
+- IPtoASN over MaxMind (needs an account and licence key) and DB-IP (two files, CC-BY
+  attribution). One public-domain file gives range, ASN, country and owner.
+- No reverse DNS: it would send every address to your resolver.
+
+### Unsure about
+- abuse.ch has been moving its services to authenticated access. I don't know
+  whether the bulk download URLs used here need an Auth-Key as of today. If they do,
+  the error message says where to get one.
+- SSLBL's IP blacklist may be deprecated by abuse.ch. If its URL stops working,
+  that feed shows an error and the others carry on.
+
+### Known limitations
+- URLhaus domain hosts are stored but not yet matched against connections (Vigil
+  sees IPs, not names, until the DNS view in v2). They will be used for File
+  Inspector IOCs in step 4.
+- The country/ASN database is about 0.5 M ranges and takes a few seconds to import.
+  Lookups are cached only by SQLite's page cache.

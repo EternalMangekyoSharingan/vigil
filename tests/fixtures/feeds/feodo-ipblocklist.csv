@@ -1,0 +1,7 @@
+################################################################
+# SYNTHETIC test data in the format of the Feodo Tracker CSV   #
+################################################################
+# "first_seen_utc","dst_ip","dst_port","c2_status","last_online","malware"
+"2026-10-01 10:00:00","198.51.100.20","4444","online","2026-10-29","SyntheticBot"
+"2026-09-01 10:00:00","203.0.113.66","443","offline","2026-10-01","ExampleLoader"
+# END 2 entries

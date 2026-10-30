@@ -1,5 +1,6 @@
 """Local web UI and JSON API, plus the background poller. Listens on 127.0.0.1 only."""
 
+import ipaddress
 import json
 import re
 import sys
@@ -10,7 +11,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import collector, scoring
+from . import collector, enrich, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"  # never configurable: Vigil is not a network service
@@ -75,6 +76,8 @@ class App:
         self.tracker = Tracker(self.store)
         self.allowlist = scoring.Allowlist(str(self.data_dir / "allowlist.json"))
         self.scorer = scoring.Scorer(self.store, self.allowlist, interval)
+        self.enricher = enrich.Enricher(self.store, self.data_dir)
+        self.scorer.extra.append(self.enricher)
         self.monitor = Monitor(self.tracker, interval, proc_root, scorer=self.scorer)
         if start_monitor:
             self.monitor.start()
@@ -122,13 +125,43 @@ class App:
     def api_graph(self, q):
         window = int(q.get("window", "900"))
         scopes = [s for s in q.get("scopes", "internet,lan").split(",") if s in SCOPE_NAMES]
-        return self.tracker.graph(window=window, scopes=scopes)
+        g = self.tracker.graph(window=window, scopes=scopes)
+        for d in g["destinations"]:
+            d["label"] = self.enricher.label(d["ip"])
+            d["intel"] = sorted({h["feed"] for h in self.enricher.intel(d["ip"])})
+        return g
 
     def api_program(self, q):
         return self.tracker.program_detail(q.get("key", "")) or _not_found()
 
     def api_destination(self, q):
-        return self.tracker.destination_detail(q.get("ip", "")) or _not_found()
+        d = self.tracker.destination_detail(q.get("ip", "")) or _not_found()
+        d["enrichment"] = self.enricher.describe(d["ip"])
+        return d
+
+    def api_intel_status(self, q):
+        return self.enricher.status()
+
+    def api_intel_update(self, q, body, headers):
+        """Downloads happen here and only here: the user pressed an update button."""
+        what = _json_body(body).get("what")
+        if what == "feeds":
+            results = self.enricher.update_feeds()
+        elif what == "geo":
+            results = [self.enricher.update_geo()]
+        else:
+            raise BadRequest("what must be feeds or geo")
+        self.scorer.run()
+        return {"results": results, "status": self.enricher.status()}
+
+    def api_lookup(self, q):
+        """Everything Vigil knows offline about one address."""
+        try:
+            ip = str(ipaddress.ip_address(q.get("ip", "").strip()))
+        except ValueError:
+            raise BadRequest("not an IP address")
+        return {"ip": ip, "scope": collector.scope_of(ip), **self.enricher.describe(ip),
+                "seen": self.tracker.destination_detail(ip)}
 
     def api_listeners(self, q):
         return {"listeners": self.tracker.listeners()}
@@ -141,6 +174,7 @@ class App:
             f" {where} ORDER BY a.status='open' DESC, a.score DESC, a.last_updated DESC", args)
         for r in rows:
             r["findings"] = json.loads(r["findings"])
+            r["ports"] = json.loads(r["ports"] or "[]")
         return {"alerts": rows, "threshold": self.scorer.threshold}
 
     def api_alert_update(self, q, body, headers):
@@ -196,6 +230,9 @@ class App:
             ("POST", "/api/allowlist"): self.api_allowlist_add,
             ("DELETE", "/api/allowlist"): self.api_allowlist_remove,
             ("POST", "/api/allowlist/enable"): self.api_allowlist_enable,
+            ("GET", "/api/intel"): self.api_intel_status,
+            ("POST", "/api/intel/update"): self.api_intel_update,
+            ("GET", "/api/lookup"): self.api_lookup,
         }
 
 
@@ -322,8 +359,12 @@ def make_server(app, port=8765, verbose=False, max_body=100 * 1024 * 1024):
 
 
 def serve(data_dir, port=8765, interval=2.0, verbose=False):
-    app = App(data_dir, interval)
-    httpd = make_server(app, port, verbose)
+    try:
+        httpd = make_server(None, port, verbose)
+    except OSError as exc:
+        sys.exit(f"Cannot listen on {HOST}:{port}: {exc.strerror}. Is Vigil already running? "
+                 f"Choose another port with --port.")
+    app = httpd.app = App(data_dir, interval)
     print(f"Vigil is watching. Open http://{HOST}:{httpd.server_address[1]}/  (Ctrl+C to stop)")
     print(f"Evidence store: {app.store.path}")
     try:

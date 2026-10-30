@@ -283,3 +283,12 @@ ul.findings .src { color: var(--faint); font-family: var(--mono); font-size: 11p
   .split { flex-direction: column; }
   .split > .side { width: auto; border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* ---- intel ---- */
+.feed { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.feed:last-of-type { border-bottom: 0; }
+.src { color: var(--faint); font-size: 11px; font-family: var(--mono); word-break: break-all; margin-top: 2px; }
+.lookup { display: flex; gap: 8px; margin: 8px 0 12px; }
+.lookup input { flex: 1; font-family: var(--mono); }
+.split .main h2 { margin-top: 12px; font-size: 15px; }
+.split .side h2 { font-size: 15px; margin: 0 0 4px; }

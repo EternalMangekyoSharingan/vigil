@@ -213,7 +213,7 @@ export class NetworkMap {
     for (const x of L.dests) {
       const chips = [];
       if (x.score >= CHIP_MIN_SCORE) chips.push(scoreChip(x.score, this.status));
-      if (x.intel) chips.push({ text: "intel", cls: "danger" });
+      if (x.intel?.length) chips.push({ text: "listed", cls: "danger", title: `On threat feed: ${x.intel.join(", ")}` });
       if (x.live) chips.push({ text: `${x.live} live`, cls: "live" });
       if (x.programs > 1) chips.push({ text: `${x.programs} prog` });
       if (x.first_seen > baseline && now - x.first_seen < 86400) chips.push({ text: "new", cls: "new" });
@@ -362,10 +362,34 @@ export class NetworkMap {
     }
   }
 
+  // Offline context for an address: owner, country, and any threat-feed listings.
+  renderEnrichment(p, en) {
+    if (!en) return;
+    p.append(el("h3", { text: "Who is this" }));
+    for (const h of en.intel || []) {
+      p.append(el("div", { class: "note danger" },
+        el("strong", { text: `${h.title}: ` }), `${h.label} (${h.kind === "url" ? h.indicator : `listed${h.port ? ` on port ${h.port}` : ""}`})`,
+        el("div", { class: "src", text: `${h.feed} feed downloaded ${fmtClock(h.fetched_at)}${h.first_seen ? ` · listed since ${h.first_seen}` : ""}${h.reference ? ` · ${h.reference}` : ""}` })));
+    }
+    const g = en.geo;
+    if (g) {
+      p.append(kv([
+        ["Owner", `AS${g.asn} ${g.owner || ""}`],
+        ["Country", g.country ? `${g.country_name} (${g.country})` : "unknown"],
+        ["Range", g.range, "mono"],
+      ]));
+      p.append(el("p", { class: "faint", text: "From the offline IPtoASN database. Nothing was looked up online." }));
+    } else {
+      p.append(el("p", { class: "faint", text: "No owner or country: the address is private or unrouted, or the country/ASN database has not been downloaded (Intel tab)." }));
+    }
+    if (!(en.intel || []).length) p.append(el("p", { class: "faint", text: "Not listed in the downloaded threat feeds." }));
+  }
+
   renderDest(p, d) {
     const scope = d.label || SCOPE_TEXT[d.scope] || d.scope;
     p.append(el("h2", { class: "mono", text: d.ip }), el("div", { class: "kind", text: `Destination · ${scope}` }));
     this.renderFindings(p, d);
+    this.renderEnrichment(p, d.enrichment);
     p.append(kv([
       ["Scope", scope],
       ["First seen", fmtClock(d.first_seen)],

@@ -51,7 +51,7 @@ export class AlertsView {
           el("span", { class: `score ${cls}`, text: Math.round(a.score) }),
           el("span", { class: "card-title", text: pairTitle(a) }),
           el("span", { class: `tag ${a.status === "open" ? "danger" : ""}`, text: a.status })),
-        el("div", { class: "card-meta", text: `Alert #${a.id} · raised ${fmtClock(a.first_raised)} · updated ${fmtClock(a.last_updated)} · peak ${Math.round(a.peak_score)}${a.hidden ? " · program not attributable" : ""}` }),
+        el("div", { class: "card-meta", text: `Alert #${a.id} · raised ${fmtClock(a.first_raised)} · updated ${fmtClock(a.last_updated)} · peak ${Math.round(a.peak_score)}${a.ports.length > 1 ? ` · ports ${a.ports.join(", ")} (findings shown for the highest-scoring)` : ""}${a.hidden ? " · program not attributable" : ""}` }),
         a.note ? el("div", { class: "note", text: `Analyst note: ${a.note}` }) : null,
         findingList(a.findings));
       const actions = el("div", { class: "actions" },

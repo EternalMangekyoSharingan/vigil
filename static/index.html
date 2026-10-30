@@ -14,6 +14,7 @@
   <nav class="tabs" id="tabs">
     <button type="button" data-tab="network" class="active">Network Map</button>
     <button type="button" data-tab="alerts">Alerts<span class="count" id="alert-count" hidden></span></button>
+    <button type="button" data-tab="intel">Intel</button>
   </nav>
   <div class="status" id="status" aria-live="polite"></div>
 </header>
@@ -59,6 +60,21 @@
     <div class="split">
       <div class="main" id="alert-list"></div>
       <aside class="side" id="allowlist"></aside>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-intel">
+    <div class="split">
+      <div class="main" id="intel-body"></div>
+      <aside class="side">
+        <h2>Look up an address</h2>
+        <p class="muted">Offline: owner, country, feed listings and this PC's history with it.</p>
+        <div class="lookup">
+          <input type="text" id="lookup-ip" placeholder="e.g. 203.0.113.9" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn primary" id="lookup-go">Look up</button>
+        </div>
+        <div id="lookup-result"></div>
+      </aside>
     </div>
   </section>
 </main>

@@ -1,0 +1,8 @@
+################################################################
+# SYNTHETIC test data in the format of URLhaus csv_online      #
+################################################################
+# id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
+"1","2026-10-29 10:00:00","http://198.51.100.77/bins/x.sh","online","2026-10-30 10:00:00","malware_download","elf,synthetic","https://urlhaus.abuse.ch/url/1/","test"
+"2","2026-10-29 11:00:00","http://198.51.100.77:8080/y.exe","online","2026-10-30 10:00:00","malware_download","exe,synthetic","https://urlhaus.abuse.ch/url/2/","test"
+"3","2026-10-29 12:00:00","https://malware.example/payload.bin","online","2026-10-30 10:00:00","malware_download","synthetic","https://urlhaus.abuse.ch/url/3/","test"
+"4","2026-10-29 13:00:00","not a url","online","","malware_download","","",""

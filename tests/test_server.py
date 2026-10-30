@@ -5,6 +5,7 @@ import json
 import tempfile
 import threading
 import unittest
+import unittest.mock
 
 from vigil import server
 from .helpers import make_proc
@@ -145,7 +146,7 @@ class ServerTests(unittest.TestCase):
         with st.lock, st.db:
             cur = st.db.execute(
                 "INSERT INTO alerts(fingerprint,program,ip,port,proto,direction,score,peak_score,"
-                "findings,status,first_raised,last_updated) VALUES('t|1.2.3.4|1|tcp|out',"
+                "findings,status,first_raised,last_updated) VALUES('t|1.2.3.4|out',"
                 "'/usr/lib/firefox/firefox','1.2.3.4',1,'tcp','out',80,80,'[]','open',1,1)")
             aid = cur.lastrowid
         self.assertIn(aid, {a["id"] for a in self.get_json("/api/alerts")["alerts"]})
@@ -166,6 +167,26 @@ class ServerTests(unittest.TestCase):
         s = self.get_json("/api/status")
         self.assertEqual(s["alert_threshold"], 70)
         self.assertIsNotNone(s["last_scored_at"])
+
+    def test_intel_endpoints(self):
+        st = self.get_json("/api/intel")
+        self.assertEqual([f["name"] for f in st["feeds"]], ["feodo", "sslbl", "urlhaus"])
+        self.assertIsNone(st["feeds"][0]["status"])  # never downloaded: nothing is automatic
+        res, _ = self.request("GET", "/api/lookup?ip=nope")
+        self.assertEqual(res.status, 400)
+        found = self.get_json("/api/lookup?ip=198.51.100.30")
+        self.assertEqual(found["scope"], "reserved")
+        self.assertEqual(found["intel"], [])
+        self.assertIsNotNone(found["seen"])  # the fixture's firefox talked to it
+        self.assertIsNone(self.get_json("/api/lookup?ip=192.0.2.200")["seen"])
+
+    def test_downloads_cannot_be_triggered_cross_site(self):
+        with unittest.mock.patch.object(self.app.enricher, "update_feeds") as upd:
+            res, _ = self.write("POST", "/api/intel/update", {"what": "feeds"}, **{"X-Vigil": None})
+            self.assertEqual(res.status, 403)
+            res, _ = self.write("POST", "/api/intel/update", {"what": "everything"})
+            self.assertEqual(res.status, 400)
+            upd.assert_not_called()
 
     def test_unknown_routes(self):
         res, _ = self.request("POST", "/api/nothing", body=b"{}",

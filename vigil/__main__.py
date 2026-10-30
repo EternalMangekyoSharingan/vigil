@@ -42,7 +42,68 @@ def cmd_snapshot(args):
         print(f"  not present on this kernel: {', '.join(snap['missing_tables'])}")
 
 
-COMMANDS = ("serve", "snapshot")
+def _offline(args):
+    from .enrich import Enricher
+    from .store import Store
+    Path(args.data).mkdir(parents=True, exist_ok=True, mode=0o700)
+    store = Store(str(Path(args.data) / "vigil.db"))
+    return store, Enricher(store, args.data)
+
+
+def _report(results):
+    for r in results:
+        if r["ok"]:
+            size = f"{r['entries']} indicators" if "entries" in r else f"{r['ranges']} ranges"
+            print(f"  {r['name']:8} ok      {size}")
+        else:
+            print(f"  {r['name']:8} FAILED  {r['error']}")
+    return 0 if all(r["ok"] for r in results) else 1
+
+
+def cmd_update_feeds(args):
+    """Download the abuse.ch feeds. This is a network call, made because you asked."""
+    from .enrich import FEEDS
+    unknown = sorted(set(args.feed) - set(FEEDS))
+    if unknown:
+        sys.exit(f"unknown feed {', '.join(unknown)}; choose from {', '.join(FEEDS)}")
+    store, enricher = _offline(args)
+    print("Downloading threat feeds (public lists; nothing about your traffic is sent)…")
+    code = _report(enricher.update_feeds(args.feed or None))
+    store.close()
+    sys.exit(code)
+
+
+def cmd_update_geo(args):
+    store, enricher = _offline(args)
+    if args.file:
+        print(f"Loading country/ASN database from {args.file}…")
+    else:
+        print("Downloading the IPtoASN country/ASN database (public, ~7 MB)…")
+    code = _report([enricher.update_geo(path=args.file)])
+    store.close()
+    sys.exit(code)
+
+
+def cmd_lookup(args):
+    """What Vigil knows about an address, offline."""
+    store, enricher = _offline(args)
+    info = enricher.describe(args.ip)
+    print(f"{args.ip}  ({collector.scope_of(args.ip)})")
+    g = info["geo"]
+    if g:
+        print(f"  owner    AS{g['asn']} {g['owner']}")
+        print(f"  country  {g['country_name']} ({g['country']})" if g["country"] else "  country  unknown")
+        print(f"  range    {g['range']}")
+    else:
+        print("  owner    not in the country/ASN database (run update-geo, or the address is not routed)")
+    for h in info["intel"]:
+        print(f"  intel    {h['title']}: {h['label']} ({h['indicator']})")
+    if not info["intel"]:
+        print("  intel    not listed in the downloaded feeds")
+    store.close()
+
+
+COMMANDS = ("serve", "snapshot", "update-feeds", "update-geo", "lookup")
 
 
 def main(argv=None):
@@ -64,6 +125,17 @@ def main(argv=None):
     n.add_argument("--all", action="store_true", help="include listening sockets")
     n.add_argument("--proc", default="/proc", help=argparse.SUPPRESS)
     n.set_defaults(func=cmd_snapshot)
+    f = sub.add_parser("update-feeds", parents=[common],
+                       help="download abuse.ch threat feeds now (network)")
+    f.add_argument("feed", nargs="*", help="feodo, sslbl and/or urlhaus (default: all)")
+    f.set_defaults(func=cmd_update_feeds)
+    g = sub.add_parser("update-geo", parents=[common],
+                       help="download the IPtoASN country/ASN database now (network)")
+    g.add_argument("--file", help="load a downloaded ip2asn-combined.tsv(.gz) instead")
+    g.set_defaults(func=cmd_update_geo)
+    lk = sub.add_parser("lookup", parents=[common], help="offline: owner, country, intel for an IP")
+    lk.add_argument("ip")
+    lk.set_defaults(func=cmd_lookup)
     args = p.parse_args(argv)
     args.func(args)
 

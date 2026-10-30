@@ -1,0 +1,9 @@
+[
+  {"ip_address": "198.51.100.20", "port": 4444, "status": "online", "hostname": null,
+   "as_number": 64500, "as_name": "SYNTHETIC-DOC-NET-A", "country": "NL",
+   "first_seen": "2026-10-01 10:00:00", "last_online": "2026-10-29", "malware": "SyntheticBot"},
+  {"ip_address": "203.0.113.66", "port": 443, "status": "offline", "hostname": null,
+   "as_number": 64501, "as_name": "SYNTHETIC-DOC-NET-B", "country": "DE",
+   "first_seen": "2026-09-01 10:00:00", "last_online": "2026-10-01", "malware": "ExampleLoader"},
+  {"ip_address": "not-an-ip", "port": 1, "malware": "skipped: invalid address"}
+]

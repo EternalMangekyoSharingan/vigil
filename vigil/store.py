@@ -48,15 +48,25 @@ CREATE TABLE IF NOT EXISTS scores(
 CREATE TABLE IF NOT EXISTS alerts(
   id INTEGER PRIMARY KEY, fingerprint TEXT UNIQUE NOT NULL, program TEXT NOT NULL,
   ip TEXT NOT NULL, port INTEGER NOT NULL, proto TEXT NOT NULL, direction TEXT NOT NULL,
-  score REAL NOT NULL, peak_score REAL NOT NULL, findings TEXT NOT NULL,
+  ports TEXT, score REAL NOT NULL, peak_score REAL NOT NULL, findings TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open', note TEXT, first_raised REAL NOT NULL,
   last_updated REAL NOT NULL);
+-- Threat-intel feeds (enrich.py). host is the IP or hostname an indicator points at.
+CREATE TABLE IF NOT EXISTS feeds(
+  name TEXT PRIMARY KEY, url TEXT, fetched_at REAL, attempted_at REAL, entries INTEGER,
+  sha256 TEXT, file TEXT, status TEXT, error TEXT);
+CREATE TABLE IF NOT EXISTS intel(
+  feed TEXT NOT NULL, kind TEXT NOT NULL, indicator TEXT NOT NULL, host TEXT, port INTEGER,
+  label TEXT, first_seen TEXT, last_seen TEXT, status TEXT, reference TEXT);
+CREATE INDEX IF NOT EXISTS intel_host ON intel(host);
+CREATE INDEX IF NOT EXISTS intel_indicator ON intel(indicator);
 """
 
 # Columns added after a table first shipped: (table, column, declaration).
 ADDED_COLUMNS = (
     ("connections", "bytes_sent", "INTEGER"),
     ("connections", "bytes_recv", "INTEGER"),
+    ("alerts", "ports", "TEXT"),
 )
 
 
@@ -471,7 +481,7 @@ class Tracker:
         rows = self.store.query(
             f"SELECT s.*, p.name, a.id alert_id, a.status alert_status FROM scores s"
             f" JOIN programs p ON p.key = s.program LEFT JOIN alerts a ON a.fingerprint ="
-            f" s.program || '|' || s.ip || '|' || s.port || '|' || s.proto || '|' || s.direction"
+            f" s.program || '|' || s.ip || '|' || s.direction"
             f" WHERE {col}=? AND s.score > 0 ORDER BY s.score DESC LIMIT 50", (arg,))
         for r in rows:
             r["findings"] = json.loads(r["findings"])
