@@ -103,3 +103,57 @@ export function eventList(items, labels = {}) {
       el("div", { class: "sum", text: e.summary }),
       e.source ? el("div", { class: "src", text: e.source }) : null)));
 }
+
+// ---- scores and allowlist (shared by the map and the alerts view) -------------
+
+export function scoreClass(score, threshold = 70) {
+  return score >= threshold ? "danger" : score >= threshold / 2 ? "warn" : "";
+}
+
+export function pairTitle(r) {
+  const ep = r.ip.includes(":") ? `[${r.ip}]:${r.port}` : `${r.ip}:${r.port}`;
+  return r.direction === "in"
+    ? `${r.name || r.program} ← ${r.proto} ${ep} (inbound)`
+    : `${r.name || r.program} → ${r.proto} ${ep}`;
+}
+
+// Each finding: its points, the plain reason, and which check and data produced it.
+export function findingList(findings) {
+  return el("ul", { class: "findings" }, [...findings].sort((a, b) => b.points - a.points).map((f) =>
+    el("li", {},
+      el("span", { class: "pts", text: `+${Math.round(f.points)}` }),
+      el("div", {},
+        el("div", { text: f.reason }),
+        el("div", { class: "src", text: `${f.check} · ${f.data} · ${fmtClock(f.at)}` })))));
+}
+
+// Inline form that turns a scored pair into an allowlist rule. The reason is required.
+export function allowlistForm(pair, onDone) {
+  const field = (label, input) => el("label", {}, el("span", { text: label }), input);
+  const program = el("input", { type: "text", value: pair.program });
+  const ip = el("input", { type: "text", value: pair.ip });
+  const port = el("input", { type: "text", value: String(pair.port) });
+  const reason = el("input", { type: "text", placeholder: "Why is this expected? (required)" });
+  const msg = el("div", { class: "form-msg" });
+  const box = el("div", { class: "allow-form" },
+    el("p", { class: "faint", text: "Allowlisted traffic is still scored and shown, but never alerts. Use * to widen a field; program patterns match the real executable path." }),
+    field("Program", program), field("Address", ip), field("Port", port), field("Reason", reason),
+    el("div", { class: "actions" },
+      el("button", {
+        type: "button", class: "btn primary", text: "Add rule",
+        onclick: async () => {
+          try {
+            await api.send("POST", "/api/allowlist", {
+              program: program.value.trim(), ip: ip.value.trim(), port: port.value.trim() === "*" ? null : port.value.trim(),
+              proto: pair.proto, direction: pair.direction, reason: reason.value.trim(),
+            });
+            onDone?.();
+          } catch (e) {
+            msg.textContent = e.message;
+          }
+        },
+      }),
+      el("button", { type: "button", class: "btn", text: "Cancel", onclick: () => box.remove() })),
+    msg);
+  return box;
+}

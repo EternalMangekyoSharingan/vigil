@@ -2,8 +2,10 @@
 
 import os
 import socket
+import struct
 import sys
 import tempfile
+import time
 import unittest
 
 from vigil import collector
@@ -62,6 +64,9 @@ class ParseTableTests(unittest.TestCase):
                          ("0.0.0.0", 22, "LISTEN", "listen"))
         tw = [r for r in rows if r["state"] == "TIME_WAIT"][0]
         self.assertEqual((tw["inode"], tw["uid"], tw["kind"]), (0, 0, "connection"))
+        # Timer 03 with 0xFA0 ticks left of the fixed 60 s: closed 20 s ago at 100 Hz.
+        self.assertAlmostEqual(tw["closed_ago"], 60 - 0xFA0 / os.sysconf("SC_CLK_TCK"))
+        self.assertNotIn("closed_ago", rows[2])  # only TIME_WAIT sockets carry it
         syn = [r for r in rows if r["inode"] == 2009][0]
         self.assertEqual((syn["state"], syn["remote_ip"], syn["remote_port"]),
                          ("SYN_SENT", "198.51.100.20", 4444))
@@ -71,6 +76,54 @@ class ParseTableTests(unittest.TestCase):
         rows = collector.parse_table(text, "udp", "little")
         self.assertEqual([(r["state"], r["kind"]) for r in rows],
                          [("UNCONN", "listen"), ("ESTABLISHED", "connection")])
+
+
+class NetlinkTests(unittest.TestCase):
+    @staticmethod
+    def diag_message(inode, acked, received, info_len=232):
+        msg = bytearray(72)
+        struct.pack_into("=I", msg, 68, inode)
+        other = struct.pack("=HH", 8, 9) + b"\x00" * 4           # an unrelated attribute
+        info = bytearray(info_len)
+        if info_len >= 136:  # kernels before 4.2 send a tcp_info without the byte counters
+            struct.pack_into("=QQ", info, 120, acked, received)
+        attr = struct.pack("=HH", 4 + info_len, 2) + bytes(info)  # INET_DIAG_INFO
+        body = bytes(msg) + other + attr
+        return struct.pack("=IHHII", 16 + len(body), 20, 2, 1, 0) + body
+
+    def test_parse_synthetic_dump(self):
+        done_msg = struct.pack("=IHHII", 20, 3, 2, 1, 0) + b"\x00" * 4
+        data = self.diag_message(4069, 1001, 250) + self.diag_message(4070, 5, 6) + done_msg
+        counts, done = collector.parse_diag(data)
+        self.assertTrue(done)
+        self.assertEqual(counts, {4069: (1001, 250), 4070: (5, 6)})
+
+    def test_old_kernel_without_byte_counters(self):
+        counts, done = collector.parse_diag(self.diag_message(1, 2, 3, info_len=104))
+        self.assertEqual(counts, {})
+        self.assertFalse(done)
+
+    @unittest.skipUnless(collector.tcp_byte_counts() is not None, "sock_diag netlink unavailable")
+    def test_live_byte_counts(self):
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+        client = socket.create_connection(server.getsockname())
+        peer, _ = server.accept()
+        try:
+            client.sendall(b"x" * 1000)
+            got = 0
+            while got < 1000:
+                got += len(peer.recv(4096))
+            peer.sendall(b"y" * 250)
+            client.recv(4096)
+            time.sleep(0.05)
+            counts = collector.tcp_byte_counts()
+            inode = os.fstat(peer.fileno()).st_ino
+            self.assertEqual(counts[inode], (250, 1000))
+        finally:
+            for s in (client, peer, server):
+                s.close()
 
 
 class IdentityTests(unittest.TestCase):

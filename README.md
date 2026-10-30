@@ -5,7 +5,7 @@ talking to, and which program) and, later, a **File Inspector** (what would this
 do). The plan is in [docs/SPEC.md](docs/SPEC.md); what has been built so far, with test
 results and known limits, is in [docs/PROGRESS.md](docs/PROGRESS.md).
 
-Status: build step 1 (Network Map core) is done.
+Status: build steps 1 (Network Map core) and 2 (network scoring) are done.
 
 ## Run it
 
@@ -45,6 +45,55 @@ python3 -m vigil snapshot --json   # everything the collector sees, as JSON
   recorded as the baseline, so "new" means new since Vigil started watching.
 - **Listening sockets** and their exposure (all interfaces, one interface, this
   machine only).
+
+## Scores and alerts
+
+Every 30 seconds Vigil scores each *pair* (one program, one address, one service
+port, one direction) over the last 24 hours. A score is the sum of findings. Each
+finding shows its points, a plain reason, the check that produced it and the data
+it used. For example:
+
+```
++45  Periodic: every 60 s ± 3% (coefficient of variation 0.03 over 18 check-ins)
++25  Runs from /tmp/.x/agent: a world-writable temporary directory
++20  This program made its first outbound connection at 13:02:11
++15  New destination: first contacted at 13:02:11, after Vigil's baseline
++10  tcp/4444 is not a common service port
+```
+
+| Check | Points | Notes |
+| --- | --- | --- |
+| Beacon regularity | up to 45 | Coefficient of variation of connection start intervals; full points at ≤ 0.05, none at ≥ 0.35. Check-ins missed between polls are recognised as multiples of the period. Needs ≥ 6 check-ins. |
+| Beacon persistence | up to 10 | How many check-ins were seen. |
+| Beacon size consistency | up to 10 | Byte counts per connection from `sock_diag` netlink (the interface `ss` uses, no root needed). |
+| Long connection | 15–30 | Starts at 1 hour (as in RITA), full at 8 hours. |
+| New destination | 15 | First contacted after the baseline, within 24 hours. |
+| New program | 20 | Program's first outbound connection after the baseline, within 24 hours. |
+| Rare destination | 5 | Internet address only this program ever contacted, at most 5 times. |
+| Uncommon port | 10 | Not a well-known service port. |
+| Runs from /tmp, /var/tmp, /dev/shm | 25 | From `/proc/<pid>/exe`, or the script path for interpreters. |
+| Runs from a hidden directory | 10 | Common tool directories (`~/.local`, `~/.cargo`, …) excepted. |
+| Executable deleted while running | 10 | Normal right after an upgrade; said so in the reason. |
+
+An **alert** is raised at **70**. A beacon alone scores at most 65, on purpose:
+updaters and sync clients poll on timers too, so an alert needs a second signal.
+Alerts appear in the Alerts tab, can be dismissed with a note, and are never
+duplicated.
+
+Short-lived connections that polling misses are not lost. Linux keeps a closed TCP
+connection in `TIME_WAIT` for exactly 60 s and `/proc` shows the time left, so
+Vigil dates each close to about 10 ms even if it never saw the connection open. A
+beacon whose check-ins last milliseconds is still caught. It shows as "Closed
+before attribution", because by then no process owns the socket.
+
+**Allowlist.** Known-good periodic traffic is allowlisted, not alerted on.
+Allowlisted pairs are still scored and shown, with the rule's reason. Built-in
+rules cover loopback, NTP, DNS to a LAN resolver, mDNS, NetworkManager's
+connectivity check, time daemons and system updaters (PackageKit, snapd, fwupd,
+APT). They match the real executable path from `/proc`, so a copy named
+`NetworkManager` in `/tmp` does not match. Add your own rules with "Allowlist…"
+(a reason is required), or edit `data/allowlist.json`. Built-in rules can be
+switched off.
 
 ## What Vigil can't see without root, and says so
 
@@ -93,6 +142,7 @@ opens a socket pair and checks the collector attributes it to the test process.
 ```
 vigil/collector.py   read-only /proc parser: sockets, processes, what is hidden
 vigil/store.py       SQLite evidence store; tracker turning polls into history
+vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
 vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph

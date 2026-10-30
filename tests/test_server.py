@@ -111,6 +111,62 @@ class ServerTests(unittest.TestCase):
             self.assertFalse(res.will_close)
         conn.close()
 
+    def write(self, method, path, payload, **extra):
+        headers = {"X-Vigil": "1", "Content-Type": "application/json",
+                   "Origin": f"http://127.0.0.1:{self.port}"}
+        headers.update(extra)
+        headers = {k: v for k, v in headers.items() if v is not None}
+        return self.request(method, path, body=json.dumps(payload).encode(), headers=headers)
+
+    def test_writes_need_the_vigil_page(self):
+        rule = {"program": "/usr/bin/x", "port": 4444, "reason": "test"}
+        res, _ = self.write("POST", "/api/allowlist", rule, **{"X-Vigil": None})
+        self.assertEqual(res.status, 403)  # a plain cross-site form post has no custom header
+        res, _ = self.write("POST", "/api/allowlist", rule, Origin="http://evil.example")
+        self.assertEqual(res.status, 403)
+        res, _ = self.write("POST", "/api/allowlist", {"program": "x"})
+        self.assertEqual(res.status, 400)  # no reason given
+
+    def test_allowlist_round_trip(self):
+        res, data = self.write("POST", "/api/allowlist",
+                               {"program": "/usr/bin/x", "port": 4444, "reason": "test rule"})
+        self.assertEqual(res.status, 200, data)
+        rid = json.loads(data)["rule"]["id"]
+        rules = self.get_json("/api/allowlist")["rules"]
+        self.assertIn(rid, {r["id"] for r in rules})
+        self.assertIn("builtin-ntp", {r["id"] for r in rules})
+        res, _ = self.write("DELETE", f"/api/allowlist?id={rid}", {})
+        self.assertEqual(res.status, 200)
+        res, _ = self.write("DELETE", f"/api/allowlist?id={rid}", {})
+        self.assertEqual(res.status, 404)
+
+    def test_alert_dismissal(self):
+        st = self.app.store
+        with st.lock, st.db:
+            cur = st.db.execute(
+                "INSERT INTO alerts(fingerprint,program,ip,port,proto,direction,score,peak_score,"
+                "findings,status,first_raised,last_updated) VALUES('t|1.2.3.4|1|tcp|out',"
+                "'/usr/lib/firefox/firefox','1.2.3.4',1,'tcp','out',80,80,'[]','open',1,1)")
+            aid = cur.lastrowid
+        self.assertIn(aid, {a["id"] for a in self.get_json("/api/alerts")["alerts"]})
+        res, _ = self.write("POST", "/api/alerts/update", {"id": aid, "status": "nope"})
+        self.assertEqual(res.status, 400)
+        res, _ = self.write("POST", "/api/alerts/update", {"id": 999999, "status": "dismissed"})
+        self.assertEqual(res.status, 404)
+        res, _ = self.write("POST", "/api/alerts/update",
+                            {"id": aid, "status": "dismissed", "note": "my backup job"})
+        self.assertEqual(res.status, 200)
+        self.assertNotIn(aid, {a["id"] for a in self.get_json("/api/alerts")["alerts"]})
+        dismissed = self.get_json("/api/alerts?status=dismissed")["alerts"]
+        self.assertEqual(dismissed[0]["note"], "my backup job")
+        ev = st.one("SELECT * FROM events WHERE kind='alert_status'")
+        self.assertEqual(ev["source"], "analyst (Vigil UI)")
+
+    def test_status_reports_scoring(self):
+        s = self.get_json("/api/status")
+        self.assertEqual(s["alert_threshold"], 70)
+        self.assertIsNotNone(s["last_scored_at"])
+
     def test_unknown_routes(self):
         res, _ = self.request("POST", "/api/nothing", body=b"{}",
                               headers={"X-Vigil": "1", "Content-Type": "application/json"})

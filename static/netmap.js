@@ -1,10 +1,13 @@
 // Network Map: programs (left) -> destinations (right), live and recent edges,
 // and a side panel listing the selected node's events.
-import { api, el, svg, clear, fmtClock, fmtAgo, fmtDur, truncate, kv, eventList } from "./ui.js";
+import { api, el, svg, clear, fmtClock, fmtAgo, fmtDur, truncate, kv, eventList,
+  scoreClass, pairTitle, findingList, allowlistForm } from "./ui.js";
 
 const NODE_W = 260, NODE_H = 52, GAP = 10, PAD = 20, TOP = 44, MIN_MID = 200;
 const LABEL_ALL_MAX = 24; // above this many edges, labels show only for the selection
-const EVENT_LABELS = { open: "opened", close: "closed", first_seen: "first seen", listen: "listening" };
+const CHIP_MIN_SCORE = 20; // smaller scores are listed in the panel but get no chip on the map
+const EVENT_LABELS = { open: "opened", close: "closed", first_seen: "first seen", listen: "listening",
+  alert: "alert", alert_status: "analyst" };
 const SCOPE_TEXT = {
   internet: "public internet", lan: "local network (private range)", loopback: "this machine (loopback)",
   "link-local": "link-local", multicast: "multicast", reserved: "reserved range",
@@ -189,7 +192,7 @@ export class NetworkMap {
 
     for (const p of L.programs) {
       const chips = [];
-      if (p.score) chips.push(scoreChip(p.score, this.status));
+      if (p.score >= CHIP_MIN_SCORE) chips.push(scoreChip(p.score, this.status));
       if (p.live) chips.push({ text: `${p.live} live`, cls: "live" });
       chips.push({ text: `${p.destinations} dst` });
       if (!p.hidden && p.first_outbound && p.first_outbound > baseline && now - p.first_outbound < 86400) {
@@ -209,7 +212,7 @@ export class NetworkMap {
     }
     for (const x of L.dests) {
       const chips = [];
-      if (x.score) chips.push(scoreChip(x.score, this.status));
+      if (x.score >= CHIP_MIN_SCORE) chips.push(scoreChip(x.score, this.status));
       if (x.intel) chips.push({ text: "intel", cls: "danger" });
       if (x.live) chips.push({ text: `${x.live} live`, cls: "live" });
       if (x.programs > 1) chips.push({ text: `${x.programs} prog` });
@@ -262,6 +265,7 @@ export class NetworkMap {
       data = { error: e.message };
     }
     if (this.selected !== sel) return; // selection changed while loading
+    if (this.panel.querySelector(".allow-form")) return; // don't wipe a form being filled in
     const sig = JSON.stringify(data);
     if (sig === this.panelSig) return; // unchanged: keep the scroll position
     this.panelSig = sig;
@@ -282,7 +286,7 @@ export class NetworkMap {
     if (info.exe_deleted) tags.push(el("span", { class: "tag warn", text: "executable deleted", title: "The file this process runs from was deleted or replaced. Normal right after a package upgrade; unusual otherwise." }));
     p.append(el("h2", { text: d.name }), el("div", { class: "kind" }, d.hidden ? "Unattributed sockets" : "Program", tags));
     if (d.hidden) p.append(el("div", { class: "note warn", text: info.explanation }));
-    this.renderFindings?.(p, d);
+    this.renderFindings(p, d);
     const chain = (info.ancestry || []).slice().reverse().map((a) => `${a.name} (${a.pid})`);
     if (!d.hidden) chain.push(`${d.name} (${info.pid})`);
     p.append(kv([
@@ -312,11 +316,56 @@ export class NetworkMap {
     p.append(el("h3", { text: "Events" }), eventList(d.timeline, EVENT_LABELS));
   }
 
+  // Scored pairs for the selected node: verdict first, evidence underneath.
+  renderFindings(p, d) {
+    const rows = d.findings || [];
+    if (!rows.length) return;
+    const thr = this.status?.alert_threshold ?? 70;
+    p.append(el("h3", { text: "Scores" }));
+    for (const r of rows) {
+      const cls = r.allowlisted ? "" : scoreClass(r.score, thr);
+      const tags = [];
+      if (r.alert_id) {
+        tags.push(el("span", { class: `tag ${r.alert_status === "open" ? "danger" : ""}`, text: `alert ${r.alert_status}` }));
+      }
+      if (r.allowlisted) tags.push(el("span", { class: "tag", text: "allowlisted", title: r.allowlisted.reason }));
+      const card = el("div", { class: `card ${cls}` },
+        el("div", { class: "card-head" },
+          el("span", { class: `score ${cls}`, text: Math.round(r.score), title: `Score out of 100; alerts at ${thr}` }),
+          el("span", { class: "card-title", text: pairTitle(r) }), tags));
+      if (r.allowlisted) {
+        card.append(el("div", { class: "card-meta", text: `Allowlist rule ${r.allowlisted.id} (${r.allowlisted.source}): ${r.allowlisted.reason}` }));
+      }
+      card.append(findingList(r.findings));
+      const actions = el("div", { class: "actions" });
+      const reload = () => { this.panelSig = ""; this.loadNode(); };
+      if (!r.allowlisted) {
+        actions.append(el("button", {
+          type: "button", class: "btn", text: "Allowlist…",
+          onclick: () => { if (!card.querySelector(".allow-form")) card.append(allowlistForm(r, () => { card.querySelector(".allow-form")?.remove(); reload(); })); },
+        }));
+      }
+      if (r.alert_id) {
+        const reopen = r.alert_status !== "open";
+        actions.append(el("button", {
+          type: "button", class: "btn", text: reopen ? "Reopen alert" : "Dismiss alert…",
+          onclick: async () => {
+            const note = reopen ? "" : window.prompt("Why dismiss? (kept with the alert)", "");
+            if (note === null) return;
+            await api.send("POST", "/api/alerts/update", { id: r.alert_id, status: reopen ? "open" : "dismissed", note });
+            reload();
+          },
+        }));
+      }
+      card.append(actions);
+      p.append(card);
+    }
+  }
+
   renderDest(p, d) {
     const scope = d.label || SCOPE_TEXT[d.scope] || d.scope;
     p.append(el("h2", { class: "mono", text: d.ip }), el("div", { class: "kind", text: `Destination · ${scope}` }));
-    this.renderFindings?.(p, d);
-    this.renderEnrichment?.(p, d);
+    this.renderFindings(p, d);
     p.append(kv([
       ["Scope", scope],
       ["First seen", fmtClock(d.first_seen)],

@@ -10,7 +10,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import collector
+from . import collector, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"  # never configurable: Vigil is not a network service
@@ -26,10 +26,12 @@ SCOPE_NAMES = ("internet", "lan", "loopback", "link-local", "multicast", "reserv
 class Monitor(threading.Thread):
     """Polls /proc every `interval` seconds and feeds the tracker."""
 
-    def __init__(self, tracker, interval=2.0, proc_root="/proc", keep_days=14):
+    def __init__(self, tracker, interval=2.0, proc_root="/proc", keep_days=14, scorer=None,
+                 score_every=30.0):
         super().__init__(name="vigil-monitor", daemon=True)
         self.tracker, self.interval, self.proc_root = tracker, interval, proc_root
         self.keep_days = keep_days
+        self.scorer, self.score_every = scorer, score_every
         self.stopping = threading.Event()
         self.last_poll = self.last_duration = self.last_error = None
         self.last_stats = {}
@@ -42,6 +44,9 @@ class Monitor(threading.Thread):
         self.last_stats = self.tracker.ingest(snap)
         self.last_poll, self.last_duration = started, time.time() - started
         self.polls += 1
+        if self.scorer and (self.scorer.last_run is None or
+                            started - self.scorer.last_run >= self.score_every):
+            self.scorer.run(started)
         if started - self._last_prune > 3600:
             self.tracker.store.prune(started, self.keep_days)
             self._last_prune = started
@@ -68,7 +73,9 @@ class App:
         self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.store = Store(str(self.data_dir / "vigil.db"))
         self.tracker = Tracker(self.store)
-        self.monitor = Monitor(self.tracker, interval, proc_root)
+        self.allowlist = scoring.Allowlist(str(self.data_dir / "allowlist.json"))
+        self.scorer = scoring.Scorer(self.store, self.allowlist, interval)
+        self.monitor = Monitor(self.tracker, interval, proc_root, scorer=self.scorer)
         if start_monitor:
             self.monitor.start()
 
@@ -79,7 +86,11 @@ class App:
         status = {"now": time.time(), "interval": m.interval, "polls": m.polls,
                   "last_poll": m.last_poll, "last_duration": m.last_duration,
                   "last_error": m.last_error, "db": str(self.store.path),
-                  "baseline_at": self.store.get_meta("baseline_at")}
+                  "baseline_at": self.store.get_meta("baseline_at"),
+                  "alert_threshold": self.scorer.threshold,
+                  "last_scored_at": self.store.get_meta("last_scored_at"),
+                  "alerts_open": self.store.one("SELECT COUNT(*) n FROM alerts"
+                                                " WHERE status='open'")["n"]}
         if snap:
             # Loopback-to-loopback sockets never leave the machine (and include the UI's
             # own requests), so they are counted apart from the ones that matter.
@@ -97,6 +108,7 @@ class App:
             hidden = [{"reason": r, "count": n, "label": collector.HIDDEN_LABELS[r],
                        "explanation": examples[r]} for r, n in sorted(hidden.items())]
             status.update({
+                "byte_counts": snap.get("byte_counts", False),
                 "loopback_hidden": loopback_hidden,
                 "viewer": snap["viewer"], "pids_visible": snap["pids_visible"],
                 "sockets": len(snap["sockets"]),
@@ -121,6 +133,56 @@ class App:
     def api_listeners(self, q):
         return {"listeners": self.tracker.listeners()}
 
+    def api_alerts(self, q):
+        status = q.get("status", "open")
+        where, args = ("", ()) if status == "all" else ("WHERE a.status=?", (status,))
+        rows = self.store.query(
+            f"SELECT a.*, p.name, p.hidden FROM alerts a LEFT JOIN programs p ON p.key=a.program"
+            f" {where} ORDER BY a.status='open' DESC, a.score DESC, a.last_updated DESC", args)
+        for r in rows:
+            r["findings"] = json.loads(r["findings"])
+        return {"alerts": rows, "threshold": self.scorer.threshold}
+
+    def api_alert_update(self, q, body, headers):
+        req = _json_body(body)
+        status = req.get("status")
+        if status not in ("open", "dismissed"):
+            raise BadRequest("status must be open or dismissed")
+        alert = self.store.one("SELECT * FROM alerts WHERE id=?", (int(req.get("id", 0)),))
+        if not alert:
+            raise NotFound()
+        note = str(req.get("note") or "")[:2000]
+        now = time.time()
+        with self.store.lock, self.store.db:
+            self.store.db.execute("UPDATE alerts SET status=?, note=?, last_updated=? WHERE id=?",
+                                  (status, note, now, alert["id"]))
+            self.store._event(now, "alert_status",
+                              f"Alert #{alert['id']} marked {status}" + (f": {note}" if note else ""),
+                              "analyst (Vigil UI)", program=alert["program"], ip=alert["ip"],
+                              port=alert["port"], proto=alert["proto"],
+                              detail={"alert_id": alert["id"], "status": status})
+        return {"ok": True}
+
+    def api_allowlist(self, q):
+        return {"rules": self.allowlist.rules()}
+
+    def api_allowlist_add(self, q, body, headers):
+        rule = self.allowlist.add(_json_body(body))
+        self.scorer.run()  # so the map and alerts reflect the rule immediately
+        return {"rule": rule}
+
+    def api_allowlist_enable(self, q, body, headers):
+        if not self.allowlist.enable(str(_json_body(body).get("id", ""))):
+            raise NotFound()
+        self.scorer.run()
+        return {"ok": True}
+
+    def api_allowlist_remove(self, q, body, headers):
+        if not self.allowlist.remove(q.get("id", "")):
+            raise NotFound()
+        self.scorer.run()
+        return {"ok": True}
+
     def routes(self):
         return {
             ("GET", "/api/status"): self.api_status,
@@ -128,6 +190,12 @@ class App:
             ("GET", "/api/program"): self.api_program,
             ("GET", "/api/destination"): self.api_destination,
             ("GET", "/api/listeners"): self.api_listeners,
+            ("GET", "/api/alerts"): self.api_alerts,
+            ("POST", "/api/alerts/update"): self.api_alert_update,
+            ("GET", "/api/allowlist"): self.api_allowlist,
+            ("POST", "/api/allowlist"): self.api_allowlist_add,
+            ("DELETE", "/api/allowlist"): self.api_allowlist_remove,
+            ("POST", "/api/allowlist/enable"): self.api_allowlist_enable,
         }
 
 
@@ -141,6 +209,16 @@ class BadRequest(Exception):
 
 def _not_found():
     raise NotFound()
+
+
+def _json_body(body):
+    try:
+        data = json.loads(body or b"{}")
+    except ValueError:
+        raise BadRequest("body must be JSON")
+    if not isinstance(data, dict):
+        raise BadRequest("body must be a JSON object")
+    return data
 
 
 class Handler(BaseHTTPRequestHandler):

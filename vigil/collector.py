@@ -12,6 +12,8 @@ import ipaddress
 import os
 import pwd
 import re
+import socket
+import struct
 import sys
 import time
 from functools import lru_cache
@@ -25,6 +27,11 @@ TCP_STATES = {
 }
 # UDP has no handshake; the kernel reuses two TCP codes for it.
 UDP_STATES = {0x01: "ESTABLISHED", 0x07: "UNCONN"}
+
+# Linux keeps a closed TCP connection in TIME_WAIT for a fixed 60 s (TCP_TIMEWAIT_LEN),
+# and /proc prints the time left. That dates the close even if we never saw it open.
+TIME_WAIT_SECONDS = 60
+CLK_TCK = os.sysconf("SC_CLK_TCK")
 
 INTERPRETER = re.compile(
     r"^(python|perl|ruby|node|nodejs|java|php|lua|bash|sh|dash|zsh|ksh|fish|pwsh|deno|bun)[\d.]*$")
@@ -92,8 +99,10 @@ def parse_table(text, table, byteorder=sys.byteorder):
             lip, lport = decode_address(f[1], byteorder)
             rip, rport = decode_address(f[2], byteorder)
             st = int(f[3], 16)
+            timer, _, when = f[5].partition(":")
             uid = int(f[7])
             inode = int(f[9])
+            timer, when = int(timer, 16), int(when, 16)
         except ValueError:
             continue
         state = states.get(st, f"0x{st:02X}")
@@ -101,12 +110,81 @@ def parse_table(text, table, byteorder=sys.byteorder):
             kind = "listen"
         else:
             kind = "connection"
-        sockets.append({
+        sock = {
             "table": table, "proto": proto, "local_ip": lip, "local_port": lport,
             "remote_ip": rip, "remote_port": rport, "state": state, "uid": uid,
             "inode": inode, "kind": kind,
-        })
+        }
+        if state == "TIME_WAIT" and timer == 3:  # seconds since the program closed it
+            left = min(when / CLK_TCK, TIME_WAIT_SECONDS)
+            sock["closed_ago"] = TIME_WAIT_SECONDS - left
+        sockets.append(sock)
     return sockets
+
+
+# ---- byte counts through sock_diag netlink (no root needed) --------------------
+
+NETLINK_SOCK_DIAG = 4
+SOCK_DIAG_BY_FAMILY = 20
+NLM_F_REQUEST, NLM_F_DUMP = 0x1, 0x300
+NLMSG_ERROR, NLMSG_DONE = 2, 3
+INET_DIAG_INFO = 2
+TCPI_BYTES_OFFSET = 120  # tcpi_bytes_acked, then tcpi_bytes_received (u64 each)
+
+
+def parse_diag(data):
+    """Parse one netlink datagram of inet_diag replies.
+
+    Returns ({inode: (bytes_sent, bytes_received)}, done). bytes_sent is
+    tcpi_bytes_acked: bytes the peer acknowledged.
+    """
+    out, off, done = {}, 0, False
+    while off + 16 <= len(data):
+        length, kind = struct.unpack_from("=IH", data, off)
+        if length < 16 or kind in (NLMSG_DONE, NLMSG_ERROR):
+            done = True
+            break
+        msg = data[off + 16:off + length]
+        if len(msg) >= 72:
+            inode = struct.unpack_from("=I", msg, 68)[0]
+            a = 72
+            while a + 4 <= len(msg):
+                alen, atype = struct.unpack_from("=HH", msg, a)
+                if alen < 4:
+                    break
+                if atype == INET_DIAG_INFO and alen - 4 >= TCPI_BYTES_OFFSET + 16:
+                    out[inode] = struct.unpack_from("=QQ", msg, a + 4 + TCPI_BYTES_OFFSET)
+                a += (alen + 3) & ~3
+        off += (length + 3) & ~3
+    return out, done
+
+
+def tcp_byte_counts():
+    """Bytes sent and received per TCP socket inode, for every user's sockets.
+
+    Uses the same unprivileged netlink interface as `ss -ti`. Returns None where
+    netlink is unavailable (non-Linux, or blocked by a sandbox).
+    """
+    try:
+        nl = socket.socket(socket.AF_NETLINK, socket.SOCK_DGRAM, NETLINK_SOCK_DIAG)
+    except (OSError, AttributeError):
+        return None
+    counts = {}
+    with nl:
+        nl.settimeout(2.0)
+        try:
+            for seq, family in enumerate((socket.AF_INET, socket.AF_INET6), 1):
+                req = struct.pack("=BBBBI", family, socket.IPPROTO_TCP,
+                                  1 << (INET_DIAG_INFO - 1), 0, 0xFFFFFFFF) + bytes(48)
+                nl.send(struct.pack("=IHHII", 16 + len(req), SOCK_DIAG_BY_FAMILY,
+                                    NLM_F_REQUEST | NLM_F_DUMP, seq, 0) + req)
+                done = False
+                while not done:
+                    part, done = parse_diag(nl.recv(1 << 18))
+                    counts.update(part)
+        except OSError:
+            return counts or None
+    return counts
 
 
 @lru_cache(maxsize=256)
@@ -314,6 +392,12 @@ def snapshot(proc_root="/proc", now=None, viewer_uid=None):
         x["direction"] = ("in" if x["kind"] == "connection" and
                           (x["proto"], x["local_port"]) in listening else "out")
 
+    byte_counts = tcp_byte_counts() if proc_root == "/proc" else None
+    if byte_counts:
+        for x in sockets:
+            if x["proto"] == "tcp" and x["inode"] in byte_counts:
+                x["bytes_sent"], x["bytes_recv"] = byte_counts[x["inode"]]
+
     pids, owners, unreadable = scan_fds(proc_root)
     unreadable_by_uid = {}
     for pid in unreadable:
@@ -359,5 +443,6 @@ def snapshot(proc_root="/proc", now=None, viewer_uid=None):
         "unreadable_by_uid": unreadable_by_uid,
         "hidden_counts": hidden_counts,
         "missing_tables": missing,
+        "byte_counts": byte_counts is not None,
         "hidepid": hidepid_option() if proc_root == "/proc" else None,
     }

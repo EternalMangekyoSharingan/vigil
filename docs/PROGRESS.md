@@ -95,3 +95,101 @@ known limitations, and decisions made without asking.
 ### Unsure about
 - The default window (15 min) and poll interval (2 s) are guesses. They are easy to
   change in the UI and with `--interval`.
+
+## Step 2: Network scoring (2026-10-30)
+
+### What was built
+- `vigil/scoring.py`: per-pair scores (program → address → service port →
+  direction) over the last 24 h. Each finding records points, a plain-language
+  reason, the check, the data used and when it was computed. Checks:
+  - beacon regularity (coefficient of variation of start intervals), persistence and
+    data-size consistency;
+  - long connection (≥ 1 h);
+  - new destination and new program (after the baseline, within 24 h);
+  - rare destination;
+  - uncommon port;
+  - process location (`/tmp`, `/var/tmp`, `/dev/shm`, hidden directories, deleted
+    executable).
+- Beacon details: starts within 1.5 poll intervals merge into one check-in. An
+  interval that is a whole multiple of the median counts as missed check-ins, not
+  jitter. A pair needs ≥ 6 check-ins and a median interval ≥ 3× the poll interval.
+- Alerts at score ≥ 70 for pairs no allowlist rule covers. They are deduplicated by
+  pair, keep their peak score, can be dismissed with a note (logged as an
+  analyst event), and are raised as an `alert` event on the timeline with the top
+  reason.
+- Allowlist: 11 built-in rules (loopback, NTP, DNS to LAN, mDNS, NetworkManager,
+  timesyncd, chrony, PackageKit, snapd, fwupd, APT), each with its reason. User
+  rules live in `data/allowlist.json` and need a reason. Built-ins can be switched
+  off and on. Program patterns match the real `/proc/<pid>/exe` path, so a renamed
+  copy elsewhere does not match. Allowlisted pairs are still scored and shown.
+- Collector: per-socket byte counts through `sock_diag` netlink (no root; the
+  interface `ss -ti` uses), parsed with `struct`. Each TIME_WAIT socket's
+  remaining timer gives how long ago the connection closed (Linux holds TIME_WAIT
+  for a fixed 60 s).
+- Tracker: connections seen only in TIME_WAIT are recorded once, already closed and
+  dated by the kernel timer. A tracked connection's close time is refined from its
+  TIME_WAIT tail. Byte counts are stored per connection. A small in-place
+  migration adds the new columns to step-1 databases (checked against a real
+  step-1 database).
+- UI: score chips (only for scores ≥ 20, so the map isn't dotted with small
+  numbers), red edges for alerting pairs, a "Scores" section in the side panel
+  (verdict first, findings underneath, Allowlist… / Dismiss actions), and an Alerts
+  tab with an open-alert count, filters and allowlist management.
+
+### Test results
+- 60 tests, all passing on Python 3.13.17 and 3.11.17. New: 20 scoring tests, 3
+  netlink tests, 5 API tests.
+- Synthetic histories (generated in the tests) for: a dropper in `/tmp` beaconing to
+  a new destination on port 4444 (alerts at 100 with five checks explained); NTP
+  from chronyd (scored > 40, allowlisted, no alert); a long-known program polling a
+  known destination (beacon only, below threshold); a beacon seen only in
+  TIME_WAIT (90 s period recovered exactly from the kernel timer); a 3 h SSH
+  session (long connection, no alert); a one-off internet destination (rarity); a
+  user rule suppressing an alert.
+- Statistics: perfect, jittered (±8%), missed check-ins, bursts, too-few/too-fast,
+  and random Poisson traffic (scores nothing).
+- Live netlink: a loopback pair's byte counts read back exactly (250 / 1000).
+- **Live end-to-end in the container**: a test beacon script in the scratchpad (under
+  `/tmp`) connected every 8 s to a loopback listener on port 4444. It ran in a
+  separate Vigil instance with the built-in loopback rule switched off, and nothing
+  left the machine. Vigil raised one alert, score 100, with: periodic every 8 s
+  (CV 0.00, 10 check-ins), runs from /tmp, first outbound connection, similar size
+  ≈ 501 B (real `sock_diag` counts), persistence. UI checked in headless Chromium:
+  the red edge, score chips, findings panel and Alerts tab, with no console errors.
+
+### Decisions made without asking
+- **A beacon alone cannot alert** (max 45+10+10 = 65 < 70). Updaters, sync clients
+  and telemetry poll on timers too. This is the main lever behind "few alerts, high
+  confidence".
+- **Weights** are in one table (`POINTS` in `scoring.py`). They are my judgement,
+  not tuned on real data.
+- **Rarity** counts only internet addresses that one program contacted at most 5
+  times. A beacon contacted 20 times is not rare, even from one program.
+- Loopback is excluded from the uncommon-port check and allowlisted by a built-in
+  rule (visible, and can be switched off).
+- External DNS (e.g. 8.8.8.8:53) is *not* allowlisted: DNS to an outside resolver is
+  scored like anything else.
+- Dismissed alerts stay dismissed even if the score changes. The current and peak
+  scores are kept.
+
+### Two test mistakes found and fixed (not weakened)
+- One scenario reused the baseline's long-lived connection for the "known
+  destination" beacon, so the scorer correctly reported a long connection too. The
+  scenario now uses a destination seen at baseline and then closed.
+- The dropper test expected "rarity", but 20 contacts is not rare by design. The
+  expectation was removed and a dedicated rarity test added.
+
+### Known limitations
+- Start times are measured to the poll interval (±2 s by default) unless a TIME_WAIT
+  timer dates the close. At a period that is a multiple of the poll interval, the
+  coefficient of variation is quantised (the live check showed "± 0%"). The data
+  line states the precision.
+- A beacon over one persistent connection (HTTP keep-alive, WebSocket) is one long
+  connection, not a series of starts. It shows up only through the long-connection
+  check. Watching periodic byte-count growth on one socket would catch it; that is
+  not done.
+- Connections seen only in TIME_WAIT can't be tied to a program ("Closed before
+  attribution"). Their timing is still scored, but process-based findings can't
+  apply.
+- Byte counts are the last poll's values before a close, so slightly low. UDP has no
+  byte counts.

@@ -1,10 +1,17 @@
 // App shell: tabs, the status line, and the refresh loop.
 import { api, el, clear, fmtClock } from "./ui.js";
 import { NetworkMap } from "./netmap.js";
+import { AlertsView } from "./alerts.js";
 
 const views = {
   network: new NetworkMap(document.getElementById("tab-network")),
 };
+views.alerts = new AlertsView(document.getElementById("tab-alerts"), {
+  onShowProgram: (key) => {
+    showTab("network");
+    views.network.select({ type: "program", id: key });
+  },
+});
 let active = "network";
 let status = null;
 
@@ -19,6 +26,10 @@ for (const b of document.querySelectorAll("#tabs button")) b.addEventListener("c
 function renderStatus() {
   const box = clear(document.getElementById("status"));
   if (!status) return;
+  const count = document.getElementById("alert-count");
+  count.hidden = !status.alerts_open;
+  count.textContent = status.alerts_open || "";
+  count.classList.toggle("hot", status.alerts_open > 0);
   const err = status.last_error;
   box.append(el("span", { title: err || "" },
     el("span", { class: `dot${err ? " err" : ""}` }),
