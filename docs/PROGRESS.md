@@ -408,3 +408,106 @@ known limitations, and decisions made without asking.
 - Domain extraction uses a curated TLD set, so a rare TLD can be missed and an odd
   dotted identifier (`System.IO`) can show up. Domains are informational (0 points
   unless a feed lists them).
+
+## Step 5: Cases and exports (2026-10-30)
+
+### What was built
+- `vigil/cases.py`:
+  - **Cases**: title, status (open / investigating / closed, with closed time),
+    tags, summary, notes, and an activity log that records every change, piece of
+    evidence, indicator toggle and note with its time.
+  - **Evidence**: alerts, programs, destinations and file reports, copied into the
+    case as snapshots when added. The case survives connection pruning and alert
+    deletion (tested).
+    - An alert snapshot carries its findings and the destination's enrichment.
+    - A program snapshot hashes the running executable through `/proc/<pid>/exe`
+      (bytes only, works for deleted binaries). If that isn't possible it says why.
+  - **Indicators**: derived from evidence and deduplicated with merged context, plus
+    manual entries with validation. Each can be excluded from exports. Removing
+    evidence removes the indicators that came only from it.
+- Exports:
+  - CSV with formula-injection guarding.
+  - STIX 2.1 bundle with identity, indicators (patterns for IPv4/IPv6, domain, URL,
+    e-mail and MD5/SHA-1/SHA-256, with quotes and backslashes escaped), notes and a
+    grouping. Deterministic UUIDv5 IDs, `malicious-activity` or `anomalous-activity`
+    indicator types, case tags as labels.
+  - Markdown report: evidence chain with every finding's check and data, indicator
+    table, merged timeline, notes, limits. **All** links in it are defanged.
+- API: `/api/cases`, `/api/case`, `/api/case/update`, `/api/case/note`,
+  `/api/case/item` (POST/DELETE), `/api/case/ioc`, `/api/case/ioc/exclude`, and
+  `/api/case/export?format=csv|stix|md` (download with a file name). The
+  dispatcher now turns unknown records into 404 and unexpected errors into a JSON
+  500 instead of a dropped connection.
+- UI: Cases tab (editable title, status, tags and summary, export buttons, evidence
+  cards with "Show live", the indicator table with export checkboxes and manual
+  entry, notes and activity). "Add to case…" sits on map panels, score cards, alert
+  cards and file reports, and can open a new case on the spot.
+
+### Test results
+- **117 tests, all passing on Python 3.13.17 and 3.11.17.** New: 11 case tests.
+- Lifecycle and audit log; validation (empty titles and notes, unknown status,
+  malformed indicators); duplicate evidence refused.
+- Evidence from the full pipeline (tracker → scorer → Feodo-listed alert; synthetic
+  macro document; benign LibreOffice document; program; destination): indicators,
+  malicious flags, merged context, removal.
+- **Live executable hash**: the test process's own `/proc/<pid>/exe` hashes to the
+  same SHA-256 as the Python binary on disk.
+- STIX: a structural validator (ID format and type, timestamps, required properties,
+  pattern shape, no dangling references, no empty labels) passes. Patterns are
+  checked exactly, including an escaped quote. IDs are stable across exports and the
+  bundle ID changes.
+- CSV: rows, UTC times, formula neutralised. Markdown: headings, defanging, escaping,
+  findings with provenance, notes, timeline.
+- API round trip including the cross-site refusal, 400/404 cases and export headers.
+- In the container, end to end in headless Chromium:
+  1. Upload the synthetic macro `.docm`, then "Add to case…" with a new case.
+  2. Add a real live destination (160.79.104.10) from the map's panel.
+  3. Add a note.
+  The three exports were then fetched over HTTP. The STIX bundle passed the
+  validator; the CSV had 5 indicator rows; the Markdown indicators were defanged. No
+  console errors.
+
+### Decisions made without asking
+- **Snapshots, not references.** Evidence is copied when added, so pruning (14 days)
+  or deleting an alert can't hollow out a case. The cost is a few kB per item.
+- **"Malicious" flag semantics.** At first I labelled it "listed", but file hashes
+  were flagged because of Vigil's own verdict, not a feed listing. It is now
+  "assessed malicious" (a feed listing, or a file judged Likely malicious), stated
+  in the CSV comment, the report and the UI tooltip.
+- **Defang everything in Markdown.** The first version defanged only the indicator
+  table; a test showed live URLs in finding snippets and feed references. Every
+  scheme URL and `www.` name in the report text is now defanged. CSV and STIX keep
+  raw values, because tools need them.
+- STIX `grouping` (context `suspicious-activity`) rather than `report`: a case is
+  ongoing, not a published report. No `observed-data` objects (indicators are what
+  downstream tools consume).
+- Program indicators: the executable's hashes and the addresses it contacted. The
+  executable *path* is kept in the snapshot and report but not exported as an
+  indicator (paths are weak and noisy).
+
+### Known limitations
+- No PDF report export (v2 in the spec), no MISP JSON or Suricata rules (v2).
+- Cases are single-user. Notes have no author field, since this is a personal lab.
+- The evidence snapshot is not re-hashed or signed. The case database is as
+  trustworthy as the `data/` directory's permissions (0700).
+
+## Where the build stops
+
+Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it
+needs sudo and a virtual machine set up on your PC (a hypervisor such as QEMU/KVM, a
+throwaway guest image, and an isolated network). Before starting it, it would help to
+know:
+- which hypervisor you have or are willing to install;
+- whether the guest should be Windows (for Office/PDF samples) or Linux;
+- what network the guest may reach (none, or a sinkhole on your PC).
+
+### GitHub
+This session could not push. It had no repository attached, and creating one from
+the container was refused by the session's GitHub proxy ("sessions are bound to their
+configured repositories"). Every step is committed on branch `claude/build-steps-1-5`
+(the starter is on `main`), and a git bundle of the full history was produced with
+the work. To get it onto GitHub, either:
+- create an empty `vigil` repo, attach it to a Claude Code session and ask for a
+  push; or
+- clone from the bundle and push yourself:
+  `git clone -b claude/build-steps-1-5 vigil.bundle vigil && cd vigil && git remote set-url origin git@github.com:<you>/vigil.git && git push -u origin claude/build-steps-1-5 main`.

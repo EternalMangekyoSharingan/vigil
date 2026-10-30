@@ -358,3 +358,15 @@ table.iocs td { word-break: break-all; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; }
 .dot.danger { background: var(--danger); }
 .dot.warn { background: var(--warn); }
+
+/* ---- cases ---- */
+.add-case { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.add-case input { width: 180px; }
+input.case-title { font-size: 17px; font-weight: 600; width: 100%; margin-top: 12px; background: transparent; border-color: transparent; }
+input.case-title:hover, input.case-title:focus { border-color: var(--line-2); background: var(--surface); }
+.case-meta { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.split textarea { width: 100%; font: inherit; resize: vertical; }
+.ioc-add { display: flex; gap: 6px; margin: 8px 0; flex-wrap: wrap; }
+.ioc-add input { flex: 1; min-width: 140px; font-family: var(--mono); font-size: 12px; }
+a.btn { text-decoration: none; display: inline-block; }
+.dot.live { background: var(--live); }

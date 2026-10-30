@@ -1,7 +1,7 @@
 // File Inspector: upload a file for static triage and read the verdict, the evidence
 // under it, and what the check cannot tell you. The file goes from this page to
 // Vigil on 127.0.0.1 only, is read in memory, and is never opened or run.
-import { api, el, clear, fmtClock, kv, findingList } from "./ui.js";
+import { api, el, clear, fmtClock, kv, findingList, addToCase } from "./ui.js";
 
 const VERDICT_CLASS = { "Likely malicious": "danger", "Suspicious": "warn" };
 
@@ -120,7 +120,7 @@ export class FilesView {
 
     box.append(el("h3", { text: "What this check cannot tell you" }),
       el("ul", { class: "limits" }, r.limits.map((l) => el("li", { text: l }))));
-    box.append(el("div", { class: "actions" }, el("button", {
+    box.append(el("div", { class: "actions" }, addToCase("inspection", r.id), el("button", {
       type: "button", class: "btn", text: "Delete this report",
       onclick: async () => {
         await api.send("DELETE", `/api/inspection?id=${r.id}`);

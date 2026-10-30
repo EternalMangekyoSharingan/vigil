@@ -157,3 +157,39 @@ export function allowlistForm(pair, onDone) {
     msg);
   return box;
 }
+
+// "Add to case…": a button that opens a small picker of open cases (or a new one).
+export function addToCase(kind, ref, onDone) {
+  const wrap = el("span", { class: "add-case" });
+  const open = async () => {
+    const { cases } = await api.get("/api/cases");
+    const live = cases.filter((c) => c.status !== "closed");
+    const sel = el("select", {},
+      live.map((c) => el("option", { value: c.id, text: `#${c.id} ${c.title}` })),
+      el("option", { value: "new", text: "New case…" }));
+    const title = el("input", { type: "text", placeholder: "New case title" });
+    if (live.length) title.hidden = true;
+    else sel.value = "new";
+    sel.addEventListener("change", () => { title.hidden = sel.value !== "new"; });
+    const msg = el("span", { class: "form-msg" });
+    const add = el("button", {
+      type: "button", class: "btn primary", text: "Add",
+      onclick: async () => {
+        try {
+          let id = sel.value;
+          if (id === "new") id = (await api.send("POST", "/api/cases", { title: title.value.trim() })).id;
+          await api.send("POST", "/api/case/item", { id: Number(id), kind, ref: String(ref) });
+          clear(wrap).append(el("span", { class: "tag live", text: `in case #${id}` }));
+          onDone?.(Number(id));
+        } catch (e) {
+          msg.textContent = e.message;
+        }
+      },
+    });
+    const cancel = el("button", { type: "button", class: "btn", text: "Cancel", onclick: () => clear(wrap).append(button) });
+    clear(wrap).append(sel, title, add, cancel, msg);
+  };
+  const button = el("button", { type: "button", class: "btn", text: "Add to case…", onclick: open });
+  wrap.append(button);
+  return wrap;
+}

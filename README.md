@@ -1,12 +1,14 @@
 # Vigil
 
 A personal blue-team lab for one Linux PC: a live **Network Map** (who is this PC
-talking to, and which program) and, later, a **File Inspector** (what would this file
-do). The plan is in [docs/SPEC.md](docs/SPEC.md); what has been built so far, with test
-results and known limits, is in [docs/PROGRESS.md](docs/PROGRESS.md).
+talking to, and which program) and a **File Inspector** (what would this file do),
+tied together by **cases** that export to the formats other tools read. The plan is in
+[docs/SPEC.md](docs/SPEC.md); what has been built, with test results, decisions and
+known limits, is in [docs/PROGRESS.md](docs/PROGRESS.md).
 
-Status: build steps 1–4 are done: Network Map core, network scoring, enrichment, and
-the File Inspector's static triage.
+Status: build steps 1–5 are done (Network Map core, network scoring, enrichment, File
+Inspector static triage, cases and exports). Step 6, the detonation VM, has not been
+started: it needs root and a virtual machine set up on your PC, so it waits for you.
 
 ## Run it
 
@@ -129,6 +131,35 @@ this check cannot tell you**.
 | Indicators | URLs, IPs, domains, e-mail addresses (and hashes in text), from raw bytes, UTF-16 strings, inflated streams, XML parts and macro source. Format namespaces (`schemas.openxmlformats.org`, …) and version strings are filtered out. Indicators are shown as text, never as links |
 | Context | indicators matched against the downloaded threat feeds, and addresses **this PC has actually connected to** (linked to the Network Map) |
 
+## Cases and exports (Cases tab)
+
+A case gathers one investigation: its evidence, the indicators in that evidence,
+your notes, tags and a status (open → investigating → closed). Use **Add to case…**
+on an alert, on a program or destination in the map's side panel, or on a file
+report. Every change is kept in the case's activity log.
+
+- **Evidence is copied in when added** (a snapshot), with the time. The case keeps
+  what was seen even after old connections are pruned or an alert is deleted. Adding
+  a program also hashes its running executable through `/proc/<pid>/exe` (a byte
+  read; works even if the file was deleted), so the program becomes a file-hash
+  indicator.
+- **Indicators** are derived from the evidence (addresses, file hashes, and the URLs,
+  domains and addresses found in files). They are deduplicated, with every source
+  kept in the context. You can add your own, and untick any you don't want exported,
+  such as a font vendor's URL found inside a malicious PDF. "Malicious" means listed
+  by a downloaded feed, or taken from a file judged Likely malicious; the context
+  says which.
+- **Exports** (download buttons on the case):
+  - **CSV** of the indicators. Cells that a spreadsheet would read as formulas are
+    neutralised.
+  - **STIX 2.1** bundle: an identity, one `indicator` per indicator with a STIX
+    pattern, the notes, and a `grouping` for the case. IDs are deterministic
+    (UUIDv5), so re-exporting updates objects downstream instead of duplicating them.
+  - **Markdown report**: summary, every piece of evidence with its findings and where
+    each came from, indicators, a merged timeline, notes and the limits. Indicators
+    and any links in the text are defanged (`hxxp[://]`, `198.51.100[.]20`) so
+    nothing is clickable.
+
 ## Threat feeds and country/ASN (Intel tab)
 
 Vigil enriches addresses from **local copies** of public data and downloads them
@@ -217,6 +248,7 @@ vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
 vigil/enrich.py      threat feeds and country/ASN database (download on request)
 vigil/inspector.py   File Inspector: static triage, verdict, indicators
 vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
+vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown
 vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph

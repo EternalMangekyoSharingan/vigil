@@ -4,6 +4,7 @@ import { NetworkMap } from "./netmap.js";
 import { AlertsView } from "./alerts.js";
 import { IntelView } from "./intel.js";
 import { FilesView } from "./files.js";
+import { CasesView } from "./cases.js";
 
 const views = {
   network: new NetworkMap(document.getElementById("tab-network")),
@@ -25,6 +26,11 @@ views.files = new FilesView(document.getElementById("tab-files"), {
     showTab("network");
     views.network.select({ type: "dest", id: ip });
   },
+});
+views.cases = new CasesView(document.getElementById("tab-cases"), {
+  onShowProgram: (key) => { showTab("network"); views.network.select({ type: "program", id: key }); },
+  onShowDestination: (ip) => { showTab("network"); views.network.select({ type: "dest", id: ip }); },
+  onShowFile: (id) => { showTab("files"); views.files.open(id); },
 });
 let active = "network";
 let status = null;

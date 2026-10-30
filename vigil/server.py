@@ -11,7 +11,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import collector, enrich, inspector, scoring
+from . import cases, collector, enrich, inspector, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"  # never configurable: Vigil is not a network service
@@ -78,6 +78,7 @@ class App:
         self.scorer = scoring.Scorer(self.store, self.allowlist, interval)
         self.enricher = enrich.Enricher(self.store, self.data_dir)
         self.scorer.extra.append(self.enricher)
+        self.cases = cases.Cases(self.store, self.tracker, self.enricher, proc_root)
         self.monitor = Monitor(self.tracker, interval, proc_root, scorer=self.scorer)
         if start_monitor:
             self.monitor.start()
@@ -177,6 +178,57 @@ class App:
             raise NotFound()
         return {"ok": True}
 
+    # ---- cases ----------------------------------------------------------------------
+
+    def api_cases(self, q):
+        return {"cases": self.cases.list()}
+
+    def api_case_create(self, q, body, headers):
+        req = _json_body(body)
+        return self.cases.create(req.get("title"), req.get("tags") or [], req.get("summary") or "")
+
+    def api_case(self, q):
+        return self.cases.get(int(q.get("id") or 0))
+
+    def api_case_update(self, q, body, headers):
+        req = _json_body(body)
+        return self.cases.update(int(req.get("id") or 0), **{k: req.get(k) for k in
+                                                             ("title", "status", "tags", "summary")})
+
+    def api_case_note(self, q, body, headers):
+        req = _json_body(body)
+        return self.cases.note(int(req.get("id") or 0), req.get("text"))
+
+    def api_case_item(self, q, body, headers):
+        req = _json_body(body)
+        return self.cases.add_item(int(req.get("id") or 0), req.get("kind"), req.get("ref"))
+
+    def api_case_item_remove(self, q, body, headers):
+        return self.cases.remove_item(int(q.get("id") or 0), int(q.get("item") or 0))
+
+    def api_case_ioc(self, q, body, headers):
+        req = _json_body(body)
+        return self.cases.add_ioc(int(req.get("id") or 0), str(req.get("type") or ""),
+                                  str(req.get("value") or ""), str(req.get("context") or ""))
+
+    def api_case_ioc_exclude(self, q, body, headers):
+        req = _json_body(body)
+        return self.cases.set_excluded(int(req.get("id") or 0), int(req.get("ioc") or 0),
+                                       bool(req.get("excluded")))
+
+    def api_case_export(self, q):
+        cid, fmt = int(q.get("id") or 0), q.get("format")
+        if fmt == "csv":
+            data, ctype, ext = self.cases.export_csv(cid).encode(), "text/csv; charset=utf-8", "csv"
+        elif fmt == "stix":
+            data = json.dumps(self.cases.export_stix(cid), indent=2).encode()
+            ctype, ext = "application/stix+json;version=2.1", "stix.json"
+        elif fmt == "md":
+            data, ctype, ext = self.cases.export_markdown(cid).encode(), "text/markdown; charset=utf-8", "md"
+        else:
+            raise BadRequest("format must be csv, stix or md")
+        return data, ctype, {"Content-Disposition": f'attachment; filename="vigil-case-{cid}.{ext}"'}
+
     def api_lookup(self, q):
         """Everything Vigil knows offline about one address."""
         try:
@@ -260,6 +312,16 @@ class App:
             ("GET", "/api/inspections"): self.api_inspections,
             ("GET", "/api/inspection"): self.api_inspection,
             ("DELETE", "/api/inspection"): self.api_inspection_delete,
+            ("GET", "/api/cases"): self.api_cases,
+            ("POST", "/api/cases"): self.api_case_create,
+            ("GET", "/api/case"): self.api_case,
+            ("POST", "/api/case/update"): self.api_case_update,
+            ("POST", "/api/case/note"): self.api_case_note,
+            ("POST", "/api/case/item"): self.api_case_item,
+            ("DELETE", "/api/case/item"): self.api_case_item_remove,
+            ("POST", "/api/case/ioc"): self.api_case_ioc,
+            ("POST", "/api/case/ioc/exclude"): self.api_case_ioc_exclude,
+            ("GET", "/api/case/export"): self.api_case_export,
         }
 
 
@@ -344,10 +406,13 @@ class Handler(BaseHTTPRequestHandler):
                     if length > self.server.max_body:
                         raise BadRequest(f"body larger than {self.server.max_body} bytes")
                     result = handler(q, self.rfile.read(length), self.headers)
-            except NotFound:
-                return self._send(404, {"error": "not found"})
+            except (NotFound, LookupError) as exc:
+                return self._send(404, {"error": str(exc) or "not found"})
             except (BadRequest, ValueError) as exc:
                 return self._send(400, {"error": str(exc)})
+            except Exception as exc:  # report it rather than dropping the connection
+                traceback.print_exc()
+                return self._send(500, {"error": f"{type(exc).__name__}: {exc}"})
             if isinstance(result, tuple):  # (bytes, content type, extra headers)
                 return self._send(200, result[0], result[1], result[2] if len(result) > 2 else None)
             return self._send(200, result)

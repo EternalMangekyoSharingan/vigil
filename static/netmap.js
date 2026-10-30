@@ -1,7 +1,7 @@
 // Network Map: programs (left) -> destinations (right), live and recent edges,
 // and a side panel listing the selected node's events.
 import { api, el, svg, clear, fmtClock, fmtAgo, fmtDur, truncate, kv, eventList,
-  scoreClass, pairTitle, findingList, allowlistForm } from "./ui.js";
+  scoreClass, pairTitle, findingList, allowlistForm, addToCase } from "./ui.js";
 
 const NODE_W = 260, NODE_H = 52, GAP = 10, PAD = 20, TOP = 44, MIN_MID = 200;
 const LABEL_ALL_MAX = 24; // above this many edges, labels show only for the selection
@@ -265,7 +265,7 @@ export class NetworkMap {
       data = { error: e.message };
     }
     if (this.selected !== sel) return; // selection changed while loading
-    if (this.panel.querySelector(".allow-form")) return; // don't wipe a form being filled in
+    if (this.panel.querySelector(".allow-form, .add-case select")) return; // don't wipe a form in use
     const sig = JSON.stringify(data);
     if (sig === this.panelSig) return; // unchanged: keep the scroll position
     this.panelSig = sig;
@@ -284,7 +284,8 @@ export class NetworkMap {
     const tags = [];
     if (d.hidden) tags.push(el("span", { class: "tag warn", text: "not attributable" }));
     if (info.exe_deleted) tags.push(el("span", { class: "tag warn", text: "executable deleted", title: "The file this process runs from was deleted or replaced. Normal right after a package upgrade; unusual otherwise." }));
-    p.append(el("h2", { text: d.name }), el("div", { class: "kind" }, d.hidden ? "Unattributed sockets" : "Program", tags));
+    p.append(el("h2", { text: d.name }), el("div", { class: "kind" }, d.hidden ? "Unattributed sockets" : "Program", tags),
+      el("div", { class: "actions" }, addToCase("program", d.key)));
     if (d.hidden) p.append(el("div", { class: "note warn", text: info.explanation }));
     this.renderFindings(p, d);
     const chain = (info.ancestry || []).slice().reverse().map((a) => `${a.name} (${a.pid})`);
@@ -345,6 +346,7 @@ export class NetworkMap {
           onclick: () => { if (!card.querySelector(".allow-form")) card.append(allowlistForm(r, () => { card.querySelector(".allow-form")?.remove(); reload(); })); },
         }));
       }
+      if (r.alert_id) actions.append(addToCase("alert", r.alert_id));
       if (r.alert_id) {
         const reopen = r.alert_status !== "open";
         actions.append(el("button", {
@@ -387,7 +389,8 @@ export class NetworkMap {
 
   renderDest(p, d) {
     const scope = d.label || SCOPE_TEXT[d.scope] || d.scope;
-    p.append(el("h2", { class: "mono", text: d.ip }), el("div", { class: "kind", text: `Destination · ${scope}` }));
+    p.append(el("h2", { class: "mono", text: d.ip }), el("div", { class: "kind", text: `Destination · ${scope}` }),
+      el("div", { class: "actions" }, addToCase("destination", d.ip)));
     this.renderFindings(p, d);
     this.renderEnrichment(p, d.enrichment);
     p.append(kv([

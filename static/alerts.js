@@ -1,6 +1,6 @@
 // Alerts: scored pairs at or above the threshold that no allowlist rule covers,
 // plus the allowlist itself. Every alert shows the findings that produced it.
-import { api, el, clear, fmtClock, scoreClass, pairTitle, findingList, allowlistForm } from "./ui.js";
+import { api, el, clear, fmtClock, scoreClass, pairTitle, findingList, allowlistForm, addToCase } from "./ui.js";
 
 export class AlertsView {
   constructor(root, { onShowProgram }) {
@@ -27,7 +27,7 @@ export class AlertsView {
       api.get(`/api/alerts?status=${this.filter}`),
       api.get("/api/allowlist"),
     ]);
-    if (this.root.querySelector(".allow-form")) return; // a form is being filled in
+    if (this.root.querySelector(".allow-form, .add-case select")) return; // a form is in use
     const sig = JSON.stringify([alerts, rules]);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -68,7 +68,8 @@ export class AlertsView {
         el("button", {
           type: "button", class: "btn", text: "Allowlist…",
           onclick: () => { if (!card.querySelector(".allow-form")) card.append(allowlistForm(a, () => this.reload())); },
-        }));
+        }),
+        addToCase("alert", a.id));
       card.append(actions);
       box.append(card);
     }
