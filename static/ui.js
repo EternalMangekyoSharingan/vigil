@@ -8,10 +8,10 @@ export const api = {
     if (!res.ok) throw new Error(`${res.status} ${(await res.json().catch(() => ({}))).error || res.statusText}`);
     return res.json();
   },
-  async send(method, path, body, contentType = "application/json") {
+  async send(method, path, body, contentType = "application/json", headers = {}) {
     const res = await fetch(path, {
       method,
-      headers: { "X-Vigil": "1", "Content-Type": contentType },
+      headers: { "X-Vigil": "1", "Content-Type": contentType, ...headers },
       body: contentType === "application/json" ? JSON.stringify(body ?? {}) : body,
     });
     const data = await res.json().catch(() => ({}));
@@ -124,7 +124,7 @@ export function findingList(findings) {
       el("span", { class: "pts", text: `+${Math.round(f.points)}` }),
       el("div", {},
         el("div", { text: f.reason }),
-        el("div", { class: "src", text: `${f.check} · ${f.data} · ${fmtClock(f.at)}` })))));
+        el("div", { class: "src", text: [f.check, f.data, f.at ? fmtClock(f.at) : null].filter(Boolean).join(" · ") })))));
 }
 
 // Inline form that turns a scored pair into an allowlist rule. The reason is required.

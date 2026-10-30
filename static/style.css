@@ -292,3 +292,69 @@ ul.findings .src { color: var(--faint); font-family: var(--mono); font-size: 11p
 .lookup input { flex: 1; font-family: var(--mono); }
 .split .main h2 { margin-top: 12px; font-size: 15px; }
 .split .side h2 { font-size: 15px; margin: 0 0 4px; }
+
+/* ---- file inspector ---- */
+.drop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+  padding: 22px 12px;
+  border: 1px dashed var(--line-2);
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--surface);
+}
+.drop.over, .drop:hover { border-color: var(--accent); }
+.verdict {
+  border: 1px solid var(--line-2);
+  border-left: 4px solid var(--faint);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 12px 14px;
+  margin: 12px 0 4px;
+}
+.verdict.danger { border-left-color: var(--danger); }
+.verdict.warn { border-left-color: var(--warn); }
+.verdict-line { display: flex; align-items: center; gap: 12px; }
+.verdict-label { font-size: 18px; font-weight: 600; }
+.verdict.danger .verdict-label { color: #f0c4c0; }
+.verdict.warn .verdict-label { color: var(--warn); }
+.verdict-name { color: var(--muted); margin-top: 2px; word-break: break-all; }
+.verdict-why { margin-top: 8px; }
+pre.code {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 8px 10px;
+  font: 12px/1.45 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow: auto;
+}
+details.macro { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin: 8px 0; }
+details.macro summary { cursor: pointer; }
+ul.hits, ul.limits { margin: 6px 0; padding-left: 18px; color: var(--muted); }
+ul.limits li { margin: 3px 0; }
+table.iocs td { word-break: break-all; }
+.hist {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 6px 2px;
+  cursor: pointer;
+}
+.hist:hover, .hist.on { background: var(--surface); }
+.hist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-meta { color: var(--faint); font: 11px var(--mono); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); display: inline-block; }
+.dot.danger { background: var(--danger); }
+.dot.warn { background: var(--warn); }

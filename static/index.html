@@ -14,6 +14,7 @@
   <nav class="tabs" id="tabs">
     <button type="button" data-tab="network" class="active">Network Map</button>
     <button type="button" data-tab="alerts">Alerts<span class="count" id="alert-count" hidden></span></button>
+    <button type="button" data-tab="files">Files</button>
     <button type="button" data-tab="intel">Intel</button>
   </nav>
   <div class="status" id="status" aria-live="polite"></div>
@@ -60,6 +61,22 @@
     <div class="split">
       <div class="main" id="alert-list"></div>
       <aside class="side" id="allowlist"></aside>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-files">
+    <div class="split">
+      <div class="main" id="file-report"></div>
+      <aside class="side">
+        <label class="drop" id="drop">
+          <input type="file" id="file-input" hidden>
+          <strong>Choose a file</strong> or drop it here
+          <span class="faint">Read in memory by Vigil on this machine. Never opened, run or stored.</span>
+        </label>
+        <div class="form-msg" id="upload-status"></div>
+        <h3>Inspected files</h3>
+        <div id="file-history"></div>
+      </aside>
     </div>
   </section>
 

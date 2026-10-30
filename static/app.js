@@ -3,6 +3,7 @@ import { api, el, clear, fmtClock } from "./ui.js";
 import { NetworkMap } from "./netmap.js";
 import { AlertsView } from "./alerts.js";
 import { IntelView } from "./intel.js";
+import { FilesView } from "./files.js";
 
 const views = {
   network: new NetworkMap(document.getElementById("tab-network")),
@@ -14,6 +15,12 @@ views.alerts = new AlertsView(document.getElementById("tab-alerts"), {
   },
 });
 views.intel = new IntelView(document.getElementById("tab-intel"), {
+  onShowDestination: (ip) => {
+    showTab("network");
+    views.network.select({ type: "dest", id: ip });
+  },
+});
+views.files = new FilesView(document.getElementById("tab-files"), {
   onShowDestination: (ip) => {
     showTab("network");
     views.network.select({ type: "dest", id: ip });

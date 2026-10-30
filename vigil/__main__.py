@@ -103,7 +103,39 @@ def cmd_lookup(args):
     store.close()
 
 
-COMMANDS = ("serve", "snapshot", "update-feeds", "update-geo", "lookup")
+def cmd_inspect(args):
+    """Static triage of a file on disk: its bytes are read, nothing is opened or run."""
+    from . import inspector
+    path = Path(args.file)
+    data = path.read_bytes()
+    report = inspector.inspect_bytes(data, path.name)
+    store, enricher = _offline(args)
+    inspector.link_context(report, store, enricher)
+    if not args.no_save:
+        inspector.save(store, report, f"command line: {path.resolve()}")
+    store.close()
+    if args.json:
+        json.dump(report, sys.stdout, indent=2)
+        print()
+        return
+    print(f"{report['verdict'].upper()}  (score {report['score']:.0f}/100)  {path.name}")
+    print(f"  {report['type']['description']}, {report['size']} bytes")
+    print(f"  sha256 {report['hashes']['sha256']}")
+    if report["findings"]:
+        print("\nFindings:")
+        for f in report["findings"]:
+            print(f"  +{f['points']:<4.0f} {f['reason']}\n         {f['check']} · {f['data']}")
+    if report["iocs"]:
+        print("\nIndicators:")
+        for i in report["iocs"][:50]:
+            note = "  [listed: " + ", ".join(h["feed"] for h in i["intel"]) + "]" if i.get("intel") else ""
+            print(f"  {i['type']:7} {i['value']}{note}")
+    print("\nLimits:")
+    for line in report["limits"]:
+        print(f"  - {line}")
+
+
+COMMANDS = ("serve", "snapshot", "update-feeds", "update-geo", "lookup", "inspect")
 
 
 def main(argv=None):
@@ -136,6 +168,12 @@ def main(argv=None):
     lk = sub.add_parser("lookup", parents=[common], help="offline: owner, country, intel for an IP")
     lk.add_argument("ip")
     lk.set_defaults(func=cmd_lookup)
+    ins = sub.add_parser("inspect", parents=[common],
+                         help="static triage of a file (reads bytes; never opens or runs it)")
+    ins.add_argument("file")
+    ins.add_argument("--json", action="store_true")
+    ins.add_argument("--no-save", action="store_true", help="don't record the report")
+    ins.set_defaults(func=cmd_inspect)
     args = p.parse_args(argv)
     args.func(args)
 

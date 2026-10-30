@@ -290,3 +290,121 @@ known limitations, and decisions made without asking.
   Inspector IOCs in step 4.
 - The country/ASN database is about 0.5 M ranges and takes a few seconds to import.
   Lookups are cached only by SQLite's page cache.
+
+## Step 4: File Inspector static triage (2026-10-30)
+
+### What was built
+- `vigil/ole.py`: read-only OLE2 compound-file reader (MS-CFB: DIFAT, FAT,
+  directory tree, mini stream; version 3 and 4 sectors). Every offset is
+  bounds-checked and every chain checked for loops. Also the MS-OVBA
+  decompressor, and VBA module extraction from the project's `dir` stream,
+  including its irregular `PROJECTVERSION` record, module text offsets and the
+  code page.
+- `vigil/inspector.py`: static triage that reads bytes only.
+  - Identification by magic bytes (PDF, OLE2, OOXML/ZIP/JAR/APK/ODF, RTF, PE, ELF,
+    Mach-O, LNK, ISO, archives, images, HTML, scripts, text).
+  - Disguise checks: double extension, bidi override, padded name, type/extension
+    mismatch.
+  - PDF triage in the style of PDFiD, over the body *and* inflated streams.
+  - OOXML: macros, auto-exec, behaviour, XLM, remote templates, Follina-style remote
+    objects, DDE, embeddings, ActiveX.
+  - Legacy OLE2: VBA, BIFF8 macro sheets and Auto_Open, Ole10Native packages,
+    encryption.
+  - RTF exploit structures; archives (members inspected recursively, two levels).
+  - Script, LNK and HTML command patterns.
+  - IOC extraction (URLs, IPs, domains, e-mails, hashes in text) from raw bytes,
+    UTF-16 strings, inflated streams, XML parts and macro source.
+  - Verdict: "Likely malicious" ≥ 70, "Suspicious" ≥ 30, otherwise "No suspicious
+    indicators found", never "safe". Each finding has points, a reason and where in
+    the file it came from. "What this check cannot tell you" is always listed.
+  - Context from local data only: IOCs matched against the downloaded feeds, and
+    IPs this PC has really connected to (linking the file to the Network Map).
+  - Reports (not files) are stored in an `inspections` table.
+- Safety measures: in-memory only; 32 MB per archive member and 64 MB total
+  decompression budget; zlib `max_length` on PDF streams; no XML parser (regex over
+  relationship tags, so no entity-expansion risk); every parser failure becomes a
+  stated limit. Oversized members are named in the limits.
+- API: `POST /api/inspect` (raw body, custom header required, 100 MB cap checked
+  before reading), `GET /api/inspections`, `GET /api/inspection`,
+  `DELETE /api/inspection`. CLI: `python3 -m vigil inspect FILE [--json] [--no-save]`.
+- UI: Files tab with drop zone, history with verdict dots, verdict banner,
+  identity/hashes, findings, PDF keywords and JavaScript, macro source (collapsible),
+  archive members and their nested verdicts, indicators as plain text with feed hits
+  and "this PC connected to it" links to the map, and the limits.
+
+### Test results
+- 106 tests, all passing on Python 3.13.17 and 3.11.17. New: 26 inspector tests and
+  2 API tests.
+- **Decompressor checked against both worked examples in the MS-OVBA
+  specification** (3.2.1 and 3.2.2), byte for byte. Round trips use an
+  independently written greedy compressor with copy tokens.
+- **Compound-file reader checked against real files written by LibreOffice 24.2**
+  (`.doc`, `.xls`): every stream's length matches its directory entry, and the BIFF8
+  workbook starts with a BOF record. My synthetic writer also covers regular
+  (> 4 kB) sectors, and a self-referencing FAT chain fails cleanly.
+- Benign real documents (LibreOffice `.doc`, `.docx`, `.xls`, `.xlsx`, `.pdf`, committed
+  as fixtures) all come out "No suspicious indicators found" with score < 10. The
+  words "safe" or "clean" appear nowhere in any report.
+- 18 synthetic suspicious samples land in their expected verdicts with the expected
+  checks: macro dropper `.docm` and `.doc`, benign macro in `.docx`, remote template,
+  Follina pattern, DDEAUTO, XLM `.xlsm` and very-hidden `.xls`, four PDF variants
+  (auto-run JS, hex-escaped names, JS only inside an object stream, Launch + embedded
+  exe, exe appended after `%%EOF`), Equation Editor RTF, malformed-header RTF named
+  `.doc`, delivery ZIP with a double-extension member and an encrypted member, LNK
+  with a PowerShell cradle, HTML smuggling, shell and PowerShell droppers.
+- **Safety test**: every sample is inspected with `subprocess.Popen`, `os.system` and
+  `os.execv` patched to fail and `open()` refusing write modes, in an empty working
+  directory that stays empty. A static test checks that `inspector.py` and `ole.py`
+  use no subprocess, exec/eval, importlib, pickle, marshal, ctypes or webbrowser.
+- Robustness: truncated `.docm`/`.doc`, random bytes behind an OLE magic, a broken PDF
+  stream, a broken ZIP, bad RTF hex, an empty file and random bytes all produce a
+  report, never an exception. A 32 MB+ member is skipped and named in the limits.
+- In the container: uploads through the Files tab in headless Chromium (file input,
+  real POST): a benign LibreOffice `.docx`, a delivery ZIP, an object-stream PDF and a
+  macro `.docm`. Screenshots checked the verdict banner, findings, macro source,
+  indicators and limits. No console errors. The CLI `inspect` was run on the `.docm`.
+
+### Decisions made without asking
+- **Suspicious samples are generated at test time and not committed.** Committed
+  files with `AutoOpen` + `Shell` + download patterns could be quarantined by
+  antivirus when you pull. Only benign LibreOffice documents are committed.
+- **No XML parser on untrusted input.** Relationship tags and DDE fields are matched
+  with regexes, which avoids entity-expansion attacks entirely.
+- Calibration changed during this step, each change checked against the benign
+  fixtures:
+  - An executable disguised as a document, or a bidi-override name, scores 60 (on
+    its own nearly "Likely malicious").
+  - A remote template over http/https/UNC scores 50 (60 by bare IP); a local
+    `file:///` template scores 5 (normal in companies).
+  - A PDF auto-action without JavaScript or /Launch is a 0-point note.
+  - A COM name like `WScript.Shell` no longer counts as the `wscript.exe` LOLBin.
+- **IOC false positives found on real files and fixed**: LibreOffice's version
+  string (`LibreOffice/24.2.7.2`) is no longer read as an IP, `schemas.libreoffice.org`
+  is ignored as a namespace, and run-together URLs in font tables are split.
+- Hashes are only extracted from text-like content and macro source; in binaries
+  and PDFs (document IDs) they are mostly noise.
+- The file itself is never stored, so a report can't be re-run against feeds updated
+  later. The report keeps its hashes and IOCs for that.
+
+### Unsure about
+- Points and thresholds are judgement calls, calibrated on synthetic samples and a
+  handful of benign documents, not on a real malware corpus. Nothing here was run
+  against real malware, by design.
+- VBA extraction is checked against my reading of MS-OVBA (verified with the spec's
+  vectors) and my own project builder, not against Office-written `vbaProject.bin`
+  files: none were available. Real projects with unusual references might trip the
+  `dir` parser. That shows as a stated limit ("VBA project … could not be decoded"),
+  not a crash.
+
+### Known limitations
+- No PE/ELF code analysis (imports, sections, packers): executables get identity,
+  name, string and IOC checks.
+- PDF: JavaScript is extracted from literal `/JS (…)` strings only (not hex strings or
+  indirect references). Encrypted PDFs are reported, not decrypted.
+- OOXML encryption, password-protected ZIPs, 7z/RAR/ISO/gzip contents and OneNote
+  files are not unpacked.
+- Excel 4.0 macro *formulas* in `.xls` are not decompiled. Macro sheets and
+  Auto_Open are detected.
+- Domain extraction uses a curated TLD set, so a rare TLD can be missed and an odd
+  dotted identifier (`System.IO`) can show up. Domains are informational (0 points
+  unless a feed lists them).

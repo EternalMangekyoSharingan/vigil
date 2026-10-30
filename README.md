@@ -5,8 +5,8 @@ talking to, and which program) and, later, a **File Inspector** (what would this
 do). The plan is in [docs/SPEC.md](docs/SPEC.md); what has been built so far, with test
 results and known limits, is in [docs/PROGRESS.md](docs/PROGRESS.md).
 
-Status: build steps 1 (Network Map core), 2 (network scoring) and 3 (enrichment) are
-done.
+Status: build steps 1–4 are done: Network Map core, network scoring, enrichment, and
+the File Inspector's static triage.
 
 ## Run it
 
@@ -30,6 +30,7 @@ python3 -m vigil lookup 203.0.113.9          # offline: owner, country, feed lis
 python3 -m vigil update-feeds                # download abuse.ch feeds (network, on request)
 python3 -m vigil update-geo                  # download the country/ASN database (network)
 python3 -m vigil update-geo --file ip2asn-combined.tsv.gz   # or load one you downloaded
+python3 -m vigil inspect suspicious.docm     # static triage of a file (read only, never run)
 ```
 
 ## What you see
@@ -103,6 +104,31 @@ APT). They match the real executable path from `/proc`, so a copy named
 (a reason is required), or edit `data/allowlist.json`. Built-in rules can be
 switched off.
 
+## File Inspector (Files tab)
+
+Drop a file on the Files tab, or run `python3 -m vigil inspect FILE`. Vigil reads
+the file's bytes and nothing else. **It never opens, runs, renders, imports or saves
+the file.** Archives and compressed streams are expanded in memory only, with size
+caps, and only the report is kept. The upload goes from your browser to Vigil on
+127.0.0.1.
+
+The report leads with a verdict: **Likely malicious** (score ≥ 70), **Suspicious**
+(≥ 30) or **No suspicious indicators found**. It never says "safe". Below it come
+the findings (points, reason, and where in the file), the indicators, and **what
+this check cannot tell you**.
+
+| Area | What is checked |
+| --- | --- |
+| Disguise | double extensions (`invoice.pdf.exe`), right-to-left override characters, padded names, content that doesn't match the extension (an executable named `.pdf`, RTF named `.doc`) |
+| PDF | PDFiD-style keyword counts over the body *and* every inflated stream (so object streams can't hide them): `/JavaScript` with `/OpenAction`/`/AA`, `/Launch` (with its target), embedded files (and their names), `/XFA`, `/RichMedia`, `/JBIG2Decode`, hex-escaped names (`/J#61vaScript`), data appended after `%%EOF`; JavaScript text is shown |
+| Office (OOXML) | VBA macros, with source decompressed from `vbaProject.bin` (MS-OVBA); auto-run entry points (`AutoOpen`, `Document_Open`, `Workbook_Open`, ActiveX events); behaviour (Shell, downloads, COM, file writes, Win32 API, memory, obfuscation); Excel 4.0 macro sheets and `Auto_Open`; remote templates (T1221); remote OLE objects, including the Follina `mhtml:`/`ms-msdt:` pattern; DDE/DDEAUTO fields; embedded objects and executables; ActiveX; macros in a `.docx` |
+| Office (legacy OLE2) | the same VBA analysis for `.doc`/`.xls`/`.ppt`; BIFF8 macro sheets (including "very hidden") and `Auto_Open` names; packaged files (`Ole10Native`); encrypted documents |
+| RTF | embedded objects, `\objupdate`, Equation Editor (CVE-2017-11882), `OLE2Link` (CVE-2017-0199), executables inside `\objdata`, malformed headers |
+| Archives | every member inspected in turn (two levels deep); password-protected members reported |
+| Scripts, shortcuts, HTML | PowerShell download cradles and hidden or encoded launches, `curl … \| sh`, reverse shells, LOLBins, temp-dir `chmod +x`, persistence; LNK arguments; HTML smuggling |
+| Indicators | URLs, IPs, domains, e-mail addresses (and hashes in text), from raw bytes, UTF-16 strings, inflated streams, XML parts and macro source. Format namespaces (`schemas.openxmlformats.org`, …) and version strings are filtered out. Indicators are shown as text, never as links |
+| Context | indicators matched against the downloaded threat feeds, and addresses **this PC has actually connected to** (linked to the Network Map) |
+
 ## Threat feeds and country/ASN (Intel tab)
 
 Vigil enriches addresses from **local copies** of public data and downloads them
@@ -174,9 +200,13 @@ python3 -m unittest discover -s tests -t .
 ```
 
 `tests/fixtures/` holds a **synthetic** miniature `/proc` (labelled as such; see its
-README) covering IPv4, IPv6, IPv4-mapped addresses, shared sockets, interpreters,
-deleted executables, a hostile process name and every "hidden" case. One live test
-opens a socket pair and checks the collector attributes it to the test process.
+README), synthetic feed files, and benign documents written by LibreOffice. Suspicious
+sample files are *generated at test time* by `tests/synth.py` with harmless content,
+so nothing in the repository looks like malware to antivirus. The `/proc` fixture
+covers IPv4, IPv6, IPv4-mapped addresses, shared sockets, interpreters, deleted
+executables, a hostile process name and every "hidden" case. Live tests open socket
+pairs and check that the collector attributes them to the test process and that the
+netlink byte counts are exact.
 
 ## Layout
 
@@ -185,6 +215,8 @@ vigil/collector.py   read-only /proc parser: sockets, processes, what is hidden
 vigil/store.py       SQLite evidence store; tracker turning polls into history
 vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
 vigil/enrich.py      threat feeds and country/ASN database (download on request)
+vigil/inspector.py   File Inspector: static triage, verdict, indicators
+vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
 vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph

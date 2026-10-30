@@ -188,6 +188,34 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(res.status, 400)
             upd.assert_not_called()
 
+    def test_file_inspection_round_trip(self):
+        from . import synth
+        data = synth.docm_dropper()
+        headers = {"X-Vigil": "1", "Content-Type": "application/octet-stream",
+                   "X-Filename": "Q3%20invoice.docm"}
+        res, _ = self.request("POST", "/api/inspect", body=data,
+                              headers={"Content-Type": "application/octet-stream"})
+        self.assertEqual(res.status, 403)  # no other web page can submit files
+        res, body = self.request("POST", "/api/inspect", body=data, headers=headers)
+        self.assertEqual(res.status, 200, body)
+        report = json.loads(body)
+        self.assertEqual((report["name"], report["verdict"]), ("Q3 invoice.docm", "Likely malicious"))
+        listed = self.get_json("/api/inspections")["inspections"]
+        self.assertIn(report["id"], [i["id"] for i in listed])
+        again = self.get_json(f"/api/inspection?id={report['id']}")
+        self.assertEqual(again["hashes"], report["hashes"])
+        self.assertEqual(again["source"], "upload via the Vigil page")
+        res, _ = self.write("DELETE", f"/api/inspection?id={report['id']}", {})
+        self.assertEqual(res.status, 200)
+        res, _ = self.request("GET", f"/api/inspection?id={report['id']}")
+        self.assertEqual(res.status, 404)
+
+    def test_oversized_upload_refused_before_reading(self):
+        res, body = self.request("POST", "/api/inspect", body=b"x",
+                                 headers={"X-Vigil": "1", "Content-Length": str(500 * 2**20)})
+        self.assertEqual(res.status, 400)
+        self.assertIn(b"larger than", body)
+
     def test_unknown_routes(self):
         res, _ = self.request("POST", "/api/nothing", body=b"{}",
                               headers={"X-Vigil": "1", "Content-Type": "application/json"})

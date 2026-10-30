@@ -11,7 +11,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import collector, enrich, scoring
+from . import collector, enrich, inspector, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"  # never configurable: Vigil is not a network service
@@ -154,6 +154,29 @@ class App:
         self.scorer.run()
         return {"results": results, "status": self.enricher.status()}
 
+    def api_inspect(self, q, body, headers):
+        """Static triage of uploaded bytes. The file stays in memory; only the report is kept."""
+        name = urllib.parse.unquote(headers.get("X-Filename") or "upload")[:255] or "upload"
+        report = inspector.inspect_bytes(body, name)
+        inspector.link_context(report, self.store, self.enricher)
+        return inspector.save(self.store, report, "upload via the Vigil page")
+
+    def api_inspections(self, q):
+        return {"inspections": self.store.query(
+            "SELECT id, name, size, sha256, type, verdict, score, inspected_at, source"
+            " FROM inspections ORDER BY inspected_at DESC LIMIT 200")}
+
+    def api_inspection(self, q):
+        row = self.store.one("SELECT report FROM inspections WHERE id=?", (int(q.get("id") or 0),))
+        return json.loads(row["report"]) if row else _not_found()
+
+    def api_inspection_delete(self, q, body, headers):
+        with self.store.lock, self.store.db:
+            cur = self.store.db.execute("DELETE FROM inspections WHERE id=?", (int(q.get("id") or 0),))
+        if not cur.rowcount:
+            raise NotFound()
+        return {"ok": True}
+
     def api_lookup(self, q):
         """Everything Vigil knows offline about one address."""
         try:
@@ -233,6 +256,10 @@ class App:
             ("GET", "/api/intel"): self.api_intel_status,
             ("POST", "/api/intel/update"): self.api_intel_update,
             ("GET", "/api/lookup"): self.api_lookup,
+            ("POST", "/api/inspect"): self.api_inspect,
+            ("GET", "/api/inspections"): self.api_inspections,
+            ("GET", "/api/inspection"): self.api_inspection,
+            ("DELETE", "/api/inspection"): self.api_inspection_delete,
         }
 
 
