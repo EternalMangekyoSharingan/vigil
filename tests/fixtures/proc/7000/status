@@ -1,0 +1,12 @@
+Name:	upd) S 1 2
+Umask:	0022
+State:	S (sleeping)
+Tgid:	7000
+Ngid:	0
+Pid:	7000
+PPid:	5120
+TracerPid:	0
+Uid:	1000	1000	1000	1000
+Gid:	1000	1000	1000	1000
+FDSize:	64
+Threads:	1

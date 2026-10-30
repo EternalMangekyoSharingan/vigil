@@ -1,0 +1,12 @@
+Name:	packagekitd
+Umask:	0022
+State:	S (sleeping)
+Tgid:	905
+Ngid:	0
+Pid:	905
+PPid:	1
+TracerPid:	0
+Uid:	0	0	0	0
+Gid:	0	0	0	0
+FDSize:	64
+Threads:	1

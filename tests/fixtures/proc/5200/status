@@ -1,0 +1,12 @@
+Name:	python3
+Umask:	0022
+State:	S (sleeping)
+Tgid:	5200
+Ngid:	0
+Pid:	5200
+PPid:	2301
+TracerPid:	0
+Uid:	1000	1000	1000	1000
+Gid:	1000	1000	1000	1000
+FDSize:	64
+Threads:	1

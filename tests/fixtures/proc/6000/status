@@ -1,0 +1,12 @@
+Name:	ssh
+Umask:	0022
+State:	S (sleeping)
+Tgid:	6000
+Ngid:	0
+Pid:	6000
+PPid:	2301
+TracerPid:	0
+Uid:	1000	1000	1000	1000
+Gid:	1000	1000	1000	1000
+FDSize:	64
+Threads:	1

@@ -1,0 +1,35 @@
+# SYNTHETIC. Symlinks to create when the fixture is copied: <path> -> <target>
+1/exe -> /usr/lib/systemd/systemd
+640/exe -> /usr/sbin/cupsd
+640/fd/5 -> socket:[1002]
+700/exe -> /usr/sbin/avahi-daemon
+700/fd/12 -> socket:[1004]
+700/fd/13 -> socket:[1005]
+812/exe -> /usr/sbin/sshd
+812/fd/3 -> socket:[1001]
+812/fd/4 -> socket:[3002]
+905/exe -> /usr/libexec/packagekitd
+905/fd/9 -> socket:[3001]
+950/exe -> /usr/sbin/nginx
+950/fd/6 -> socket:[1003]
+2301/exe -> /usr/bin/gnome-shell
+2301/fd/3 -> socket:[50]
+2301/fd/4 -> anon_inode:[eventfd]
+4410/exe -> /usr/lib/firefox/firefox
+4410/fd/3 -> socket:[2001]
+4410/fd/4 -> socket:[2002]
+4410/fd/5 -> socket:[2005]
+4410/fd/6 -> socket:[2006]
+4410/fd/7 -> pipe:[777]
+4410/fd/8 -> /dev/null
+4500/exe -> /usr/lib/firefox/firefox
+4500/fd/9 -> socket:[2001]
+5120/exe -> /usr/bin/python3.11
+5120/fd/3 -> socket:[2003]
+5120/fd/4 -> socket:[2008]
+5200/exe -> /usr/bin/python3.11
+5200/fd/3 -> socket:[2010]
+6000/exe -> /usr/bin/ssh
+6000/fd/3 -> socket:[2004]
+7000/exe -> /tmp/.x/agent (deleted)
+7000/fd/3 -> socket:[2009]

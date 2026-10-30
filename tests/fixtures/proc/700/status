@@ -1,0 +1,12 @@
+Name:	avahi-daemon
+Umask:	0022
+State:	S (sleeping)
+Tgid:	700
+Ngid:	0
+Pid:	700
+PPid:	1
+TracerPid:	0
+Uid:	107	107	107	107
+Gid:	107	107	107	107
+FDSize:	64
+Threads:	1

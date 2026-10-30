@@ -1,0 +1,9 @@
+# SYNTHETIC. PIDs whose fd/ and exe a non-root viewer (uid 1000) may not read:
+# other users' processes, plus pid 6000, a non-dumpable process of uid 1000 itself.
+1
+640
+700
+812
+905
+950
+6000
