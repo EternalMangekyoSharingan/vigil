@@ -5,12 +5,14 @@ files in tests/fixtures/os-release are synthetic copies of the real distros' for
 import ipaddress
 import itertools
 import json
+import os
 import random
 import re
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from vigil import commands, fixes, services, wording
 
@@ -162,6 +164,19 @@ class CatalogueTests(unittest.TestCase):
                 self.assertIn(k, s, s["id"])
             for o in s["fix"]:
                 self.assertTrue(o.get("undo") or o.get("undo_steps"), f"{s['id']}: {o['title']} has no undo")
+
+    def test_catalogue_is_shipped_in_the_package(self):
+        # The file must be inside vigil/, not an ignored data/ dir, or `python -m vigil`
+        # crashes after a clean clone (regression: .gitignore's data/ hid it).
+        self.assertTrue(os.path.exists(services.CATALOGUE), services.CATALOGUE)
+        self.assertIn(os.path.join("vigil", "data"), str(services.CATALOGUE))
+
+    def test_missing_catalogue_degrades_quietly(self):
+        services.catalogue.cache_clear()
+        with mock.patch.object(services, "CATALOGUE", "/no/such/file.json"):
+            self.assertEqual(services.catalogue(), [])
+            self.assertIsNone(services.match(process="syncthing", port=443, proto="tcp"))
+        services.catalogue.cache_clear()
 
 
 class FixPanelTests(unittest.TestCase):

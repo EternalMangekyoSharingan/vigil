@@ -1,0 +1,167 @@
+{
+  "_about": "Common benign network patterns. A match is shown as 'probably X' and lowers the alert's severity; it never hides an alert. Commands are templates shown to the user to copy; Vigil never runs them. {pkg_install}, {pkg_remove} and {pkg_owner} are filled in for the detected distro; {pkg} is the package name for that distro.",
+  "services": [
+    {
+      "id": "networkmanager-connectivity",
+      "name": "NetworkManager's connectivity check",
+      "program": "NetworkManager",
+      "match": {
+        "processes": ["NetworkManager"],
+        "ports": ["tcp/80"],
+        "domains": ["ping.archlinux.org", "archlinux.org", "nmcheck.gnome.org", "fedoraproject.org", "connectivity-check.ubuntu.com", "conncheck.opensuse.org", "networkcheck.kde.org", "network-test.debian.org"],
+        "interval": [240, 360],
+        "port_and_interval_suffice": true
+      },
+      "what": "NetworkManager fetches a tiny text file over plain HTTP every 5 minutes to check that the internet really works. Arch uses ping.archlinux.org; other distros use their own address.",
+      "why_fine": "It is how your desktop detects hotel and airport login pages, and shows 'limited connectivity'. It sends nothing about you.",
+      "privacy": "The check is unencrypted, so your network can see that this PC runs NetworkManager on your distro. The distro's server sees your IP address every 5 minutes.",
+      "packages": {"arch": "networkmanager", "fedora": "NetworkManager", "suse": "NetworkManager", "debian": "network-manager", "void": "NetworkManager", "alpine": "networkmanager", "gentoo": "net-misc/networkmanager"},
+      "check": [
+        {"title": "Show NetworkManager's connectivity settings", "what": "Prints the configuration NetworkManager is using, including the check address and interval.", "risk": "safe", "commands": ["NetworkManager --print-config"]},
+        {"title": "Ask NetworkManager what it currently thinks", "what": "Shows full, limited, portal or none.", "risk": "safe", "commands": ["nmcli networking connectivity"]}
+      ],
+      "fix": [
+        {"title": "Turn off NetworkManager's connectivity check", "what": "Adds a small config file that disables the check, then reloads NetworkManager.", "lose": "Login pages for hotel or airport Wi-Fi no longer pop up by themselves, and the 'limited connectivity' warning disappears.", "risk": "admin", "file": {"path": "/etc/NetworkManager/conf.d/99-vigil-no-connectivity.conf", "content": "[connectivity]\nenabled=false\n"}, "commands": ["sudoedit /etc/NetworkManager/conf.d/99-vigil-no-connectivity.conf", "sudo systemctl reload NetworkManager.service"], "undo": ["sudo rm /etc/NetworkManager/conf.d/99-vigil-no-connectivity.conf", "sudo systemctl reload NetworkManager.service"]}
+      ]
+    },
+    {
+      "id": "syncthing",
+      "name": "Syncthing discovery and relays",
+      "program": "Syncthing",
+      "match": {
+        "processes": ["syncthing"],
+        "ports": ["tcp/443", "tcp/22067", "tcp/22000", "udp/22000", "udp/21027"],
+        "domains": ["syncthing.net", "discovery.syncthing.net", "discovery-v4.syncthing.net", "discovery-v6.syncthing.net", "relays.syncthing.net", "upgrades.syncthing.net", "data.syncthing.net"],
+        "asn_owners": ["hetzner", "digitalocean", "ovh", "linode", "akamai", "vultr"],
+        "interval": [300, 2100]
+      },
+      "what": "Syncthing announces your device to its global discovery servers and keeps contact with relay servers, so your other devices can find it. It also checks for upgrades and may send anonymous usage reports.",
+      "why_fine": "This is how Syncthing connects your devices across networks. The relay and discovery servers are run by volunteers, often on Hetzner or similar hosts.",
+      "privacy": "Discovery servers learn your device ID and IP address. File contents are always encrypted between devices; relays cannot read them.",
+      "packages": {"arch": "syncthing", "fedora": "syncthing", "suse": "syncthing", "debian": "syncthing", "void": "syncthing", "alpine": "syncthing", "gentoo": "net-p2p/syncthing"},
+      "check": [
+        {"title": "Is Syncthing running as your user service?", "what": "Shows whether the Syncthing user service is active and since when.", "risk": "safe", "commands": ["systemctl --user status syncthing.service"]}
+      ],
+      "fix": [
+        {"title": "Stop Syncthing talking to public servers", "what": "Turns off global discovery, relaying, usage reports and automatic upgrades. Devices on the same network still find each other.", "lose": "Devices on other networks can no longer reach this one unless you enter their addresses by hand.", "risk": "settings", "steps": ["Open the Syncthing web interface: http://127.0.0.1:8384", "Actions → Settings → Connections: untick 'Global Discovery' and 'Enable Relaying'", "Settings → General: set 'Anonymous Usage Reporting' to Disabled and 'Automatic upgrades' to Off", "Press Save"], "undo_steps": ["Open http://127.0.0.1:8384 → Actions → Settings", "Connections: tick 'Global Discovery' and 'Enable Relaying' again", "Press Save"]},
+        {"title": "Stop Syncthing and keep it from starting", "what": "Stops the Syncthing user service now and at every login.", "lose": "Your folders stop syncing.", "risk": "settings", "commands": ["systemctl --user disable --now syncthing.service"], "undo": ["systemctl --user enable --now syncthing.service"]},
+        {"title": "Uninstall Syncthing", "what": "Removes the Syncthing package. Your synced files stay where they are.", "lose": "Syncing stops on this PC.", "risk": "admin", "commands": ["{pkg_remove}"], "undo": ["{pkg_install}"]}
+      ]
+    },
+    {
+      "id": "firefox-family",
+      "name": "Browser background requests (Firefox family)",
+      "program": "the browser",
+      "match": {
+        "processes": ["librewolf", "firefox", "firefox-bin", "firefox-esr", "floorp", "waterfox", "zen", "zen-bin"],
+        "ports": ["tcp/443", "tcp/80", "udp/443"],
+        "domains": ["mozilla.com", "mozilla.org", "mozilla.net", "firefox.com", "detectportal.firefox.com", "push.services.mozilla.com", "firefox.settings.services.mozilla.com", "aus5.mozilla.org", "safebrowsing.googleapis.com", "librewolf.net", "codeberg.org"],
+        "interval": [60, 86400]
+      },
+      "what": "Besides the pages you open, the browser checks for updates, downloads its block lists and settings, keeps a push-notification connection and, in Firefox, checks for captive portals over plain HTTP.",
+      "why_fine": "These are the browser maintaining itself. LibreWolf turns most of them off already; the ones left are mostly updates and block lists.",
+      "privacy": "Mozilla's servers see your IP address and browser version. Safe Browsing checks send partial hashes of addresses, not the addresses themselves.",
+      "packages": {"arch": "librewolf", "fedora": "firefox", "suse": "MozillaFirefox", "debian": "firefox-esr", "void": "firefox", "alpine": "firefox", "gentoo": "www-client/firefox"},
+      "check": [
+        {"title": "See what the browser is connected to", "what": "Open about:networking in the browser; the Sockets and DNS tabs list every active connection and the names behind them.", "risk": "safe", "steps": ["In the browser's address bar, open about:networking", "Look at 'Sockets' (open connections) and 'DNS' (names it resolved)"]}
+      ],
+      "fix": [
+        {"title": "Turn off captive-portal checks (plain HTTP)", "what": "Stops the browser fetching detectportal.firefox.com over HTTP whenever the network changes.", "lose": "Hotel and airport login pages are no longer detected by the browser.", "risk": "settings", "steps": ["Open about:config and accept the warning", "Search for network.captive-portal-service.enabled and set it to false", "Search for network.connectivity-service.enabled and set it to false"], "undo_steps": ["Open about:config", "Set network.captive-portal-service.enabled back to true", "Set network.connectivity-service.enabled back to true"]},
+        {"title": "Turn off web push notifications", "what": "Closes the long-lived connection to Mozilla's push service.", "lose": "Sites can no longer send you notifications while closed.", "risk": "settings", "steps": ["Open about:config", "Set dom.push.enabled to false", "Restart the browser"], "undo_steps": ["Open about:config", "Set dom.push.enabled back to true", "Restart the browser"]},
+        {"title": "Turn off Safe Browsing lookups", "what": "Stops downloading Google's Safe Browsing lists.", "lose": "No more warnings for known phishing and malware sites. Not recommended.", "risk": "settings", "steps": ["Settings → Privacy & Security → Security", "Untick 'Block dangerous and deceptive content'"], "undo_steps": ["Settings → Privacy & Security → Security", "Tick 'Block dangerous and deceptive content' again"]}
+      ]
+    },
+    {
+      "id": "chromium-family",
+      "name": "Browser background requests (Chromium family)",
+      "program": "the browser",
+      "match": {
+        "processes": ["chromium", "chrome", "google-chrome", "brave", "vivaldi-bin", "msedge"],
+        "ports": ["tcp/443", "udp/443", "tcp/5228"],
+        "domains": ["google.com", "googleapis.com", "gstatic.com", "gvt1.com", "clients2.google.com", "update.googleapis.com", "safebrowsing.googleapis.com", "brave.com", "bravesoftware.com"],
+        "interval": [60, 86400]
+      },
+      "what": "Chromium-based browsers check for updates and extension updates, fetch Safe Browsing lists and keep a push connection (port 5228) open.",
+      "why_fine": "These keep the browser and its extensions current and power site notifications.",
+      "privacy": "Google (or the browser vendor) sees your IP address, browser version and extension IDs during update checks.",
+      "packages": {"arch": "chromium", "fedora": "chromium", "suse": "chromium", "debian": "chromium", "void": "chromium", "alpine": "chromium", "gentoo": "www-client/chromium"},
+      "check": [
+        {"title": "See what the browser is connected to", "what": "chrome://net-internals and chrome://net-export show the browser's own connections.", "risk": "safe", "steps": ["Open chrome://net-internals/#sockets in the browser", "Or open chrome://net-export to record a short capture"]}
+      ],
+      "fix": [
+        {"title": "Turn off background apps", "what": "Stops the browser running in the background after you close it.", "lose": "Extensions and apps that work while the browser is closed stop doing so.", "risk": "settings", "steps": ["Settings → System", "Turn off 'Continue running background apps when the browser is closed'"], "undo_steps": ["Settings → System", "Turn 'Continue running background apps when the browser is closed' back on"]},
+        {"title": "Turn off Safe Browsing", "what": "Stops Safe Browsing list downloads and lookups.", "lose": "No more warnings for known dangerous sites. Not recommended.", "risk": "settings", "steps": ["Settings → Privacy and security → Security", "Choose 'No protection'"], "undo_steps": ["Settings → Privacy and security → Security", "Choose 'Standard protection'"]}
+      ]
+    },
+    {
+      "id": "time-sync",
+      "name": "Network time sync (NTP)",
+      "program": "the time service",
+      "match": {
+        "processes": ["systemd-timesyncd", "chronyd", "ntpd", "openntpd"],
+        "ports": ["udp/123", "tcp/4460"],
+        "domains": ["pool.ntp.org", "ntp.org", "time.cloudflare.com", "time.google.com", "nts.netnod.se"],
+        "interval": [32, 2100],
+        "port_and_interval_suffice": true
+      },
+      "what": "Your clock is kept accurate by asking time servers every few minutes.",
+      "why_fine": "Accurate time matters: certificates and logins fail when the clock is wrong.",
+      "privacy": "Plain NTP is unauthenticated: the time servers see your IP. NTS (port 4460) adds authentication.",
+      "packages": {"arch": "chrony", "fedora": "chrony", "suse": "chrony", "debian": "chrony", "void": "chrony", "alpine": "chrony", "gentoo": "net-misc/chrony"},
+      "check": [
+        {"title": "Show time sync status", "what": "Which server is used, and how far off the clock is.", "risk": "safe", "commands": ["timedatectl timesync-status"]},
+        {"title": "Show chrony's sources (if chrony is installed)", "what": "Lists the time servers chrony uses.", "risk": "safe", "commands": ["chronyc sources -v"]}
+      ],
+      "fix": [
+        {"title": "Turn off automatic time sync", "what": "Stops the system asking time servers.", "lose": "Your clock drifts; after a while secure websites and logins start failing. Not recommended.", "risk": "admin", "commands": ["sudo timedatectl set-ntp false"], "undo": ["sudo timedatectl set-ntp true"]}
+      ]
+    },
+    {
+      "id": "package-mirrors",
+      "name": "Package manager mirror sync",
+      "program": "the package manager",
+      "match": {
+        "processes": ["pacman", "reflector", "dnf", "dnf5", "dnf-automatic", "zypper", "apt", "apt-get", "http", "https", "xbps-install", "apk", "emerge"],
+        "ports": ["tcp/443", "tcp/80", "tcp/21", "tcp/873"],
+        "domains": ["archlinux.org", "pkgbuild.com", "fedoraproject.org", "mirrors.fedoraproject.org", "opensuse.org", "download.opensuse.org", "debian.org", "deb.debian.org", "ubuntu.com", "archive.ubuntu.com", "security.ubuntu.com", "voidlinux.org", "alpinelinux.org", "gentoo.org"],
+        "interval": [3600, 86400]
+      },
+      "what": "Your package manager (or a timer such as dnf-makecache or apt-daily) refreshes its list of available updates from a mirror.",
+      "why_fine": "This is how updates arrive. Mirrors are run by universities and hosting companies, so their owners vary.",
+      "privacy": "The mirror sees your IP address and which packages you download. Plain HTTP mirrors are signed but readable by your network.",
+      "packages": {},
+      "check": [
+        {"title": "List the timers that refresh packages", "what": "Shows when each scheduled job last ran and runs next.", "risk": "safe", "commands": ["systemctl list-timers --all"]}
+      ],
+      "fix": [
+        {"title": "Stop automatic package list refreshes", "family": "fedora", "what": "Disables the dnf-makecache timer.", "lose": "Update notifications appear later; updating still works.", "risk": "admin", "commands": ["sudo systemctl disable --now dnf-makecache.timer"], "undo": ["sudo systemctl enable --now dnf-makecache.timer"]},
+        {"title": "Stop automatic package list refreshes", "family": "debian", "what": "Disables the apt-daily timer.", "lose": "Update notifications appear later; updating still works.", "risk": "admin", "commands": ["sudo systemctl disable --now apt-daily.timer"], "undo": ["sudo systemctl enable --now apt-daily.timer"]},
+        {"title": "Stop reflector's mirror refreshes", "family": "arch", "what": "Disables the reflector timer, if you use it.", "lose": "Your mirror list stops updating itself.", "risk": "admin", "commands": ["sudo systemctl disable --now reflector.timer"], "undo": ["sudo systemctl enable --now reflector.timer"]}
+      ]
+    },
+    {
+      "id": "update-checkers",
+      "name": "Desktop update checks (Flatpak, Discover, GNOME Software, PackageKit)",
+      "program": "the software updater",
+      "match": {
+        "processes": ["packagekitd", "flatpak", "flatpak-system-helper", "plasma-discover", "plasma-discover-notifier", "DiscoverNotifier", "gnome-software", "fwupd", "fwupdmgr"],
+        "ports": ["tcp/443"],
+        "domains": ["flathub.org", "dl.flathub.org", "fwupd.org", "cdn.fwupd.org", "kde.org", "gnome.org"],
+        "interval": [3600, 86400]
+      },
+      "what": "Your desktop's software centre checks for app, Flatpak and firmware updates in the background.",
+      "why_fine": "It keeps apps and firmware patched and shows update notifications.",
+      "privacy": "Flathub and the firmware service see your IP address and which apps or devices are checked.",
+      "packages": {"arch": "packagekit", "fedora": "PackageKit", "suse": "PackageKit", "debian": "packagekit", "void": "PackageKit", "alpine": "packagekit", "gentoo": "app-admin/packagekit-base"},
+      "check": [
+        {"title": "Is PackageKit running?", "what": "Shows whether the PackageKit service is active.", "risk": "safe", "commands": ["systemctl status packagekit.service"]},
+        {"title": "List installed Flatpak remotes", "what": "Shows which Flatpak repositories are checked for updates.", "risk": "safe", "commands": ["flatpak remotes --show-details"]}
+      ],
+      "fix": [
+        {"title": "Stop GNOME Software downloading updates in the background", "what": "GNOME Software stops automatic update downloads.", "lose": "You update by hand from GNOME Software.", "risk": "settings", "commands": ["gsettings set org.gnome.software download-updates false"], "undo": ["gsettings reset org.gnome.software download-updates"]},
+        {"title": "Turn off Discover's update notifications", "what": "KDE Discover stops checking for updates in the background.", "lose": "No update notifications; update from Discover by hand.", "risk": "settings", "steps": ["System Settings → Software Update", "Set 'Notification frequency' to Never"], "undo_steps": ["System Settings → Software Update", "Set 'Notification frequency' back to Daily or Weekly"]},
+        {"title": "Stop PackageKit from starting", "what": "Masks the PackageKit service so software centres cannot start it.", "lose": "Software centres can no longer install or update packages.", "risk": "admin", "commands": ["sudo systemctl mask packagekit.service"], "undo": ["sudo systemctl unmask packagekit.service"]}
+      ]
+    }
+  ]
+}

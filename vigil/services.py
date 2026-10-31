@@ -15,8 +15,13 @@ CATALOGUE = Path(__file__).parent / "data" / "known_services.json"
 
 @functools.lru_cache(maxsize=1)
 def catalogue():
-    with open(CATALOGUE, encoding="utf-8") as fh:
-        return json.load(fh)["services"]
+    """The known-services list. A missing or broken file must never take down a page:
+    it only means "no 'probably X' match", so return an empty list and carry on."""
+    try:
+        with open(CATALOGUE, encoding="utf-8") as fh:
+            return json.load(fh)["services"]
+    except (OSError, ValueError, KeyError):
+        return []
 
 
 def by_id(sid):
