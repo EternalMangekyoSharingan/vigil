@@ -52,6 +52,7 @@ class Budget:
         self.streamed = 0
 
         self.counted = 0  # output of the stream being expanded right now
+        self.consumed = 0  # compressed input it has used so far
 
     def out(self):
         return time.monotonic() > self.deadline
@@ -87,6 +88,7 @@ def _pump(d, data, take, budget):
                 buf, pos = data[pos:pos + 65536], pos + 65536
             chunk = d.decompress(buf, STEP)
             buf = d.unconsumed_tail
+            budget.consumed = pos - len(buf)
             take(chunk)
             if budget.out() or budget.over():
                 return False
@@ -100,6 +102,7 @@ def _pump(d, data, take, budget):
         else:
             inp = b""
         take(d.decompress(inp, STEP))
+        budget.consumed = pos
         if budget.out() or budget.over():
             return False
     return True
@@ -126,6 +129,7 @@ def stream(comp, method, budget, capture=()):
 
     d = _decompressor(method)
     budget.counted = 0
+    budget.consumed = 0
     if d is None:
         take(bytes(comp))
         complete = True
@@ -136,7 +140,18 @@ def stream(comp, method, budget, capture=()):
             complete = False
     budget.streamed += state["size"]
     return {"size": state["size"], "head": bytes(head), "tail": state["tail"],
-            "complete": complete, "kept": kept}
+            "complete": complete, "kept": kept, "consumed": budget.consumed}
+
+
+def extrapolate(produced, consumed, total_input):
+    """Estimate a stream's full output from the part we counted.
+
+    Bomb streams compress uniformly (long runs of the same bytes), so output per byte
+    of input stays steady: produced * total_input / consumed. Never less than what was
+    actually counted."""
+    if consumed <= 0 or total_input <= consumed:
+        return produced
+    return max(produced, int(produced * (total_input / consumed)))
 
 
 def _record(tail, pos):
@@ -150,6 +165,25 @@ def _record(tail, pos):
     if pos + 46 + nlen > len(tail):
         return None
     name = tail[pos + 46:pos + 46 + nlen].decode("utf-8", "replace")
+    if 0xFFFFFFFF in (csize, usize, off):  # Zip64: real values sit in extra field 0x0001
+        extra = tail[pos + 46 + nlen:pos + 46 + nlen + xlen]
+        i = 0
+        while i + 4 <= len(extra):
+            hid, hlen = struct.unpack_from("<HH", extra, i)
+            if hid == 1:
+                vals, j = [], i + 4
+                while j + 8 <= i + 4 + hlen:
+                    vals.append(struct.unpack_from("<Q", extra, j)[0])
+                    j += 8
+                # order: uncompressed, compressed, offset; only the ones that were 0xFFFFFFFF
+                if usize == 0xFFFFFFFF and vals:
+                    usize = vals.pop(0)
+                if csize == 0xFFFFFFFF and vals:
+                    csize = vals.pop(0)
+                if off == 0xFFFFFFFF and vals:
+                    off = vals.pop(0)
+                break
+            i += 4 + hlen
     return (name, method, csize, usize, off, attr >> 16), pos + 46 + nlen + xlen + clen
 
 
@@ -175,11 +209,23 @@ def directory_from_tail(tail):
             continue
         out.append(rec[0])
         pos = rec[1] if tail[rec[1]:rec[1] + 4] == b"PK\x01\x02" else tail.find(b"PK\x01\x02", pos + 4)
-    if on_disk != total or total != len(out):
+    if total == 0xFFFF or cd_size == 0xFFFFFFFF:
+        pass  # Zip64 placeholders: the Zip64 end record holds the real counts
+    elif on_disk != total or total != len(out):
         notes.append(f"the end record claims {total} entries ({on_disk} on this disk); {len(out)} were found")
-    if first >= 0 and eocd - first != cd_size:
+    if first >= 0 and cd_size != 0xFFFFFFFF and eocd - first - _zip64_tail_len(tail, eocd) != cd_size:
         notes.append(f"the end record claims a {cd_size}-byte directory; the records span {eocd - first} bytes")
     return out, notes
+
+
+def _zip64_tail_len(tail, eocd):
+    """Bytes of Zip64 end record + locator sitting between the directory and the end record."""
+    loc = eocd - 20
+    if loc >= 0 and tail[loc:loc + 4] == b"PK\x06\x07":
+        rec = tail.rfind(b"PK\x06\x06", 0, loc)
+        if rec >= 0:
+            return eocd - rec
+    return 0
 
 
 def local_data_range(blob, offset, csize):
@@ -210,6 +256,8 @@ class Report:
         self.unfinished = []      # streams stopped by a limit
         self.unexpanded = []      # methods we do not expand
         self.depth = 0
+        self.extrapolated = []    # (name, counted, estimate) for streams cut short by a limit
+        self.inferred = 0         # members sized from measured siblings, not measured themselves
 
 
 NESTED = (".zip", ".gz", ".tgz", ".bz2", ".xz", ".jar", ".apk")
@@ -252,18 +300,29 @@ def analyse_entries(entries, blob, depth, budget, rep, where):
     rep.overlaps += len(starts) - len(set(starts))
     rep.overlaps += sum(1 for (a0, a1), (b0, _b1) in zip(spans, spans[1:]) if b0 < a1)
     groups, sample = plan(entries)
+    sizes, ratios = {}, {}
+    for key in [k for k in sample if k in groups] + [k for k in groups if k not in sample]:
+        off, csize, method = key
+        name, usize = groups[key][0][0], groups[key][0][3]
+        kind = (method, name.lower().endswith(NESTED))
+        per_copy = None
+        if key in sample and blob is not None and depth < MAX_DEPTH and not budget.out():
+            per_copy = expand_member(blob, name, method, csize, usize, off, depth, budget, rep, where)
+            if per_copy is not None and csize and per_copy > usize:
+                ratios[kind] = max(ratios.get(kind, 0), per_copy / csize)
+        if per_copy is None:
+            per_copy = usize
+            if ratios.get(kind) and csize:
+                guess = int(ratios[kind] * csize)
+                if guess > usize:
+                    per_copy = guess
+                    rep.inferred += len(groups[key])
+        sizes[key] = per_copy
     total = 0
     for key, items in groups.items():
-        off, csize, method = key
-        name, usize = items[0][0], items[0][3]
-        per_copy = usize
-        if key in sample and blob is not None and depth < MAX_DEPTH and not budget.out():
-            measured = expand_member(blob, name, method, csize, usize, off, depth, budget, rep, where)
-            if measured is not None:
-                per_copy = measured
-        total += per_copy * len(items)
+        total += sizes[key] * len(items)
         if len(items) > 1:
-            rep.shared.append((f"{where}{name}", len(items), per_copy))
+            rep.shared.append((f"{where}{items[0][0]}", len(items), sizes[key]))
     return total
 
 
@@ -284,10 +343,13 @@ def expand_member(blob, name, method, csize, usize, off, depth, budget, rep, whe
         rep.unexpanded.append(f"{where}{name}")
         return None
     if not first["complete"]:
+        est = extrapolate(first["size"], first["consumed"], len(comp))
         rep.unfinished.append((f"{where}{name}", first["size"]))
+        if est > first["size"]:
+            rep.extrapolated.append((f"{where}{name}", first["size"], est))
         if first["size"] > usize:
             rep.lies.append((f"{where}{name}", usize, first["size"]))
-        return max(first["size"], usize)
+        return max(est, usize)
     if first["size"] != usize:
         rep.lies.append((f"{where}{name}", usize, first["size"]))
     head = first["head"]
@@ -330,10 +392,14 @@ def check_zip(data, budget=None):
     try:
         zf = zipfile.ZipFile(io.BytesIO(data))
         infos = zf.infolist()
-    except (zipfile.BadZipFile, ValueError, OSError):
-        return None
-    entries = [(i.filename, i.compress_type, i.compress_size, i.file_size, i.header_offset,
-                i.external_attr >> 16) for i in infos]
+        entries = [(i.filename, i.compress_type, i.compress_size, i.file_size, i.header_offset,
+                    i.external_attr >> 16) for i in infos]
+    except (zipfile.BadZipFile, ValueError, OSError, struct.error):
+        # Crafted archives can trip Python's reader; read the records ourselves.
+        entries, notes = directory_from_tail(data)
+        if not entries:
+            return None
+        rep.forged.extend(notes or ["Python's zip reader rejects this archive's directory"])
     total = analyse_entries(entries, data, 0, budget, rep, "")
     return rep, total
 
@@ -351,8 +417,11 @@ def check_stream(data, kind, budget=None):
         budget.counted = size
 
     budget.counted = 0
+    budget.consumed = 0
     try:
         complete = _pump(d, data, take, budget)
     except (zlib.error, OSError, EOFError, lzma.LZMAError, ValueError):
         complete = False
+    if not complete and budget.over():
+        size = extrapolate(size, budget.consumed, len(data))
     return size, complete and not budget.over()

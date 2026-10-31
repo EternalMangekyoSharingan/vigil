@@ -164,5 +164,71 @@ class ArchiveBombTests(unittest.TestCase):
         self.assertLess(peak, 16 * MB)
 
 
+
+def zeros_deflate(megabytes):
+    """A raw deflate stream of `megabytes` MB of zeros, built without compressing them all:
+    after a full flush, each 1 MB of zeros compresses to the same independent bytes."""
+    c = zlib.compressobj(9, zlib.DEFLATED, -15)
+    mb = b"\0" * MB
+    first = c.compress(mb) + c.flush(zlib.Z_FULL_FLUSH)
+    mid = c.compress(mb) + c.flush(zlib.Z_FULL_FLUSH)
+    assert mid == c.compress(mb) + c.flush(zlib.Z_FULL_FLUSH)  # periodic from here on
+    return first + mid * (megabytes - 2) + c.compress(mb) + c.flush()
+
+
+def zip64_overlap(kernel, names, declared=2):
+    """SYNTHETIC non-recursive bomb: `names` Zip64 directory records all pointing at one
+    deflate kernel, each declaring `declared` bytes."""
+    lh = struct.pack("<IHHHHHIIIHH", 0x04034B50, 45, 0, 8, 0, 0, 0, len(kernel), declared, 1, 0) + b"k"
+    out = bytearray(lh + kernel)
+    cd = bytearray()
+    for i in range(names):
+        name = f"d/{i:05d}.bin".encode()
+        extra = struct.pack("<HHQQ", 1, 16, declared, len(kernel))
+        cd += struct.pack("<IHHHHHHIIIHHHHHII", 0x02014B50, 45, 45, 0, 8, 0, 0, 0, 0xFFFFFFFF,
+                          0xFFFFFFFF, len(name), len(extra), 0, 0, 0, 0, 0) + name + extra
+    eocd = struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, names, names, len(cd), len(out), 0)
+    return bytes(out + cd + eocd)
+
+
+class TerabyteBombTests(unittest.TestCase):
+    """Bombs over 1 TB, at real scale. Vigil counts 1 GB per stream, then extrapolates."""
+
+    def test_zip64_overlapping_bomb_over_a_terabyte(self):
+        kernel = zeros_deflate(4096)                     # one 4 GB stream, about 4 MB compressed
+        bomb = zip64_overlap(kernel, 300)                # 300 names x 4 GB = about 1.3 TB
+        r, c = ArchiveBombTests.checks(self, bomb, "big.zip")
+        exp = r["details"]["expansion"]
+        self.assertGreater(exp["estimated"], 1e12)
+        self.assertIn("TB", c["decompression_bomb"]["reason"])
+        self.assertIn("about", c["decompression_bomb"]["reason"])
+        self.assertIn("overlapping_entries", c)
+        self.assertEqual(r["verdict"], "Likely malicious")
+
+    def test_same_bomb_nested_inside_another_zip(self):
+        bomb = zip64_overlap(zeros_deflate(4096), 300)
+        outer = zip_of([("inner.zip", bomb)], zipfile.ZIP_STORED)
+        r, c = ArchiveBombTests.checks(self, outer, "outer.zip")
+        self.assertGreater(r["details"]["expansion"]["estimated"], 1e12)  # Zip64 records read inside
+
+    def test_crafted_directory_python_rejects(self):
+        bomb = bytearray(zip64_overlap(zeros_deflate(64), 40))
+        bomb[-22 + 10:-22 + 14] = struct.pack("<HH", 0xFFFF, 0xFFFF)  # nonsense counts
+        bomb[-22 + 12:-22 + 16] = struct.pack("<I", 0xFFFFFFF0)         # and directory size
+        r, c = ArchiveBombTests.checks(self, bytes(bomb), "odd.zip")
+        self.assertIn("overlapping_entries", c)
+
+    @mock.patch.object(archives, "SAMPLES_PER_LEVEL", 1)
+    def test_unmeasured_siblings_use_measured_expansion(self):
+        # 8 identical nested zips whose members lie about their size; only 2 get measured.
+        inner = raw_zip([("x.bin", 0, 10)], [("x.bin", deflate(b"\0" * (8 * MB)), 8 * MB)])
+        outer = zip_of([(f"n{i}.zip", inner) for i in range(8)])
+        with SMALL:
+            r, c = ArchiveBombTests.checks(self, outer, "nest.zip")
+        exp = r["details"]["expansion"]
+        self.assertGreaterEqual(exp["estimated"], 8 * 8 * MB)
+        self.assertGreater(exp["inferred_members"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -681,19 +681,25 @@ def _xls_findings(stream, where):
 def bomb_findings(rep, total, size, report):
     """Findings from archives.check_zip: what extracting this would do."""
     out = []
-    lower = " at least" if rep.unfinished else ""
+    lower = " about" if rep.extrapolated or rep.inferred else " at least" if rep.unfinished else ""
     exp = archives.human(total)
     report["details"]["expansion"] = {
         "file_size": size, "estimated": total, "lower_bound": bool(rep.unfinished),
         "ratio": round(total / max(size, 1)), "depth": rep.depth, "entries": rep.entries,
         "shared": [{"name": n, "entries": k, "each": e} for n, k, e in rep.shared[:5]],
-        "max_member_ratio": round(rep.max_ratio, 1)}
+        "max_member_ratio": round(rep.max_ratio, 1),
+        "extrapolated": [{"name": n, "counted": c, "estimate": e} for n, c, e in rep.extrapolated[:5]],
+        "inferred_members": rep.inferred}
     if total >= BOMB_SEVERE or (rep.unfinished and total >= BOMB_LARGE):
         out.append(finding(
             "decompression_bomb", 90,
             f"Decompression bomb: this {archives.human(size)} file would expand to{lower} {exp} "
             f"({total / max(size, 1):,.0f} times its size)",
-            "measured by expanding the archive as a stream and counting, never keeping the output",
+            "measured by expanding the archive as a stream and counting, never keeping the output"
+            + ("; streams cut off at the counting limit were extrapolated from the compressed input "
+               "they had used" if rep.extrapolated else "")
+            + (f"; {rep.inferred} unmeasured member(s) sized from identical measured siblings"
+               if rep.inferred else ""),
             means="Extracting it (double-clicking it, letting a file manager preview it, or an "
                   "antivirus unpacking it) would fill your disk or memory until the program, or "
                   "the whole desktop, freezes or crashes. Do not extract it; delete it."))
@@ -755,6 +761,8 @@ def analyze_stream(data, name, family, report, iocs, budget, depth):
     rep = archives.Report()
     if size > archives.COUNT_LIMIT or (not complete and size > MEMBER_MAX):
         rep.unfinished.append((name, size))
+        if size > archives.COUNT_LIMIT:
+            rep.extrapolated.append((name, archives.COUNT_LIMIT, size))
     findings = bomb_findings(rep, size, len(data), report)
     if findings or not complete or size > MEMBER_MAX or depth >= 2:
         if not findings:
