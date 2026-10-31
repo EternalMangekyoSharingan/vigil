@@ -20,7 +20,6 @@
       "Bash(sudo:*)",
       "Bash(su:*)",
       "Bash(rm -rf:*)",
-      "Bash(git push:*)",
       "Bash(curl:*)",
       "Bash(wget:*)",
       "Bash(pip install:*)",
