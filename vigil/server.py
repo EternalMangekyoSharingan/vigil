@@ -12,7 +12,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import cases, collector, enrich, inspector, knowledge, scoring
+from . import engines, cases, collector, enrich, inspector, knowledge, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"
@@ -166,6 +166,7 @@ class App:
             raise BadRequest(f"the executable is larger than {EXE_MAX // 2**20} MB")
         name = os.path.basename((info.get("exe") or d["name"]).removesuffix(" (deleted)"))
         report = inspector.inspect_bytes(data, name)
+        inspector.run_clamav(report, data)
         report["about_program"] = {"key": d["key"], "pid": info["pid"], "exe": info.get("exe"),
                                    "owner": knowledge.package_owner(info.get("exe"))}
         inspector.link_context(report, self.store, self.enricher)
@@ -197,8 +198,65 @@ class App:
         """Static triage of uploaded bytes. The file stays in memory; only the report is kept."""
         name = urllib.parse.unquote(headers.get("X-Filename") or "upload")[:255] or "upload"
         report = inspector.inspect_bytes(body, name)
+        inspector.run_clamav(report, body)
         inspector.link_context(report, self.store, self.enricher)
         return inspector.save(self.store, report, "upload via the Vigil page")
+
+    def api_inspection_lookup(self, q, body, headers):
+        """Hash lookup on VirusTotal or MalwareBazaar. Network: only because the user pressed
+        the button. Sends the file's SHA-256 (and the API key), never the file."""
+        req = _json_body(body)
+        service = req.get("service")
+        if service not in ("virustotal", "malwarebazaar"):
+            raise BadRequest("service must be virustotal or malwarebazaar")
+        row = self.store.one("SELECT report FROM inspections WHERE id=?", (int(req.get("id") or 0),))
+        if not row:
+            raise NotFound()
+        report = json.loads(row["report"])
+        sha = report["hashes"]["sha256"]
+        try:
+            if service == "virustotal":
+                result = engines.virustotal(sha, self.lookup_key("virustotal"))
+            else:
+                result = engines.malwarebazaar(sha, self.enricher.auth_key())
+        except engines.LookupError_ as exc:
+            raise BadRequest(str(exc)) from None
+        inspector.apply_lookup(report, service, result)
+        return inspector.resave(self.store, report)
+
+    def lookup_key(self, service):
+        if service == "virustotal":
+            return os.environ.get("VIGIL_VT_KEY") or self.enricher.settings().get("virustotal_api_key")
+        return self.enricher.auth_key()
+
+    def api_keys(self, q):
+        """Which keys are set (never the keys themselves), and whether ClamAV is installed."""
+        return {"virustotal": bool(self.lookup_key("virustotal")),
+                "abusech": bool(self.lookup_key("abusech")),
+                "clamav": engines.clamav_version()}
+
+    def api_keys_set(self, q, body, headers):
+        """Save or clear an API key in data/settings.json (readable by this user only)."""
+        req = _json_body(body)
+        field = {"virustotal": "virustotal_api_key", "abusech": "abusech_auth_key"}.get(req.get("service"))
+        if not field:
+            raise BadRequest("service must be virustotal or abusech")
+        key = str(req.get("key") or "").strip()
+        if key and not re.fullmatch(r"[A-Za-z0-9_\-]{16,128}", key):
+            raise BadRequest("that does not look like an API key")
+        settings = self.enricher.settings()
+        if key:
+            settings[field] = key
+        else:
+            settings.pop(field, None)
+        path = self.enricher.data_dir / "settings.json"
+        tmp = path.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            json.dump(settings, fh, indent=2)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+        return self.api_keys(q)
 
     def api_inspections(self, q):
         return {"inspections": self.store.query(
@@ -351,6 +409,9 @@ class App:
             ("GET", "/api/inspections"): self.api_inspections,
             ("GET", "/api/inspection"): self.api_inspection,
             ("DELETE", "/api/inspection"): self.api_inspection_delete,
+            ("POST", "/api/inspection/lookup"): self.api_inspection_lookup,
+            ("GET", "/api/keys"): self.api_keys,
+            ("POST", "/api/keys"): self.api_keys_set,
             ("GET", "/api/cases"): self.api_cases,
             ("POST", "/api/cases"): self.api_case_create,
             ("GET", "/api/case"): self.api_case,

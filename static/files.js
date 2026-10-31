@@ -7,9 +7,11 @@ import { toast } from "./fx.js";
 const VERDICT_CLASS = { "Likely malicious": "danger", "Suspicious": "warn" };
 
 export class FilesView {
-  constructor(root, { onShowDestination }) {
+  constructor(root, { onShowDestination, onShowIntel }) {
     this.root = root;
     this.onShowDestination = onShowDestination;
+    this.onShowIntel = onShowIntel;
+    this.keys = {};
     this.report = root.querySelector("#file-report");
     this.history = root.querySelector("#file-history");
     this.status = root.querySelector("#upload-status");
@@ -29,7 +31,13 @@ export class FilesView {
   }
 
   async refresh() {
-    const { inspections } = await api.get("/api/inspections");
+    const [{ inspections }, keys] = await Promise.all([api.get("/api/inspections"), api.get("/api/keys")]);
+    const keySig = JSON.stringify(keys);
+    if (keySig !== this.keySig) {
+      this.keySig = keySig;
+      this.keys = keys;
+      if (this.shown && this.rtab === "detection") this.render(this.shown);
+    }
     const sig = JSON.stringify(inspections.map((i) => i.id));
     if (sig === this.sig) return;
     this.sig = sig;
@@ -89,7 +97,9 @@ export class FilesView {
     const score = el("div", { class: "fscore" },
       ring(flagged.length, ran.length || 1, cls),
       el("div", { class: "fscore-cap" }, el("div", { text: "analyzers flagged" }),
-        el("span", { class: `score ${cls === "none" ? "" : cls}`, text: `score ${Math.round(r.score)}` })));
+        el("span", { class: `score ${cls === "none" ? "" : cls}`, text: `score ${Math.round(r.score)}` }),
+        r.lookups?.virustotal?.found ? el("span", { class: `vt-mini ${r.lookups.virustotal.malicious ? "danger" : ""}`,
+          text: `VirusTotal ${r.lookups.virustotal.malicious} / ${r.lookups.virustotal.engines}` }) : null));
     const strip = el("div", { class: `fstrip ${cls}` },
       el("span", { class: "fstrip-ico", text: flagged.length ? "!" : "✓" }),
       el("span", { text: flagged.length
@@ -149,9 +159,93 @@ export class FilesView {
         el("span", { class: "frow-res" }, el("span", { class: "ico", text: a.status === "flagged" ? "!" : a.status === "nothing" ? "✓" : "–" }),
           el("span", { text: a.label }))))));
     }
+    this.renderLookups(box, r);
     box.append(el("h3", { text: `Findings (${r.findings.length})` }));
     if (r.findings.length) box.append(findingList(r.findings));
     else box.append(el("p", { class: "faint", text: "None. That is not a guarantee: see the Details tab for what this check cannot tell you." }));
+  }
+
+  // Hash lookups: only when the user presses the button; only the SHA-256 leaves this PC.
+  renderLookups(box, r) {
+    box.append(el("div", { class: "fgrid-head" }, el("b", { text: "Vendor lookups" }),
+      el("span", { class: "faint", text: "Run only when you press a button. Sends the SHA-256, never the file." })));
+    const services = [
+      ["virustotal", "VirusTotal", "virustotal", "60–70 antivirus engines, if someone has already uploaded this file there."],
+      ["malwarebazaar", "MalwareBazaar", "abusech", "abuse.ch's library of confirmed malware samples."],
+    ];
+    for (const [svc, title, keyName, what] of services) {
+      const res = r.lookups?.[svc];
+      const hasKey = this.keys[keyName];
+      const button = el("button", { type: "button", class: `btn ${res ? "" : "primary"}`, disabled: !hasKey,
+        text: res ? "Look up again" : `Look up SHA-256 on ${title}` });
+      button.addEventListener("click", () => this.lookup(r, svc, title, button));
+      const head = el("div", { class: "lk-head" }, el("strong", { text: title }));
+      const body = el("div", { class: "lk" }, head);
+      if (!res) {
+        head.append(el("span", { class: "faint", text: what }));
+        body.append(el("div", { class: "actions" }, button, hasKey ? null : el("span", { class: "faint" }, "Needs an API key: ",
+          el("button", { type: "button", class: "linkish", text: "add one in the Intel tab", onclick: () => this.onShowIntel?.() }))));
+      } else if (!res.found) {
+        head.append(el("span", { class: "faint", text: `checked ${fmtAgo(res.at)}` }));
+        body.append(el("p", { class: "muted", text: `${title} has no record of this exact file. Nobody has submitted it there, which says nothing either way about what it does.` }),
+          el("div", { class: "actions" }, button));
+      } else if (svc === "virustotal") {
+        const bad = res.malicious + res.suspicious;
+        head.append(el("span", { class: bad ? "danger-text" : "muted", text: `${res.malicious} / ${res.engines} engines flagged this file${res.suspicious ? ` (+${res.suspicious} suspicious)` : ""}` }),
+          el("span", { class: "faint", text: `checked ${fmtAgo(res.at)}${res.last_analysis ? ` · VirusTotal last analysed it ${fmtClock(res.last_analysis)}` : ""}` }));
+        const facts = [];
+        if (res.label) facts.push(["Threat label", res.label]);
+        if (res.categories?.length) facts.push(["Categories", res.categories.join(", ")]);
+        if (res.families?.length) facts.push(["Family labels", res.families.join(", ")]);
+        if (res.names?.length) facts.push(["Also seen as", res.names.slice(0, 4).join(", ")]);
+        if (res.first_seen) facts.push(["First submitted", fmtClock(res.first_seen)]);
+        if (facts.length) body.append(kv(facts));
+        const rows = res.results || [];
+        const showAll = this.vtAll === r.id;
+        const grid = el("div", { class: "fgrid vt" }, (showAll ? rows : rows.slice(0, 24)).map((e) => {
+          const st = ["malicious", "suspicious"].includes(e.category) ? "flagged"
+            : ["undetected", "harmless"].includes(e.category) ? "nothing" : "skipped";
+          const label = st === "flagged" ? e.result || e.category : st === "nothing" ? "Undetected"
+            : { "type-unsupported": "Unable to process file type", timeout: "Timed out", failure: "Failed" }[e.category] || e.category;
+          return el("div", { class: `frow ${st}` }, el("span", { class: "frow-name", text: e.engine }),
+            el("span", { class: "frow-res" }, el("span", { class: "ico", text: st === "flagged" ? "!" : st === "nothing" ? "✓" : "–" }),
+              el("span", { text: label })));
+        }));
+        body.append(grid);
+        const actions = el("div", { class: "actions" }, button,
+          el("a", { class: "btn", href: res.link, target: "_blank", rel: "noopener noreferrer", text: "Open on VirusTotal" }));
+        if (rows.length > 24) actions.append(el("button", { type: "button", class: "btn",
+          text: showAll ? "Show fewer" : `Show all ${rows.length} engines`,
+          onclick: () => { this.vtAll = showAll ? null : r.id; this.render(r); } }));
+        body.append(actions);
+      } else {
+        head.append(el("span", { class: "danger-text", text: `Known malware${res.signature ? `: ${res.signature}` : ""}` }),
+          el("span", { class: "faint", text: `checked ${fmtAgo(res.at)}` }));
+        body.append(kv([["File type", res.file_type], ["First seen there", res.first_seen], ["Tags", (res.tags || []).join(", ") || null]].filter(([, v]) => v)),
+          el("div", { class: "actions" }, button,
+            el("a", { class: "btn", href: res.link, target: "_blank", rel: "noopener noreferrer", text: "Open on MalwareBazaar" })));
+      }
+      box.append(body);
+    }
+  }
+
+  async lookup(r, service, title, button) {
+    button.disabled = true;
+    button.textContent = "Looking up…";
+    try {
+      const updated = await api.send("POST", "/api/inspection/lookup", { id: r.id, service });
+      this.sig = "";
+      this.render(updated);
+      this.refresh();
+      const res = updated.lookups[service];
+      toast(!res.found ? `${title}: no record of this file`
+        : service === "virustotal" ? `VirusTotal: ${res.malicious} / ${res.engines} engines flagged it`
+          : `MalwareBazaar: known malware${res.signature ? ` (${res.signature})` : ""}`, res.found && (res.malicious || service === "malwarebazaar") ? "err" : "ok");
+    } catch (e) {
+      button.disabled = false;
+      button.textContent = `Look up SHA-256 on ${title}`;
+      toast(`${title}: ${e.message}`, "err");
+    }
   }
 
   renderIdentity(box, r) {

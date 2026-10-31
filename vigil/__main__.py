@@ -109,6 +109,7 @@ def cmd_inspect(args):
     path = Path(args.file)
     data = path.read_bytes()
     report = inspector.inspect_bytes(data, path.name)
+    inspector.run_clamav(report, data)
     store, enricher = _offline(args)
     inspector.link_context(report, store, enricher)
     if not args.no_save:

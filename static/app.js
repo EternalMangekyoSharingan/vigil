@@ -16,7 +16,7 @@ const views = {
 };
 views.alerts = new AlertsView(document.getElementById("tab-alerts"), { onShowProgram: showProgram });
 views.intel = new IntelView(document.getElementById("tab-intel"), { onShowDestination: showDestination });
-views.files = new FilesView(document.getElementById("tab-files"), { onShowDestination: showDestination });
+views.files = new FilesView(document.getElementById("tab-files"), { onShowDestination: showDestination, onShowIntel: () => showTab("intel") });
 views.cases = new CasesView(document.getElementById("tab-cases"), {
   onShowProgram: showProgram,
   onShowDestination: showDestination,

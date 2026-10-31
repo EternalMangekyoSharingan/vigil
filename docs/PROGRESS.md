@@ -733,6 +733,61 @@ At the owner's request (with a VirusTotal report as the reference):
   engines (ClamAV, YARA, VirusTotal hash lookups) need a new dependency, sudo or an
   outside service, so they wait for the owner's decision.
 
+## Second opinions: ClamAV and hash lookups (2026-10-31, owner approved)
+
+The owner chose ClamAV on the PC plus button-only hash lookups, and asked for
+VirusTotal's API as well.
+
+### What was built
+- `vigil/engines.py`:
+  - **ClamAV**: bytes streamed on stdin to `clamdscan` (daemon), falling back to
+    `clamscan` with archive limits. Exit codes and `stdin: NAME FOUND` lines are
+    parsed, and engine and signature versions are recorded.
+  - **VirusTotal** API v3 file lookup by SHA-256.
+  - **MalwareBazaar** `get_info` by SHA-256.
+  - Each result is turned into findings with points and their source.
+- `inspector.run_clamav` runs on every upload, every "Inspect executable" and the
+  CLI. `inspector.apply_lookup` attaches a lookup to a saved report, rescores it and
+  replaces any earlier lookup of the same service.
+- Endpoints:
+  - `POST /api/inspection/lookup` runs a lookup, only when the button is pressed.
+  - `GET /api/keys` reports which keys are set (never the keys) and the ClamAV
+    version.
+  - `POST /api/keys` writes `data/settings.json` with mode 0600.
+- UI:
+  - ClamAV row in the analyzer grid.
+  - "Vendor lookups" on the Detection tab, with VirusTotal's full engine list,
+    detections first.
+  - "VirusTotal n / m" in the score box.
+  - "Second opinions on files" in the Intel tab: ClamAV status and install commands,
+    key fields.
+- Network: lookups go through `enrich.http`, which is now the one place that opens
+  a URL (the existing guard test still enforces a single `urlopen`).
+
+### Verification
+- 156 tests pass on Python 3.13 and 3.11.
+- New tests (all synthetic):
+  - A stand-in ClamAV script run through the real subprocess and stdin path.
+  - Fallback from clamdscan to clamscan, with the limits passed.
+  - Scoring for malware, PUA and heuristic names.
+  - Canned VirusTotal and MalwareBazaar answers: 200, 404, 429, a bad hash, a
+    missing key.
+  - Lookup replacement.
+  - Keys saved with mode 0600 and never echoed back.
+  - An upload makes no network request.
+  - A lookup sends only the hash URL and the key.
+- The layout was checked in Chromium with the canned VirusTotal answer injected in
+  the browser (nothing stored).
+
+### Known limitations
+- **Not tested against a real ClamAV or the real APIs.** This container has no
+  ClamAV, no API keys and no access to those services. The formats follow ClamAV's
+  documented output and the published VirusTotal v3 and MalwareBazaar APIs.
+- `clamscan` without the daemon loads its whole signature database for each file,
+  which can take 20–60 s and about 1 GB of memory. The clamd daemon avoids this.
+- A hash lookup only knows files someone has already submitted. A new or targeted
+  file is often unknown.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

@@ -18,7 +18,8 @@ export class IntelView {
 
   async refresh() {
     if (this.busy) return;
-    const st = await api.get("/api/intel");
+    const [st, keys] = await Promise.all([api.get("/api/intel"), api.get("/api/keys")]);
+    st.keys = keys;
     const sig = JSON.stringify(st);
     if (sig === this.sig) return;
     this.sig = sig;
@@ -34,6 +35,7 @@ export class IntelView {
       const res = await api.send("POST", "/api/intel/update", { what });
       this.sig = "";
       this.busy = false;
+      res.status.keys = await api.get("/api/keys");
       this.render(res.status, res.results);
       const bad = res.results.filter((r) => !r.ok);
       toast(bad.length ? `${bad.length} source(s) failed; previous data kept` : "Updated; scores recalculated", bad.length ? "err" : "ok");
@@ -87,6 +89,51 @@ export class IntelView {
       el("div", { class: "src", text: `${g.source || g.url} · ${g.licence} · about 7 MB` }),
       st.country_names ? null : el("p", { class: "faint", text: "Country names come from the iso-codes package, which is not installed; two-letter codes are shown instead." }),
       el("div", { class: "actions" }, gb)));
+
+    this.renderEngines(box, st.keys || {});
+  }
+
+  // ClamAV on this PC, and the API keys for the File Inspector's hash-lookup buttons.
+  renderEngines(box, keys) {
+    box.append(el("h3", { text: "Second opinions on files" }),
+      el("p", { class: "muted", text: "Optional. ClamAV runs on this PC on every inspected file. The hash lookups run only when you press their button on a report, and send only the file's SHA-256: the file never leaves this machine." }));
+    const c = keys.clamav;
+    box.append(el("div", { class: "card" },
+      el("div", { class: "card-head" }, el("strong", { text: "ClamAV (local antivirus)" }),
+        el("span", { class: `tag ${c ? "live" : ""}`, text: c ? "installed" : "not installed" })),
+      c ? el("div", { class: "card-meta", text: `Engine ${c.engine}${c.db_version ? ` · signatures ${c.db_version}` : ""}${c.db_date ? ` (${c.db_date})` : ""}` })
+        : el("div", { class: "card-meta", text: "Install it with your package manager; it needs sudo once, to add the package. Then run freshclam (or enable the clamav-freshclam service) to download signatures, and enable clamd for fast scans." }),
+      c ? null : el("pre", { class: "code", text: "Debian/Ubuntu/Mint:  sudo apt install clamav clamav-daemon\nFedora:              sudo dnf install clamav clamav-update clamd\nArch:                sudo pacman -S clamav\nopenSUSE:            sudo zypper install clamav" }),
+      el("div", { class: "src", text: "Bytes are streamed to clamdscan (or clamscan, with archive limits) on stdin. Nothing is written to disk and nothing is run." })));
+    box.append(this.keyCard("virustotal", "VirusTotal hash lookup", keys.virustotal,
+      "Free personal API key from virustotal.com (sign in → API key). Free keys allow 4 lookups a minute and 500 a day, for non-commercial use.",
+      "Sends the SHA-256 and your key to www.virustotal.com. VirusTotal (and its customers) can see that this hash was looked up."));
+    box.append(this.keyCard("abusech", "MalwareBazaar hash lookup (abuse.ch)", keys.abusech,
+      "The same free abuse.ch Auth-Key the threat feeds use (auth.abuse.ch).",
+      "Sends the SHA-256 and your key to mb-api.abuse.ch."));
+  }
+
+  keyCard(service, title, isSet, how, privacy) {
+    const input = el("input", { type: "password", placeholder: isSet ? "A key is saved; paste a new one to replace it" : "Paste API key", autocomplete: "off", spellcheck: "false" });
+    input.style.cssText = "flex: 1; font-family: var(--mono);";
+    const save = async (key) => {
+      try {
+        await api.send("POST", "/api/keys", { service, key });
+        this.sig = "";
+        toast(key ? `${title}: key saved` : `${title}: key removed`);
+        this.refresh();
+      } catch (e) {
+        toast(e.message, "err");
+      }
+    };
+    return el("div", { class: "card" },
+      el("div", { class: "card-head" }, el("strong", { text: title }),
+        el("span", { class: `tag ${isSet ? "live" : ""}`, text: isSet ? "key set" : "no key" })),
+      el("div", { class: "card-meta", text: how }),
+      el("div", { class: "lookup" }, input,
+        el("button", { type: "button", class: "btn primary", text: "Save", onclick: () => input.value.trim() && save(input.value.trim()) }),
+        isSet ? el("button", { type: "button", class: "btn", text: "Remove", onclick: () => save("") }) : null),
+      el("div", { class: "src", text: `${privacy} Stored in data/settings.json, readable only by you; never shown again here.` }));
   }
 
   async lookup(value) {

@@ -209,7 +209,7 @@ main { position: relative; z-index: 1; flex: 1; min-height: 0; display: flex; }
   background: var(--bg-1);
 }
 .field { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 12px; }
-select, input[type=search], input[type=text], textarea {
+select, input[type=search], input[type=text], input[type=password], textarea {
   height: 28px;
   background: var(--bg-2);
   border: 1px solid var(--line-2);
@@ -880,3 +880,12 @@ table.conns .sub { color: var(--text-3); font-size: 11.5px; }
 }
 @media (max-width: 760px) { .fhead { grid-template-columns: 1fr; } }
 .split > .side { width: 360px; }
+
+/* vendor lookups */
+.lk { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-1); padding: 12px 14px; margin: 10px 0; }
+.lk-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; }
+.lk .kv { margin: 8px 0 4px; }
+.lk .fgrid.vt { margin-top: 6px; }
+.lk .fgrid.vt .frow { min-height: 38px; }
+.vt-mini { font-size: 11.5px; color: var(--text-2); }
+.vt-mini.danger { color: var(--danger-text); }

@@ -25,7 +25,7 @@ import urllib.parse
 import zipfile
 import zlib
 
-from . import __version__, archives, ole
+from . import __version__, archives, engines, ole
 from .enrich import FEEDS
 from .scoring import finding
 
@@ -1030,6 +1030,9 @@ ANALYZERS = [
      "Download-and-run commands, hidden PowerShell, reverse shells, persistence, HTML smuggling.",
      {"download_cradle", "hidden_powershell", "lolbin", "persistence", "pipe_to_shell", "reverse_shell",
       "temp_exec", "html_smuggling"}, lambda f: f in TEXT_FAMILIES or f == "lnk"),
+    ("clamav", "ClamAV (local antivirus)",
+     "ClamAV's signature database, run on this PC from memory. Optional: install ClamAV to enable.",
+     {"antivirus"}, None),
     ("intel", "Threat feeds (offline)",
      "Indicators matched against the abuse.ch lists you downloaded.",
      {"threat_intel"}, None),
@@ -1045,15 +1048,23 @@ def summarize_analyzers(report, context=None):
     `context` says whether the offline sources were available: {"feeds": n, "history": bool}.
     Without it (the command line, or before link_context), those two rows read "not run".
     """
-    context = context or {}
     if "type" not in report:
         return report
+    if context is not None:
+        report["context"] = context
+    context = report.get("context") or {}
     family = report["type"]["detected"]
     families = {family} | {n["type"] for n in report["details"].get("nested", [])}  # members were inspected too
     rows = []
     for key, title, about, checks, applies in ANALYZERS:
         hits = [f for f in report["findings"] if f["check"] in checks and f["points"] > 0]
-        if key == "intel":
+        if key == "clamav":
+            clam = (report.get("engines") or {}).get("clamav") or {}
+            ran = clam.get("status") in ("flagged", "nothing")
+            why_not = {"unavailable": "Not run: ClamAV is not installed",
+                       "error": f"Not run: {clam.get('reason', 'ClamAV failed')}"}.get(clam.get("status"),
+                                                                                    "Not run: inside the Vigil app only")
+        elif key == "intel":
             ran = bool(context.get("feeds"))
             why_not = "Not run: no feeds downloaded (Intel tab)"
         elif key == "history":
@@ -1216,6 +1227,43 @@ def _is_ip(value):
         return False
 
 
+# ---- second opinions: ClamAV and hash lookups ------------------------------------------------
+
+def _rescore(report):
+    report["findings"] = sorted(_dedupe(report["findings"]), key=lambda f: -f["points"])
+    report["score"] = min(100.0, round(sum(f["points"] for f in report["findings"]), 1))
+    report["verdict"] = verdict_for(report["score"])
+    return summarize_analyzers(report)
+
+
+def run_clamav(report, data, scan=engines.clamav_scan, version=engines.clamav_version):
+    """Scan the bytes with ClamAV if it is installed. The file goes to ClamAV on stdin only."""
+    result = scan(data)
+    if result["status"] in ("flagged", "nothing"):
+        result.update(version() or {})
+    report.setdefault("engines", {})["clamav"] = result
+    if result["status"] == "flagged":
+        where = (f"ClamAV {result.get('engine', '?')} via {result['tool']}, signatures "
+                 f"{result.get('db_version') or '?'} ({result.get('db_date') or 'date unknown'}); scanned from memory")
+        for sig in result["signatures"][:5]:
+            pts, kind = engines.clamav_points(sig)
+            report["findings"].append(finding("antivirus", pts, f"ClamAV identifies it as {sig} ({kind})", where))
+    elif result["status"] == "unavailable":
+        report["limits"].append("ClamAV is not installed, so no antivirus signatures were checked.")
+    elif result["status"] == "error":
+        report["limits"].append(f"ClamAV could not scan it: {result['reason']}.")
+    return _rescore(report)
+
+
+def apply_lookup(report, service, result):
+    """Attach a hash-lookup result to a saved report and rescore it."""
+    result = dict(result, at=time.time())
+    report.setdefault("lookups", {})[service] = result
+    report["findings"] = [f for f in report["findings"] if f["check"] != service]
+    report["findings"] += engines.lookup_findings(service, result, finding)
+    return _rescore(report)
+
+
 def save(store, report, source):
     """Record an inspection in the evidence store (the report, never the file)."""
     now = time.time()
@@ -1231,4 +1279,12 @@ def save(store, report, source):
         report["id"] = cur.lastrowid
         store.db.execute("UPDATE inspections SET report=? WHERE id=?",
                          (json.dumps(report), report["id"]))
+    return report
+
+
+def resave(store, report):
+    """Store an updated report (after a hash lookup) under its existing id."""
+    with store.lock, store.db:
+        store.db.execute("UPDATE inspections SET report=?, verdict=?, score=? WHERE id=?",
+                         (json.dumps(report), report["verdict"], report["score"], report["id"]))
     return report

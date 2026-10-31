@@ -194,8 +194,43 @@ the file type. Under them are four tabs:
 - **Indicators**: the URLs, addresses and domains found inside.
 - **Behaviour**: empty until the detonation VM exists (build step 6).
 
-The rows are Vigil's own analyzers, all offline. No antivirus vendors are shown or
-implied.
+The rows are Vigil's own analyzers, all offline.
+
+### Second opinions: ClamAV and hash lookups (optional)
+
+- **ClamAV (local antivirus)** appears as a row in the analyzer grid. When it is
+  installed, every inspected file is streamed to it on stdin. Vigil uses `clamdscan`
+  if the clamd daemon is running (fast: its signatures are already loaded) and
+  otherwise `clamscan` with archive limits (400 MB scanned, 16 levels deep, 90 s), so
+  a zip bomb can't hurt it. A malware signature counts 70 points, a "PUA." name 25 and
+  a "Heuristics." name 20. Each finding records the engine and signature versions.
+  If ClamAV isn't installed, the row says so and nothing else changes. To install it
+  (needs sudo once, for the package):
+
+  ```bash
+  sudo apt install clamav clamav-daemon      # Debian, Ubuntu, Mint
+  sudo dnf install clamav clamav-update clamd # Fedora
+  sudo pacman -S clamav                       # Arch
+  ```
+
+  Then run `sudo freshclam` once, or enable the `clamav-freshclam` service, to
+  download signatures. Enable `clamav-daemon`/`clamd` for fast scans.
+- **Vendor lookups**: two buttons on the Detection tab, which do nothing until you
+  press them.
+  - **VirusTotal** sends the SHA-256 to VirusTotal's API and shows the full engine
+    list (for example "2 / 58 engines flagged this file"), the threat label,
+    categories, family labels and other names the file has been seen under. 5 or
+    more detections count 70 points and 1–4 count 30. Needs a free personal API key
+    (4 lookups a minute, 500 a day).
+  - **MalwareBazaar** (abuse.ch) says whether this exact file is a known malware
+    sample, and of which family (70 points). It uses the same free Auth-Key as the
+    threat feeds.
+
+  If the service has never seen the file, the report says that, which tells you
+  nothing either way. Set keys in the Intel tab (stored in `data/settings.json`,
+  readable only by you, never sent back to the page) or with the `VIGIL_VT_KEY` and
+  `VIGIL_ABUSECH_KEY` environment variables. Files are never uploaded: an upload to
+  VirusTotal would be available to its paying customers.
 
 | Area | What is checked |
 | --- | --- |
@@ -312,10 +347,14 @@ not visible. Missing `/proc/net/tcp6` (IPv6 disabled) is reported, not an error.
   them. Pages are served with a strict Content-Security-Policy.
 - Monitoring is read-only: Vigil only reads `/proc`. It changes no firewall, route, DNS
   or kernel setting and never signals processes.
-- No network calls, except the feed and database downloads you trigger. Nothing about
-  your traffic leaves the machine. A test checks that `urlopen` appears in exactly
-  one function, and another runs a full poll, score and lookup with networking
-  patched to fail.
+- No network calls, except the ones you trigger: feed and database downloads, and the
+  hash-lookup buttons on a file report (which send the file's SHA-256 and your API
+  key, never the file). Nothing about your traffic leaves the machine. A test checks
+  that `urlopen` appears in exactly one function, another runs a full poll, score and
+  lookup with networking patched to fail, and another checks that an upload makes no
+  request.
+- ClamAV, when installed, gets the file's bytes on stdin. Nothing is written to disk,
+  and ClamAV only reads them.
 - The evidence store (`data/vigil.db`) is created in a directory only you can read.
 
 ## Tests
@@ -344,6 +383,7 @@ vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
 vigil/enrich.py      threat feeds and country/ASN database (download on request)
 vigil/inspector.py   File Inspector: static triage, verdict, indicators
 vigil/archives.py    archive-bomb measurement: streamed decompression, nothing extracted
+vigil/engines.py     second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups
 vigil/knowledge.py   offline notes on programs and ports; package ownership; plain-language summaries
 vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
 vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown

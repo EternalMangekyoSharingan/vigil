@@ -55,23 +55,34 @@ ISO_3166 = "/usr/share/iso-codes/json/iso_3166-1.json"
 
 # ---- downloading (only ever called on the user's request) ------------------------
 
-def fetch(url, headers=None, limit=MAX_DOWNLOAD, timeout=60):
-    """GET a URL and return its bytes. Refuses anything larger than `limit`."""
-    req = urllib.request.Request(url, headers={
+def http(url, headers=None, data=None, limit=MAX_DOWNLOAD, timeout=60):
+    """The one place Vigil opens a URL. Only reached from actions the user triggers:
+    feed and geo updates, and hash lookups. Returns (status, body bytes); HTTP errors
+    come back as their status, network failures raise RuntimeError."""
+    req = urllib.request.Request(url, data=data, headers={
         "User-Agent": f"Vigil/{__version__} (personal blue-team lab)", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as res:
-            data = res.read(limit + 1)
+            body = res.read(limit + 1)
+            status = res.status
     except urllib.error.HTTPError as exc:
-        hint = ""
-        if exc.code in (401, 403) and "abuse.ch" in url:
-            hint = (" (abuse.ch may require a free Auth-Key: get one at https://auth.abuse.ch/ "
-                    "and set VIGIL_ABUSECH_KEY or abusech_auth_key in data/settings.json)")
-        raise RuntimeError(f"HTTP {exc.code} {exc.reason} from {url}{hint}") from None
+        return exc.code, exc.read(2**20)
     except urllib.error.URLError as exc:
         raise RuntimeError(f"could not reach {url}: {exc.reason}") from None
-    if len(data) > limit:
+    if len(body) > limit:
         raise RuntimeError(f"download from {url} is larger than {limit} bytes; refused")
+    return status, body
+
+
+def fetch(url, headers=None, limit=MAX_DOWNLOAD, timeout=60):
+    """GET a URL and return its bytes. Refuses anything larger than `limit`."""
+    status, data = http(url, headers, limit=limit, timeout=timeout)
+    if status >= 400:
+        hint = ""
+        if status in (401, 403) and "abuse.ch" in url:
+            hint = (" (abuse.ch may require a free Auth-Key: get one at https://auth.abuse.ch/ "
+                    "and set VIGIL_ABUSECH_KEY or abusech_auth_key in data/settings.json)")
+        raise RuntimeError(f"HTTP {status} from {url}{hint}")
     return data
 
 
