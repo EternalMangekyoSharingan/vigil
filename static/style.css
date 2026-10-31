@@ -1000,3 +1000,15 @@ details.tech summary { cursor: pointer; color: var(--text-2); font-weight: 500; 
 .frow.flagged:has(.sico:hover) { background: var(--danger-soft); box-shadow: inset 0 0 0 1px rgba(255, 93, 115, .35); }
 .frow.nothing:has(.sico:hover) { background: rgba(93, 189, 185, .08); box-shadow: inset 0 0 0 1px rgba(93, 189, 185, .3); }
 .frow-name { padding-left: 6px; }
+
+/* sudo mode, scan, cleanup */
+.btn.run { height: 24px; padding: 0 10px; font-size: 11.5px; flex: none; background: var(--orange-soft); border-color: rgba(255, 159, 67, .45); color: var(--orange); }
+.btn.run:hover { background: rgba(255, 159, 67, .2); }
+.cmd-out { margin: -2px 0 8px; }
+.cmd-exit { font-size: 12px; font-weight: 600; margin: 4px 0; }
+.cmd-exit.ok { color: var(--ok); }
+.cmd-exit.bad { color: var(--danger-text); }
+.toolrow { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 12px 0 4px; }
+.tool { display: flex; align-items: center; gap: 7px; font-size: 12.5px; }
+.lk-head .sico { align-self: center; }
+.risk.deletes { color: var(--orange); background: var(--orange-soft); }

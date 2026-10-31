@@ -1,7 +1,7 @@
 // Alerts: one card per alert with a short human title. Open a card for "Why was this
 // flagged?" (a structured explanation) and "Fix" (commands to copy, read and run
 // yourself: Vigil never runs them).
-import { api, el, clear, fmtClock, addToCase } from "./ui.js";
+import { api, el, clear, fmtClock, addToCase, appState } from "./ui.js";
 import { toast } from "./fx.js";
 import { copy } from "./menu.js";
 
@@ -157,14 +157,15 @@ export class AlertsView {
     }
     clear(box);
     box.append(el("p", { class: "note" },
-      el("strong", { text: "Vigil never runs these. " }),
-      "Read each command, copy it, and run it yourself in a terminal. ",
+      el("strong", { text: appState.sudoMode ? "Sudo mode is on. " : "Vigil does not run these. " }),
+      appState.sudoMode ? "Read each command first. Run asks before it starts, and your system asks for your password for admin commands. "
+        : "Read each command, copy it, and run it yourself in a terminal (or switch on sudo mode in Settings). ",
       f.distro.known ? `Commands are for ${f.distro.name || f.distro.id}` : "", f.firewall ? ` · firewall: ${f.firewall}` : ""));
     if (f.note) box.append(el("p", { class: "muted", text: f.note }));
     const section = (title, list, kind) => {
       box.append(el("h3", { text: title }));
       if (!list.length) { box.append(el("p", { class: "faint", text: "Nothing to show here." })); return; }
-      for (const o of list) box.append(option(o, kind));
+      for (const o of list) box.append(option(o, kind, { source: "fix", ref: a.id }));
     };
     section("Check it (read-only)", f.check, "check");
     section("Fix it", f.fix, "fix");
@@ -230,30 +231,63 @@ export class AlertsView {
 
 // ---- commands: coloured tokens, copy button, never an execute button ----------------------
 
-export function commandLine(c) {
+export { option };
+export function commandLine(c, ctx = null) {
   const line = el("div", { class: "cmd" });
   const code = el("code", { class: "cmd-text" });
   c.tokens.forEach((t, i) => {
     if (i) code.append(" ");
     code.append(el("span", { class: `tok tok-${t.role}${t.family ? ` fam-${t.family}` : ""}`, title: `${roleName(t.role)}: ${t.tip}`, text: t.text }));
   });
-  line.append(code, el("button", { type: "button", class: "btn copy", text: "Copy", title: "Copy this command; Vigil does not run it",
+  line.append(code, el("button", { type: "button", class: "btn copy", text: "Copy", title: "Copy this command",
     onclick: () => { copy(c.text); toast("Copied. Read it before you run it."); } }));
-  return line;
+  const wrap = el("div", { class: "cmd-wrap" }, line);
+  const runnable = ctx && appState.sudoMode && !/^sudoedit\b/.test(c.text);
+  if (runnable) {
+    const admin = /^(sudo|doas|pkexec)\b/.test(c.text);
+    const out = el("div", { class: "cmd-out", hidden: true });
+    const btn = el("button", { type: "button", class: "btn run", text: "Run",
+      title: admin ? "Runs it as administrator: your system asks for your password" : "Runs it as you" });
+    btn.addEventListener("click", async () => {
+      const ok = window.confirm(`Vigil will run exactly this:\n\n${c.text}\n\n${admin
+        ? "Your system will ask for your password in its own window. Vigil never sees it."
+        : "It runs as your user, without admin rights."}`);
+      if (!ok) return;
+      btn.disabled = true;
+      btn.textContent = "Running…";
+      try {
+        const r = await api.send("POST", "/api/run", { command: c.text, source: ctx.source, ref: ctx.ref });
+        clear(out).append(el("div", { class: `cmd-exit ${r.exit === 0 ? "ok" : "bad"}`,
+          text: r.exit === 0 ? `Done in ${r.seconds} s` : r.exit === null ? "Stopped (took too long)" : `Exit code ${r.exit}${r.note ? ` · ${r.note}` : ""}` }),
+        (r.stdout || r.stderr) ? el("pre", { class: "code", text: (r.stdout + (r.stderr ? `\n${r.stderr}` : "")).trim() }) : null);
+        out.hidden = false;
+        toast(r.exit === 0 ? "Command finished" : "Command did not succeed", r.exit === 0 ? "ok" : "err");
+      } catch (e) {
+        clear(out).append(el("div", { class: "cmd-exit bad", text: e.message }));
+        out.hidden = false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Run";
+      }
+    });
+    line.append(btn);
+    wrap.append(out);
+  }
+  return wrap;
 }
 
 const ROLE_NAMES = { admin: "Admin / root", pkgmgr: "Package manager", install: "Install / turn on", remove: "Remove / turn off",
   package: "Package or app", path: "File path", flag: "Option", service: "Service manager", command: "Program", arg: "Argument" };
 function roleName(r) { return ROLE_NAMES[r] || r; }
 
-function option(o, kind) {
+function option(o, kind, ctx = null) {
   const box = el("div", { class: `fixopt ${kind}` },
     el("div", { class: "lk-head" }, el("strong", { text: o.title }),
       o.risk_label ? el("span", { class: `risk ${o.risk || ""}`, text: o.risk_label }) : null));
   if (o.what) box.append(el("p", { text: o.what }));
   if (o.lose) box.append(el("p", { class: "muted", text: `What you lose: ${o.lose}` }));
   if (o.steps?.length) box.append(el("ol", { class: "steps" }, o.steps.map((s) => el("li", { text: s }))));
-  for (const c of o.commands || []) box.append(commandLine(c));
+  for (const c of o.commands || []) box.append(commandLine(c, ctx));
   if (o.file) {
     box.append(el("p", { class: "faint", text: `Put exactly this in ${o.file.path} (the editor opens it):` }),
       el("pre", { class: "code", text: o.file.content }));
@@ -261,7 +295,7 @@ function option(o, kind) {
   if (kind === "fix" && ((o.undo || []).length || o.undo_steps?.length)) {
     box.append(el("div", { class: "faint", text: "Undo:" }));
     if (o.undo_steps?.length) box.append(el("ol", { class: "steps" }, o.undo_steps.map((s) => el("li", { text: s }))));
-    for (const c of o.undo || []) box.append(commandLine(c));
+    for (const c of o.undo || []) box.append(commandLine(c, ctx));
   }
   return box;
 }

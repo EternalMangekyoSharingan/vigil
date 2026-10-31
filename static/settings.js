@@ -1,5 +1,5 @@
 // Settings: your allowlist rules (each one undoable) and how hard Vigil looks.
-import { api, el, clear, fmtClock } from "./ui.js";
+import { api, el, clear, fmtClock, appState } from "./ui.js";
 import { toast } from "./fx.js";
 
 export class SettingsView {
@@ -10,7 +10,7 @@ export class SettingsView {
 
   async refresh() {
     const [rules, status] = await Promise.all([api.get("/api/allowlist"), api.get("/api/status")]);
-    const sig = JSON.stringify([rules, status.interval, status.fast_poll_until]);
+    const sig = JSON.stringify([rules, status.interval, status.fast_poll_until, status.sudo_mode]);
     if (sig === this.sig) return;
     this.sig = sig;
     this.render(rules.rules, status);
@@ -24,6 +24,21 @@ export class SettingsView {
     const mine = rules.filter((r) => r.source === "user");
     if (!mine.length) box.append(el("p", { class: "faint", text: "No rules yet. Use Allowlist… on an alert." }));
     for (const r of mine) box.append(this.rule(r, true));
+    box.append(el("h3", { text: "Sudo mode" }));
+    const on = !!status.sudo_mode;
+    box.append(el("div", { class: "card" },
+      el("strong", { text: on ? "Sudo mode is on" : "Sudo mode is off" }),
+      el("p", { class: "muted", text: "When on, fix, cleanup and scan commands get a Run button next to Copy. Vigil shows the exact command and asks you first. Admin commands run through pkexec: your system's own password window shows the command and takes your password, so Vigil never sees it. Only commands Vigil generated can run, one at a time, without a shell, and every run is written to the event log." }),
+      el("div", { class: "actions" }, el("button", {
+        type: "button", class: `btn ${on ? "" : "primary"}`, text: on ? "Switch sudo mode off" : "Switch sudo mode on",
+        onclick: async () => {
+          if (!on && !window.confirm("Switch on sudo mode?\n\nVigil will then be able to run its own fix, cleanup and scan commands when you press Run, asking your system for your password for admin commands.")) return;
+          await api.send("POST", "/api/settings", { sudo_mode: !on });
+          appState.sudoMode = !on;
+          toast(on ? "Sudo mode off" : "Sudo mode on");
+          this.sig = "";
+          this.refresh();
+        } }))));
     box.append(el("h3", { text: "How hard Vigil looks" }));
     const until = status.fast_poll_until || 0;
     const fast = until * 1000 > Date.now();

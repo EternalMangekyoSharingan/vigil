@@ -126,6 +126,11 @@ class Store:
         with self.lock, self.db:
             self._event(ts, kind, summary, source, program, ip, port, proto, conn_id, detail)
 
+    def event(self, ts, kind, summary, source, **kw):
+        """Record one event in its own transaction (for callers outside one)."""
+        with self.lock, self.db:
+            self._event(ts, kind, summary, source, **kw)
+
     def _event(self, ts, kind, summary, source, program=None, ip=None, port=None,
                proto=None, conn_id=None, detail=None):
         self.db.execute(

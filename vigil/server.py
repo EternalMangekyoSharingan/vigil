@@ -8,12 +8,13 @@ import re
 import sys
 import threading
 import time
+import zipfile
 import traceback
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import engines, fixes, identify, services, wording, cases, collector, enrich, inspector, knowledge, scoring
+from . import cleanup, commands, engines, fixes, identify, pkgdb, runner, scans, services, wording, cases, collector, enrich, inspector, knowledge, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"
@@ -83,6 +84,10 @@ class App:
         self.clamav_threads = []
         self.os_release_path = "/etc/os-release"  # tests point these at fixtures
         self.fs_root = "/"
+        self.home = os.path.expanduser("~")
+        self.last_cleanup = None
+        self.scan = {"running": False, "results": None}
+        self.scan_lock = threading.Lock()
         self.tracker = Tracker(self.store)
         self.allowlist = scoring.Allowlist(str(self.data_dir / "allowlist.json"))
         self.scorer = scoring.Scorer(self.store, self.allowlist, interval)
@@ -105,7 +110,7 @@ class App:
                   "last_scored_at": self.store.get_meta("last_scored_at"),
                   "alerts_open": self.store.one("SELECT COUNT(*) n FROM alerts"
                                                 " WHERE status='open'")["n"],
-                  "fast_poll_until": m.fast_until}
+                  "fast_poll_until": m.fast_until, "sudo_mode": self.sudo_mode()}
         if snap:
             # Loopback-to-loopback sockets never leave the machine (and include the UI's
             # own requests), so they are counted apart from the ones that matter.
@@ -500,6 +505,157 @@ class App:
                              fixes.os_release(self.os_release_path), fixes.firewall(self.fs_root),
                              exe=exe, service=ctx["service"])
 
+    # ---- sudo mode -------------------------------------------------------------------------
+
+    def sudo_mode(self):
+        return bool(self.enricher.settings().get("sudo_mode"))
+
+    def api_settings_set(self, q, body, headers):
+        """Switch sudo mode on or off (off by default)."""
+        req = _json_body(body)
+        settings = self.enricher.settings()
+        settings["sudo_mode"] = bool(req.get("sudo_mode"))
+        path = self.enricher.data_dir / "settings.json"
+        fd = os.open(f"{path}.tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            json.dump(settings, fh, indent=2)
+        os.replace(f"{path}.tmp", path)
+        self.store.event(time.time(), "setting", f"Sudo mode switched {'on' if settings['sudo_mode'] else 'off'}",
+                          "Settings tab")
+        return {"sudo_mode": settings["sudo_mode"]}
+
+    def allowed_commands(self, source, ref):
+        """Re-generate, server-side, the commands a page section showed: only these may run."""
+        if source == "fix":
+            f = self.api_alert_fix({"id": ref})
+            return {c["text"] for sec in ("check", "fix", "undo") for o in f[sec] for c in (o.get("commands") or []) + (o.get("undo") or [])}
+        if source == "cleanup":
+            items = (self.last_cleanup or {}).get("items") or []
+            return cleanup.commands_for(items)
+        if source == "scan":
+            res = self.scan.get("results") or {}
+            return {c for r in res.get("findings", []) for c in r.get("commands", []) + r.get("check", [])}
+        return set()
+
+    def api_run(self, q, body, headers):
+        """Sudo mode: run one generated command after the user pressed Run. pkexec asks for
+        the password in the system's own dialog; Vigil never sees it."""
+        if not self.sudo_mode():
+            raise BadRequest("sudo mode is off: switch it on in Settings, or copy the command")
+        req = _json_body(body)
+        try:
+            return runner.run(str(req.get("command") or ""), self.allowed_commands(req.get("source"), req.get("ref")),
+                              store=self.store)
+        except runner.Refused as exc:
+            raise BadRequest(str(exc)) from None
+
+    # ---- cleanup and scans -------------------------------------------------------------------
+
+    def api_cleanup(self, q):
+        self.last_cleanup = cleanup.survey(self.home, self.fs_root, fixes.os_release(self.os_release_path))
+        items = [dict(i, commands_tokens=_tokens(i["commands"])) for i in self.last_cleanup["items"]]
+        return dict(self.last_cleanup, items=items, sudo_mode=self.sudo_mode())
+
+    def api_scan_status(self, q):
+        res = self.scan.get("results")
+        if res is None:
+            try:
+                with open(self.data_dir / "scan-last.json") as fh:
+                    res = self.scan["results"] = json.load(fh)
+            except (OSError, ValueError):
+                res = None
+        if res:
+            res = dict(res, findings=[dict(f, commands_tokens=_tokens(f.get("commands", [])),
+                                           check_tokens=_tokens(f.get("check", []))) for f in res["findings"]])
+        return {"running": self.scan["running"], "results": res, "tools": scans.tools(str(self.data_dir)),
+                "sudo_mode": self.sudo_mode(), "folders": scans.default_folders(self.home)}
+
+    def api_scan(self, q, body, headers):
+        """Quick scan now (startup items, exposure, running programs, advisories); a full scan
+        also runs ClamAV and YARA over folders, in the background."""
+        req = _json_body(body)
+        full = req.get("kind") == "full"
+        with self.scan_lock:
+            if self.scan["running"]:
+                raise BadRequest("a scan is already running")
+            self.scan["running"] = True
+        try:
+            osr = fixes.os_release(self.os_release_path)
+            fam = fixes.family(osr)
+            state_path = self.data_dir / "scan-state.json"
+            try:
+                with open(state_path) as fh:
+                    prev = json.load(fh)
+            except (OSError, ValueError):
+                prev = {}
+            findings, state = scans.persistence(self.home, self.fs_root, prev)
+            snap = collector.snapshot(self.monitor.proc_root)
+            findings += scans.exposure(snap, self.fs_root) + scans.integrity(snap, fam)
+            adv_at = None
+            if fam == "arch":
+                adv_at, adv = scans.advisories(str(self.data_dir), pkgdb.pacman_installed(self.fs_root))
+                findings += adv
+            with open(f"{state_path}.tmp", "w") as fh:
+                json.dump(state, fh)
+            os.replace(f"{state_path}.tmp", state_path)
+            res = {"kind": "full" if full else "quick", "started": time.time(), "finished": None if full else time.time(),
+                   "findings": findings, "notes": [], "baseline": not prev, "advisories_at": adv_at,
+                   "folders": [f for f in (req.get("folders") or scans.default_folders(self.home)) if os.path.isdir(f)]}
+            if not prev:
+                res["notes"].append("First scan: this becomes the baseline. Later scans flag what is new or changed.")
+            if fam != "arch":
+                res["notes"].append("The security-advisory check covers Arch Linux only for now.")
+            self.scan["results"] = res
+        except Exception:
+            self.scan["running"] = False
+            raise
+        if not full:
+            self._save_scan()
+            self.scan["running"] = False
+            return res
+        threading.Thread(target=self._full_scan, name="vigil-scan", daemon=True).start()
+        return res
+
+    def _full_scan(self):
+        res = self.scan["results"]
+        try:
+            t = scans.tools(str(self.data_dir))
+            f, note = scans.clamav_folders(res["folders"])
+            res["findings"] += f
+            if note:
+                res["notes"].append(note)
+            f, note = scans.yara_folders(res["folders"], t["yara_rules"])
+            res["findings"] += f
+            if note:
+                res["notes"].append(note)
+        except Exception as exc:
+            res["notes"].append(f"The scan stopped early: {type(exc).__name__}: {exc}")
+        finally:
+            res["finished"] = time.time()
+            self._save_scan()
+            self.scan["running"] = False
+
+    def _save_scan(self):
+        res = self.scan["results"]
+        with open(self.data_dir / "scan-last.json.tmp", "w") as fh:
+            json.dump(res, fh)
+        os.replace(self.data_dir / "scan-last.json.tmp", self.data_dir / "scan-last.json")
+        n = sum(1 for r in res["findings"] if r["severity"] in ("high", "medium"))
+        self.store.event(time.time(), "scan", f"{res['kind'].capitalize()} system scan: {n} item(s) worth a look",
+                          "Scan tab")
+
+    def api_scan_update(self, q, body, headers):
+        """Downloads, only because the user pressed the button."""
+        what = _json_body(body).get("what")
+        try:
+            if what == "yara":
+                return scans.update_yara(str(self.data_dir))
+            if what == "advisories":
+                return scans.update_advisories(str(self.data_dir))
+        except (RuntimeError, ValueError, zipfile.BadZipFile) as exc:
+            raise BadRequest(f"download failed: {exc}") from None
+        raise BadRequest("what must be yara or advisories")
+
     def api_monitor_fast(self, q, body, headers):
         """Poll every 0.5 s for a while, to catch short-lived connections' owners."""
         minutes = max(0, min(30, int(_json_body(body).get("minutes", 10))))
@@ -576,6 +732,12 @@ class App:
             ("POST", "/api/alerts/update"): self.api_alert_update,
             ("GET", "/api/alert/fix"): self.api_alert_fix,
             ("POST", "/api/monitor/fast"): self.api_monitor_fast,
+            ("POST", "/api/settings"): self.api_settings_set,
+            ("POST", "/api/run"): self.api_run,
+            ("GET", "/api/cleanup"): self.api_cleanup,
+            ("GET", "/api/scan"): self.api_scan_status,
+            ("POST", "/api/scan"): self.api_scan,
+            ("POST", "/api/scan/update"): self.api_scan_update,
             ("POST", "/api/allowlist/preview"): self.api_allowlist_preview,
             ("GET", "/api/allowlist"): self.api_allowlist,
             ("POST", "/api/allowlist"): self.api_allowlist_add,
@@ -602,6 +764,10 @@ class App:
             ("POST", "/api/case/ioc/exclude"): self.api_case_ioc_exclude,
             ("GET", "/api/case/export"): self.api_case_export,
         }
+
+
+def _tokens(cmds):
+    return [{"text": c, "tokens": commands.tokenize(c)} for c in cmds]
 
 
 def _transports(ports):

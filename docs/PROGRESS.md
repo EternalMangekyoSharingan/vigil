@@ -1102,6 +1102,85 @@ regression test.
 - **The 12 s time budget.** It ends measurement early on very deep recursive bombs;
   the remaining branches use sibling inference, and the report says so.
 
+## Scan, Cleanup and sudo mode (2026-10-31, owner approved)
+
+The owner approved:
+- a read-only Cleanup;
+- YARA and Arch advisory downloads on a button;
+- showing `pacman -Qkk` as a deeper check;
+- a **sudo mode**: "you see what commands are run, and all that is needed from the
+  user is the password".
+
+### Sudo mode: decisions
+- **The password never passes through Vigil.** Admin commands run via `pkexec`, so the
+  system's polkit dialog shows the exact command and takes the password. Sending a
+  password from the page to a local server (`sudo -S`) was rejected as needlessly
+  risky.
+- **Only Vigil's own commands run.** `/api/run` rebuilds, server-side, the commands that
+  page section showed (an alert's Fix panel, the last Cleanup survey, the last scan),
+  and the requested text must match one exactly. A page cannot inject a command.
+- **No shell.** Commands are split with `shlex`. Pipes, chains, redirects and wildcards
+  outside quotes are refused, and `sudoedit` stays copy-only.
+- **Logged.** Each run is written to the event log through a new `Store.event()`. The
+  first version used the uncommitted `_event` outside a transaction and its entries
+  were lost; a test now checks the entry is committed.
+- **The old test changed, on purpose.** It said "no route named run exists"; it now says
+  "/api/run is the only one, and it checks sudo mode". The modules that build fix
+  commands (fixes, commands, wording, services, cleanup, pkgdb) are still tested to be
+  unable to run anything.
+
+### Scan
+`vigil/scans.py` covers:
+- **Persistence:** systemd user and system units, cron, autostart, shell startup files,
+  `ld.so.preload`, `authorized_keys` and udev rules. It flags programs started from
+  temp or hidden folders, uses the File Inspector's command checks, and compares each
+  file's hash with the last scan, so new and changed entries stand out.
+- **Exposure:** sockets listening on all interfaces, SSH root and password logins, no
+  firewall.
+- **Integrity:** deleted, temp-folder and memfd executables, plus the distro's
+  package-verify command.
+- **Arch advisories:** compared using a pure-Python port of pacman's `vercmp`
+  (`vigil/pkgdb.py`).
+- **ClamAV and YARA folder scans**, in a background thread.
+
+A false alarm caught live in this container: `/etc/cron.d/php` matched the generic
+"persistence" pattern. That pattern is now ignored here, since everything on this list
+persists by definition.
+
+### Cleanup
+`vigil/cleanup.py` measures:
+- caches, per `~/.cache` folder;
+- the Trash;
+- pacman's cache, and orphans read from `/var/lib/pacman/local/*/desc` (dependencies
+  and provides honoured);
+- dnf, apt and zypper caches;
+- Flatpak runtimes;
+- the journal and crash dumps;
+- old downloads, large files and dead links, which are listed only.
+
+Paths are quoted. Every offered command passes the runner's checks (tested).
+
+### Verification
+- 214 tests pass on Python 3.13 and 3.11. All the new ones use synthetic fixtures:
+  - fake homes and roots;
+  - pacman `desc` files;
+  - a fake advisory JSON;
+  - fake scanner output;
+  - stand-in runners.
+- Live in this container (Ubuntu):
+  - a quick scan read 21 startup sources with no false alarms, found one
+    all-interfaces listener, and offered `sudo dpkg --verify`;
+  - Cleanup measured `~/.cache/uv` (156 MB);
+  - a real Run of `dpkg -S …` went through `/api/run` and returned its output;
+  - injected or chained commands were refused.
+
+### Known limitations
+- **Not tested on a real Arch system with pkexec, polkit, YARA or ClamAV:** this
+  container has none of them. pkexec needs a polkit agent, which desktop sessions have
+  and plain SSH sessions don't; Vigil reports that clearly.
+- The advisory check is Arch-only for now.
+- Flatpak unused-runtime size isn't measured, only offered.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

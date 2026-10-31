@@ -3,6 +3,9 @@
 // attacker-controllable strings, so nothing is ever parsed as HTML.
 import { toast } from "./fx.js";
 
+// Shared app state (set from /api/status on every tick).
+export const appState = { sudoMode: false };
+
 export const api = {
   async get(path) {
     const res = await fetch(path, { headers: { Accept: "application/json" } });

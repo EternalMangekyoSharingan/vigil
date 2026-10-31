@@ -64,6 +64,13 @@ asked for: the Network Map has background themes (Grid: hexagons and shapes; Nig
 a drifting starfield; Plain), and the File Inspector report follows VirusTotal's layout (score box with
 a small ring, summary card, tabs, a two-column grid of analyzer results).
 
+## Sudo mode (owner's decision, 2026-10-31)
+The owner asked for a sudo mode: Vigil may run its own generated fix, cleanup and scan
+commands when the user presses Run, off by default. Keep these rules: only commands
+Vigil generated (re-generated server-side), no shell, admin rights only through pkexec
+(the system's password dialog; Vigil never handles passwords), one command per
+press, every run logged. All other modules still never run fix commands.
+
 ## How to work (I may be away: don't wait for me)
 1. Read existing code and docs/PROGRESS.md before changing anything.
 2. For each step: build it, write tests (pytest is fine as a dev tool), run them,

@@ -35,7 +35,8 @@ FAMILY_IDS = [("arch", {"arch", "manjaro", "endeavouros", "garuda", "artix", "ca
               ("suse", {"opensuse", "suse", "opensuse-tumbleweed", "opensuse-leap", "sles"}),
               ("debian", {"debian", "ubuntu", "linuxmint", "pop", "elementary", "zorin", "kali", "raspbian"}),
               ("void", {"void"}), ("alpine", {"alpine"}), ("gentoo", {"gentoo"})]
-RISK = {"safe": "Safe (read-only)", "settings": "Changes settings", "admin": "Admin needed"}
+RISK = {"safe": "Safe (read-only)", "settings": "Changes settings", "admin": "Admin needed",
+        "deletes": "Deletes files (rebuilt as needed)"}
 
 
 def os_release(path="/etc/os-release"):

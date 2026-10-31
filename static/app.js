@@ -1,5 +1,5 @@
 // App shell: tabs, the status line, motion, and the refresh loop.
-import { api, el, clear, fmtClock } from "./ui.js";
+import { api, el, clear, fmtClock, appState } from "./ui.js";
 import { moveIndicator, constellation } from "./fx.js";
 import { NetworkMap } from "./netmap.js";
 import { AlertsView } from "./alerts.js";
@@ -7,6 +7,8 @@ import { IntelView } from "./intel.js";
 import { FilesView } from "./files.js";
 import { CasesView } from "./cases.js";
 import { SettingsView } from "./settings.js";
+import { ScanView } from "./scan.js";
+import { CleanupView } from "./cleanup.js";
 
 const nav = document.getElementById("tabs");
 const showProgram = (key) => { showTab("network"); views.network.select({ type: "program", id: key }); };
@@ -17,6 +19,8 @@ const views = {
 };
 views.alerts = new AlertsView(document.getElementById("tab-alerts"), { onShowProgram: showProgram, onShowSettings: () => showTab("settings") });
 views.settings = new SettingsView(document.getElementById("tab-settings"));
+views.scan = new ScanView(document.getElementById("tab-scan"));
+views.cleanup = new CleanupView(document.getElementById("tab-cleanup"));
 views.intel = new IntelView(document.getElementById("tab-intel"), { onShowDestination: showDestination });
 views.files = new FilesView(document.getElementById("tab-files"), { onShowDestination: showDestination, onShowIntel: () => showTab("intel") });
 views.cases = new CasesView(document.getElementById("tab-cases"), {
@@ -69,6 +73,7 @@ function renderStatus() {
 async function tick() {
   try {
     status = await api.get("/api/status");
+    appState.sudoMode = !!status.sudo_mode;
     for (const v of Object.values(views)) v.setStatus?.(status);
   } catch (e) {
     status = { last_error: `cannot reach Vigil (${e.message})`, interval: "?" };

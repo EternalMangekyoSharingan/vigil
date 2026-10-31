@@ -275,21 +275,20 @@ class TokenizerTests(unittest.TestCase):
 class NeverExecutesTests(unittest.TestCase):
     def test_fix_modules_cannot_run_commands(self):
         banned = re.compile(r"\b(subprocess|os\.system|os\.popen|popen|os\.exec\w*|os\.spawn\w*|pty|shutil\.which)\b")
-        for mod in ("fixes.py", "commands.py", "wording.py", "services.py"):
+        for mod in ("fixes.py", "commands.py", "wording.py", "services.py", "cleanup.py", "pkgdb.py"):
             src = (Path(fixes.__file__).parent / mod).read_text()
             code = re.sub(r'""".*?"""', "", src, flags=re.S)  # docstrings may mention the rule
             self.assertIsNone(banned.search(code), f"{mod} must not be able to run anything")
 
-    def test_no_execute_endpoint(self):
+    def test_only_the_runner_executes_and_only_in_sudo_mode(self):
+        # The owner asked for a sudo mode (2026-10-31). Fix commands still cannot run from
+        # the modules that build them; /api/run is the one route that runs anything, and
+        # it goes through runner.py's checks (see test_sudo_scan_cleanup.py).
         from vigil import server
         src = Path(server.__file__).read_text()
         routes = re.findall(r'\("(?:GET|POST|DELETE)", "(/api/[^"]+)"\)', src)
-        self.assertFalse([r for r in routes if re.search(r"run|exec|apply", r)], routes)
-
-
-if __name__ == "__main__":
-    unittest.main()
-
+        self.assertEqual([r for r in routes if re.search(r"run|exec|apply", r)], ["/api/run"])
+        self.assertIn("if not self.sudo_mode():", src)
 
 class ServerAlertTests(unittest.TestCase):
     """SYNTHETIC alerts written straight into a fresh evidence store."""

@@ -25,6 +25,8 @@
     <button type="button" data-tab="network" class="active">Network Map</button>
     <button type="button" data-tab="alerts">Alerts<span class="count" id="alert-count" hidden></span></button>
     <button type="button" data-tab="files">Files</button>
+    <button type="button" data-tab="scan">Scan</button>
+    <button type="button" data-tab="cleanup">Cleanup</button>
     <button type="button" data-tab="cases">Cases</button>
     <button type="button" data-tab="intel">Intel</button>
     <button type="button" data-tab="settings">Settings</button>
@@ -124,6 +126,14 @@
         <div id="case-list"></div>
       </aside>
     </div>
+  </section>
+
+  <section class="tab" id="tab-scan">
+    <div class="split"><div class="main" id="scan-body"></div></div>
+  </section>
+
+  <section class="tab" id="tab-cleanup">
+    <div class="split"><div class="main" id="cleanup-body"></div></div>
   </section>
 
   <section class="tab" id="tab-settings">

@@ -383,6 +383,64 @@ Every command is colour-coded by token, with a tooltip and a legend:
 this program everywhere. It shows which alerts will stop before you save. Every rule
 can be undone from **Settings**.
 
+## Scan tab: what starts by itself, what is exposed, malware signatures, vulnerable packages
+
+**Quick scan** (a few seconds, read-only) checks four things.
+- **What starts by itself:**
+  - systemd user and system units;
+  - cron;
+  - autostart entries;
+  - shell startup files;
+  - `/etc/ld.so.preload`;
+  - SSH `authorized_keys`;
+  - udev rules.
+
+  It flags programs started from temporary or hidden folders, download-and-run
+  commands and reverse shells. The first scan becomes the baseline; later scans flag
+  anything **new or changed** (for example, a new SSH key).
+- **What is open to the network:** listening ports on every network (not localhost),
+  SSH allowing root or password logins, and no firewall.
+- **Running programs:** files deleted or replaced while running, programs in `/tmp` or
+  `/dev/shm`, and memory-only (memfd) programs. A deeper check compares installed files
+  with their packages (`sudo pacman -Qkk`, `rpm -Va`, `dpkg --verify`).
+- **Known vulnerabilities (Arch):** your installed versions compared with Arch's
+  security advisories, using pacman's own version ordering. It shows "fixed in X" or
+  "no fix yet", the CVEs, and `sudo pacman -Syu` to install fixes.
+
+**Full scan** also runs **ClamAV** and **YARA** over Downloads, `/tmp`, `/var/tmp` and
+`/dev/shm`, in the background.
+
+Downloads happen only on the buttons: **Update YARA rules** fetches YARA-Forge's core
+rule set, and **Update security advisories** fetches `security.archlinux.org/all.json`.
+YARA itself is the `yara` package (`sudo pacman -S yara`).
+
+## Cleanup tab
+
+Vigil measures what could go and what each item costs you:
+- **Caches:** `~/.cache` folder by folder, with what each holds, and the Trash.
+- **Packages:**
+  - pacman's package cache (`paccache -rk2` keeps the two newest versions);
+  - orphaned packages, read from pacman's database;
+  - unused Flatpak runtimes;
+  - dnf, apt or zypper caches on other distros.
+- **Logs:** the journal (`journalctl --vacuum-size=200M`) and crash dumps.
+- **Your files** (old downloads, very large files, broken links): **listed only**,
+  never given a delete command.
+
+Every command names exact paths, with no wildcards.
+
+## Sudo mode (Settings, off by default)
+
+With sudo mode on, fix, cleanup and scan commands get a **Run** button next to Copy.
+- Vigil shows the exact command and asks first.
+- Admin commands run through **pkexec**: your system's own password window shows the
+  command and takes your password. Vigil never sees it.
+- Vigil only runs commands it generated itself. The server rebuilds them and refuses
+  anything else, along with any shell syntax (pipes, `&&`, redirects, wildcards).
+- One command per press, no shell, a 10-minute limit.
+- Output and exit code are shown, and every run is written to the event log.
+- `sudoedit` steps stay copy-only, because they open an editor.
+
 ## Cases and exports (Cases tab)
 
 A case gathers one investigation: its evidence, the indicators in that evidence,
@@ -511,6 +569,10 @@ vigil/inspector.py   File Inspector: static triage, verdict, indicators
 vigil/archives.py    archive-bomb measurement: streamed decompression, nothing extracted
 vigil/engines.py     second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups
 vigil/identify.py    browser tabs, host names, TLS handshake, certificate parsing, security badges
+vigil/scans.py       system scan: persistence, exposure, integrity, ClamAV/YARA folders, Arch advisories
+vigil/cleanup.py     cleanup survey: caches, package leftovers, logs, old files (read-only)
+vigil/pkgdb.py       pacman's local database and version ordering, read directly
+vigil/runner.py      sudo mode: runs only Vigil-generated commands, via pkexec, no shell
 vigil/knowledge.py   offline notes on programs and ports; package ownership; plain-language summaries
 vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
 vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown
