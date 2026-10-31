@@ -6,6 +6,7 @@ import { AlertsView } from "./alerts.js";
 import { IntelView } from "./intel.js";
 import { FilesView } from "./files.js";
 import { CasesView } from "./cases.js";
+import { SettingsView } from "./settings.js";
 
 const nav = document.getElementById("tabs");
 const showProgram = (key) => { showTab("network"); views.network.select({ type: "program", id: key }); };
@@ -14,7 +15,8 @@ const showDestination = (ip) => { showTab("network"); views.network.select({ typ
 const views = {
   network: new NetworkMap(document.getElementById("tab-network")),
 };
-views.alerts = new AlertsView(document.getElementById("tab-alerts"), { onShowProgram: showProgram });
+views.alerts = new AlertsView(document.getElementById("tab-alerts"), { onShowProgram: showProgram, onShowSettings: () => showTab("settings") });
+views.settings = new SettingsView(document.getElementById("tab-settings"));
 views.intel = new IntelView(document.getElementById("tab-intel"), { onShowDestination: showDestination });
 views.files = new FilesView(document.getElementById("tab-files"), { onShowDestination: showDestination, onShowIntel: () => showTab("intel") });
 views.cases = new CasesView(document.getElementById("tab-cases"), {

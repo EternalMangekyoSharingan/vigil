@@ -288,9 +288,25 @@ example "Opening this archive would try to write about 275 GB. Do not extract it
 
 **Example.** A real non-recursive zip bomb (257 KB, from a public GitHub collection)
 holds one 40 MB zip whose 256 entries all point at the same compressed block and
-each claim to be 2 bytes. Vigil reports it as Likely malicious (100): at least
-275 GB if extracted, overlapping entries, lying sizes and a forged directory. It
-takes about 1.5 s, writes nothing to disk and never unpacks it.
+each claim to be 2 bytes. Vigil reports it as Likely malicious (100): about 8.8 TB if
+extracted (its inner file is named `32-256.zip`: 32 GiB × 256), overlapping entries,
+lying sizes and a forged directory. It takes about 1.7 s, writes nothing to disk and
+never unpacks it.
+
+**Bombs over a terabyte.** Vigil counts at most 1 GB per stream. When a stream is cut
+off there, Vigil extrapolates from how much compressed input produced that 1 GB:
+bomb data compresses evenly, so this is reliable. It never reports less than it
+counted.
+
+It also handles:
+- Zip64 records (how members over 4 GB are described), including inside nested zips.
+- Siblings that weren't measured: they take the expansion that identical measured
+  siblings showed.
+- Directories Python's zip reader refuses: Vigil reads them with its own parser.
+
+Tests build bombs of over 1 TB at real scale (300 Zip64 names over one 4 GB deflate
+stream, and the same bomb nested inside another zip) and detect them in about a
+second each.
 
 **Inspect a running program's executable.** Right-click a program on the map, or
 press "Inspect executable" in its panel. Vigil reads the binary through
@@ -298,6 +314,70 @@ press "Inspect executable" in its panel. Vigil reads the binary through
 runs the same static triage. It never runs it. Programs get identity, string and
 indicator checks only. Indicators are searched in the file's printable strings, the
 way `strings` does, so a 300 MB binary takes about 5 s.
+
+## Alerts: titles, explanations and the Fix panel
+
+Each alert has a short title in plain English, at most 60 characters: **who** does
+**what** to **whom**, **how often**. For example *"Syncthing checks in with Hetzner (DE)
+every ~7 min"* or *"An unidentified program sends plain HTTP every ~5 min"*. The
+destination is a domain, else the network owner and country, never a raw IPv6
+address. Under it is one line: severity (Low / Medium / High), first seen, and the
+likely explanation when one matches.
+
+Open an alert for **Why was this flagged?**:
+- One sentence on what is happening.
+- What Vigil noticed: one line per signal, with a strength bar.
+- Why that matters: each kind of signal explained once, innocent explanation
+  included.
+- The likely explanation, with confidence and what matched.
+- How sure Vigil is.
+- What to do next.
+- The raw numbers (regularity, check-ins, missed polls, byte counts, sources), in a
+  collapsed *Technical details*.
+
+When Vigil can't name the program, it says exactly why: too short-lived for the poll
+interval, or owned by root. It then offers to look every 0.5 s for 10 minutes, or
+explains the optional admin mode, which is off by default.
+
+**Known services** (`vigil/data/known_services.json`) recognise common background
+traffic:
+- NetworkManager's connectivity check
+- Syncthing discovery and relays
+- Firefox-family and Chromium-family background requests
+- NTP time sync
+- package mirror syncs
+- desktop update checkers
+
+A match lowers the severity and says *"probably X"*. It never hides the alert:
+you decide whether to allowlist it.
+
+The **Fix** tab lists **Check it** (read-only, always first), **Fix it** and **Undo**.
+Each option says what it does, what you lose and its risk (Safe, Changes settings,
+Admin needed), and shows its undo.
+
+**Vigil never runs a fix.** Commands are text with a Copy button, and a test fails if
+the fix modules can start a process.
+
+How the commands are chosen:
+- They match your distro, read from `/etc/os-release`: pacman, dnf, zypper, apt, xbps,
+  apk or emerge.
+- The firewall commands match firewalld, ufw or nftables, judged from config files.
+- Blocks name one destination and are reversible.
+- Browser fixes are step-by-step settings instructions.
+
+Every command is colour-coded by token, with a tooltip and a legend:
+- red: admin
+- blue: package manager (a different colour per distro family)
+- green: install or turn on
+- orange: remove or turn off
+- purple: package or app
+- cyan: path
+- grey: option
+- yellow: systemctl
+
+**Allowlist…** asks for a reason and a scope: this program and this destination, or
+this program everywhere. It shows which alerts will stop before you save. Every rule
+can be undone from **Settings**.
 
 ## Cases and exports (Cases tab)
 

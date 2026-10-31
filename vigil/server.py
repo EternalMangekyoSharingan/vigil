@@ -13,7 +13,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import engines, identify, cases, collector, enrich, inspector, knowledge, scoring
+from . import engines, fixes, identify, services, wording, cases, collector, enrich, inspector, knowledge, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"
@@ -42,6 +42,7 @@ class Monitor(threading.Thread):
         self.last_stats = {}
         self.polls = 0
         self._last_prune = 0.0
+        self.fast_until = 0.0  # "look more often": poll every 0.5 s until then
 
     def poll_once(self):
         started = time.time()
@@ -64,7 +65,7 @@ class Monitor(threading.Thread):
             except Exception as exc:  # keep polling; surface the error in the UI
                 self.last_error = f"{type(exc).__name__}: {exc}"
                 traceback.print_exc()
-            self.stopping.wait(self.interval)
+            self.stopping.wait(0.5 if time.time() < self.fast_until else self.interval)
 
     def stop(self):
         self.stopping.set()
@@ -80,6 +81,8 @@ class App:
         self.report_lock = threading.Lock()     # load-modify-save of a stored report
         self.clamav_slot = threading.Semaphore(1)
         self.clamav_threads = []
+        self.os_release_path = "/etc/os-release"  # tests point these at fixtures
+        self.fs_root = "/"
         self.tracker = Tracker(self.store)
         self.allowlist = scoring.Allowlist(str(self.data_dir / "allowlist.json"))
         self.scorer = scoring.Scorer(self.store, self.allowlist, interval)
@@ -101,7 +104,8 @@ class App:
                   "alert_threshold": self.scorer.threshold,
                   "last_scored_at": self.store.get_meta("last_scored_at"),
                   "alerts_open": self.store.one("SELECT COUNT(*) n FROM alerts"
-                                                " WHERE status='open'")["n"]}
+                                                " WHERE status='open'")["n"],
+                  "fast_poll_until": m.fast_until}
         if snap:
             # Loopback-to-loopback sockets never leave the machine (and include the UI's
             # own requests), so they are counted apart from the ones that matter.
@@ -458,7 +462,65 @@ class App:
         for r in rows:
             r["findings"] = json.loads(r["findings"])
             r["ports"] = json.loads(r["ports"] or "[]")
-        return {"alerts": rows, "threshold": self.scorer.threshold}
+            ctx = self.alert_context(r)
+            r["view"] = wording.present(ctx)
+            r["service_id"] = (ctx["service"] or {}).get("id")
+        return {"alerts": rows, "threshold": self.scorer.threshold,
+                "fast_poll_until": self.monitor.fast_until}
+
+    def alert_context(self, a):
+        """Everything wording.py needs about one alert, from local data only."""
+        prog = self.store.one("SELECT * FROM programs WHERE key=?", (a["program"],)) or {}
+        info = json.loads(prog.get("info") or "{}")
+        hidden = None
+        if a["program"].startswith("hidden:"):
+            hidden = a["program"].split(":")[1]
+        geo = self.enricher.geo(a["ip"]) if a.get("ip") else None
+        ident = self.identities([a["ip"]]).get(a["ip"]) or {}
+        timer = next((f.get("stats") for f in a["findings"] if (f.get("stats") or {}).get("signal") == "timer"), None)
+        ctx = {"program": a["program"], "name": prog.get("name") or a.get("name"), "hidden": hidden, "info": info,
+               "ip": a["ip"], "port": a["port"], "proto": a["proto"], "direction": a["direction"],
+               "score": a["score"], "findings": a["findings"], "first_raised": a["first_raised"],
+               "hosts": ident.get("hosts") or [], "geo": geo, "scope": collector.scope_of(a["ip"]),
+               "poll": self.monitor.interval}
+        ctx["service"] = services.match(
+            process=None if hidden else services.process_name(a["program"], info),
+            port=a["port"], proto=a["proto"], hosts=ctx["hosts"], owner=(geo or {}).get("owner"),
+            interval=(timer or {}).get("interval"))
+        return ctx
+
+    def api_alert_fix(self, q):
+        """Check / Fix / Undo commands for one alert: text to copy. Vigil never runs them."""
+        a = self.store.one("SELECT a.*, p.name FROM alerts a LEFT JOIN programs p ON p.key=a.program WHERE a.id=?",
+                           (int(q.get("id") or 0),)) or _not_found()
+        a["findings"] = json.loads(a["findings"])
+        ctx = self.alert_context(a)
+        exe = (ctx["info"].get("exe") or "").removesuffix(" (deleted)") or None
+        return fixes.options({"ip": a["ip"], "program": a["program"], "hidden": bool(ctx["hidden"])},
+                             fixes.os_release(self.os_release_path), fixes.firewall(self.fs_root),
+                             exe=exe, service=ctx["service"])
+
+    def api_monitor_fast(self, q, body, headers):
+        """Poll every 0.5 s for a while, to catch short-lived connections' owners."""
+        minutes = max(0, min(30, int(_json_body(body).get("minutes", 10))))
+        self.monitor.fast_until = time.time() + minutes * 60 if minutes else 0.0
+        return {"fast_poll_until": self.monitor.fast_until}
+
+    def api_allowlist_preview(self, q, body, headers):
+        """Which open alerts a proposed rule would silence, before it is saved."""
+        rule = _json_body(body)
+        try:
+            rule = scoring.validate_rule(dict(rule, reason=rule.get("reason") or "preview"))
+        except ValueError as exc:
+            raise BadRequest(str(exc)) from None
+        rule["enabled"] = True
+        hits = []
+        for a in self.store.query("SELECT a.*, p.name FROM alerts a LEFT JOIN programs p ON p.key=a.program WHERE status='open'"):
+            pair = {"program": a["program"], "ip": a["ip"], "port": a["port"], "proto": a["proto"], "direction": a["direction"]}
+            if scoring.rule_matches(rule, pair):
+                a["findings"] = json.loads(a["findings"])
+                hits.append({"id": a["id"], "title": wording.title(self.alert_context(a))})
+        return {"alerts": hits}
 
     def api_alert_update(self, q, body, headers):
         req = _json_body(body)
@@ -512,6 +574,9 @@ class App:
             ("GET", "/api/listeners"): self.api_listeners,
             ("GET", "/api/alerts"): self.api_alerts,
             ("POST", "/api/alerts/update"): self.api_alert_update,
+            ("GET", "/api/alert/fix"): self.api_alert_fix,
+            ("POST", "/api/monitor/fast"): self.api_monitor_fast,
+            ("POST", "/api/allowlist/preview"): self.api_allowlist_preview,
             ("GET", "/api/allowlist"): self.api_allowlist,
             ("POST", "/api/allowlist"): self.api_allowlist_add,
             ("DELETE", "/api/allowlist"): self.api_allowlist_remove,

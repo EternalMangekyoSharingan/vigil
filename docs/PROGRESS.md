@@ -877,6 +877,173 @@ At the owner's request.
 - Chromium's open tabs are not read (its session format is undocumented); recent
   history is used instead.
 
+## Alerts rework: titles, explanations, known services, Fix panel, allowlist (2026-10-31)
+
+The owner's brief, parts A–F, plus better detection of zip bombs over 1 TB.
+
+### Zip bombs over 1 TB (done first)
+- **Extrapolation.** A stream stopped at the 1 GB counting cap is extrapolated from
+  the compressed bytes it had consumed (`archives.extrapolate`). It was previously
+  floored at its declared size, which a bomb can fake.
+- **Zip64.** Records are parsed inside nested directories, and Zip64 end-record
+  placeholders are no longer reported as forgery.
+- **Sibling inference.** Unmeasured siblings take the expansion ratio their measured
+  siblings showed, once measurement proves the declared sizes wrong.
+- **Fallback parser.** When Python's `zipfile` rejects a crafted directory, Vigil's
+  own record parser takes over.
+- **location.zip.** It now reads **about 8.8 TB** (was "at least 275 GB"). Its inner
+  file is named `32-256.zip`, i.e. 32 GiB × 256 = 8 TiB, so the extrapolation agrees
+  with the bomb's own name.
+- **Tests at real scale:**
+  - A Zip64 overlapping bomb of about 1.3 TB (300 names over one 4 GB stream built
+    from a repeated flushed deflate block, about 4 MB compressed).
+  - The same bomb nested inside a stored outer zip.
+  - A crafted end record Python rejects.
+  - Sibling inference.
+  - All run in about 5 s.
+- The owner's new sample (said to be over 1 TB) was not uploaded to this session, so
+  it is untested. These are the methods bombs of that class use (Zip64 overlap,
+  nesting, lying sizes), and each is now covered.
+
+### A. Titles
+- `vigil/wording.py` builds titles from the pattern who / does what / to whom / how
+  often:
+  - **Who:** friendly names (LibreWolf, Syncthing, NetworkManager; scripts by script
+    name), or "An unidentified program".
+  - **To whom:** an Identify host name, else the ASN owner cleaned up ("HETZNER-AS" →
+    "Hetzner") with the country, else an IPv4 address. Never a bare IPv6 ("an IPv6
+    server").
+  - **How often:** human rounding ("every ~7 min").
+- Candidates are tried from richest to shortest until one fits in 60 characters.
+- Tests check:
+  - The spec's own examples (Syncthing, LibreWolf; the plain-HTTP unidentified case).
+  - Every title ≤ 60 characters, with no banned words ("coefficient", "variation",
+    "CV", "±", "poll", "check-ins", "%") and no IPv6 pattern.
+  - A fuzz run of over 1,000 combinations of programs, destinations, signals, ports
+    and directions.
+  - The subtitle format.
+- Findings now carry `stats` with the raw numbers and a `signal` kind, so wording uses
+  facts, not regexes over sentences. Old alerts without stats fall back to their
+  reason text.
+
+### B. Explanation
+- `wording.explain` returns:
+  - the summary sentence;
+  - one specific line per signal, with a 0–1 strength (points ÷ that signal's
+    maximum);
+  - "why that matters", once per kind of signal;
+  - the likely explanation;
+  - how sure Vigil is, with a reason;
+  - next steps;
+  - the technical details (every old reason, data source and raw stat).
+- Tests: lines are unique, groups appear once, every sentence is ≤ 20 words, the raw
+  numbers are preserved in the technical details, and plain-HTTP and unattributed
+  lines appear.
+
+### C. Known services
+- `vigil/data/known_services.json` covers seven services, each with recognisers,
+  "what", "why it's fine", privacy notes, and check/fix/undo templates.
+- `vigil/services.py` scores matches:
+  - process name +3, destination domain +3, port +1, interval +1, network owner +1;
+  - a match needs a process name or a domain, except for services marked
+    distinctive by port and interval (NetworkManager's plain HTTP every 5 min, and
+    NTP);
+  - confidence: ≥ 5 points High, 4 Medium, otherwise Low.
+- A match makes severity Low (High or Medium confidence), adds "probably X" to the
+  subtitle, and reports an adjusted score (−40, −25 or −10). The alert itself still
+  appears.
+- Decision: alerts are still raised on the unadjusted score, so a match can never make
+  an alert disappear silently, as the brief requires.
+- Unattributed alerts explain why: too short-lived for the poll interval, or another
+  user's (root's) process. They offer "look every 0.5 s for 10 minutes"
+  (`POST /api/monitor/fast`, a temporary monitor setting) and describe admin mode,
+  which is off by default and never started by Vigil.
+
+### D. Fix panel
+- `vigil/fixes.py` covers:
+  - **Distro detection.** os-release `ID`/`ID_LIKE` → arch, fedora, suse, debian, void,
+    alpine or gentoo. Unknown distros get a generic note.
+  - **Package owner.** `pacman -Qo`, `rpm -qf`, `dpkg -S`, `xbps-query -o`,
+    `apk info --who-owns` or `equery belongs`.
+  - **Firewall detection** from files only: a firewalld unit enabled, ufw
+    `ENABLED=yes`, or nftables.
+  - **One-destination blocks** with exact undos. The nftables undo deletes only
+    Vigil's own table.
+  - **Catalogue templates**, plus generic checks and uninstall.
+- Decision: for interpreter programs (python, bash, …) the package check targets the
+  script, and uninstall is never offered: it would have suggested removing Python.
+- Rules are enforced by tests across 4 distros × 7 services × 4 firewalls: no `&&`, no
+  piping into a shell, no curl/wget, no `*` in rm, and every fix has an undo.
+- The modules that build fix commands (fixes, commands, wording, services) cannot run
+  anything. A test fails if they import subprocess, os.system, popen, exec, spawn or
+  pty, and another fails on any API route named run, exec or apply.
+
+### E. Colour-coded commands
+- `vigil/commands.py` tokenises every command into roles: admin, pkgmgr (with family),
+  install, remove, package, path, flag, service, command, arg. Every token has a
+  tooltip.
+- It understands per-tool meanings: `pacman -S` installs but `dpkg -S` searches;
+  `-Q` and `-qf` are read-only.
+- The UI colours each role, with a legend under the panel and a tooltip on every
+  token.
+- Tests include `sudo pacman -S syncthing` → admin, pkgmgr:arch, install, package; the
+  same for dnf, zypper, apt and apk; systemctl enable/disable; and rm with a path.
+
+### F. Allowlist
+- The form needs a reason (the server refuses without one) and a scope: this program
+  and this destination, or this program everywhere.
+- A live preview (`POST /api/allowlist/preview`) lists which open alerts would stop.
+  It warns when "unidentified program everywhere" would cover every unattributed
+  connection.
+- A new **Settings** tab lists your rules with "Remove (undo)", plus the built-in
+  rules, "look more often" and the admin-mode explanation.
+
+### Verification
+- 201 tests pass on Python 3.13 and 3.11.
+- Three real alerts from this container's evidence store, in the new format, checked
+  in Chromium at 1440×1000:
+  1. **"beacon.py checks in with this PC every ~10 s"**, subtitle "**High** · first seen
+     Oct 30, 23:47". The test beacon script.
+     - Why tab: "beacon.py has contacted this PC about every 10 s since Oct 30, 23:46".
+     - Six signal lines with bars: steady timer (very regular), first network use,
+       first time to this server, kept up 2 h 33 min, same size (~501 bytes), runs
+       from a hidden folder.
+     - Three "why" paragraphs: timer, new, location.
+     - "How sure: Medium".
+     - Technical details collapsed.
+     - Fix tab (this container is Ubuntu): Check it shows
+       `dpkg -S /home/user/vigil/.devtmp/beacon.py` (the script, not Python), then
+       `ss -tunp dst 127.0.0.1`. There are no Fix-it options: loopback can't be
+       blocked, and a script's interpreter is never offered for removal. The legend
+       is shown.
+  2. **"beacon.py checks in with this PC every ~10 s"**, "High · first seen 03:11". A
+     second run of the same script; the same layout, without the hidden-folder line.
+  3. **"An unidentified program checks in with this PC every ~10 s"**, "**Medium** ·
+     first seen 03:17".
+     - Summary: "A program Vigil could not identify has contacted this PC about every
+       10 s since 02:12".
+     - Signals include "Vigil could not see which program this is: the connection
+       closed before Vigil could see which program owned it".
+     - "Why Vigil can't name the program": "Vigil looks every 2 s. This connection
+       opened and closed in between…", with the "Look every 0.5 s for 10 minutes"
+       button and the admin-mode card (colour-coded `sudo python3 -m vigil serve`,
+       Copy only).
+     - "How sure: Low".
+     - The Allowlist form shows a reason field, two scope radios and the preview
+       "This will stop 1 open alert".
+- The catalogue matches NetworkManager, Syncthing and a browser from fixture data. The
+  Fix panel renders check/fix/undo for all three on Arch, Fedora and openSUSE fixture
+  os-release files, with package-manager families coloured arch/fedora/suse.
+
+### Known limitations
+- These alerts are loopback test traffic, so no real-world "probably X" match appears
+  in the screenshots. The catalogue matches are covered by tests and fixtures.
+- Firewall detection reads config files and does not ask the firewall whether it is
+  running: an installed but stopped nftables still reads as "nftables".
+- The firewalld block uses `--direct` rules (still supported, though firewalld calls
+  them deprecated). They are runtime-only unless `--permanent` is added, which the
+  option says.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

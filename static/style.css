@@ -912,3 +912,66 @@ table.conns .sub { color: var(--text-3); font-size: 11.5px; }
 ul.tablist { list-style: none; margin: 6px 0; padding: 0; }
 ul.tablist li { display: grid; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
 ul.tablist .tab-title { color: var(--text); overflow-wrap: anywhere; }
+
+/* ---- alerts: short titles, structured "why", Fix panel ---- */
+.card.alert { padding: 0; overflow: hidden; }
+.al-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px 2px; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; }
+.al-title { font: 600 14px/1.35 var(--display); letter-spacing: -.005em; flex: 1; min-width: 0; }
+.al-sub { padding: 2px 14px 12px 14px; color: var(--text-3); font-size: 12px; }
+.card.alert.open { border-color: var(--line-2); }
+.card.alert .ptabs, .card.alert .al-body, .card.alert > .actions, .card.alert > .allow-form, .card.alert > .note { margin-left: 14px; margin-right: 14px; }
+.card.alert > .actions { margin-bottom: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sev { display: inline-grid; place-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font: 600 11px var(--sans); background: var(--bg-3); color: var(--text-2); flex: none; }
+.sev.danger { background: var(--danger-soft); color: var(--danger-text); }
+.sev.warn { background: var(--warn-soft); color: var(--warn); }
+.al-summary { font-size: 14px; color: var(--text) !important; margin: 6px 0 4px !important; }
+ul.signals { list-style: none; margin: 0; padding: 0; }
+ul.signals li { display: grid; grid-template-columns: 54px 1fr; gap: 12px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.bar { height: 6px; border-radius: 3px; background: var(--bg-3); overflow: hidden; }
+.bar .fill { display: block; height: 100%; background: var(--orange); border-radius: 3px; }
+ol.next, ol.steps { margin: 4px 0 6px; padding-left: 20px; color: var(--text-2); }
+ol.next li, ol.steps li { margin: 3px 0; }
+details.tech { margin: 14px 0 6px; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px; background: var(--bg-0); }
+details.tech summary { cursor: pointer; color: var(--text-2); font-weight: 500; }
+.fixopt { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-2); padding: 10px 12px; margin: 8px 0; }
+.fixopt p { margin: 4px 0 !important; }
+.risk { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 5px; background: var(--bg-3); color: var(--text-2); }
+.risk.safe { color: var(--ok); background: rgba(93, 211, 158, .1); }
+.risk.settings { color: var(--warn); background: var(--warn-soft); }
+.risk.admin { color: var(--danger-text); background: var(--danger-soft); }
+.cmd { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 7px 8px 7px 12px; background: var(--bg-0); border: 1px solid var(--line-2); border-radius: var(--radius-sm); }
+.cmd-text { flex: 1; min-width: 0; font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.btn.copy { height: 24px; padding: 0 9px; font-size: 11.5px; flex: none; }
+.tok { cursor: help; border-bottom: 1px dotted transparent; }
+.tok:hover { border-bottom-color: currentColor; }
+.tok-admin { color: #ff6b7f; font-weight: 700; }
+.tok-pkgmgr { color: #4f9dff; font-weight: 600; }
+.tok-pkgmgr.fam-fedora, .tok-pkgmgr.fam-rpm { color: #8e8cf0; }
+.tok-pkgmgr.fam-suse { color: #9ccc65; }
+.tok-pkgmgr.fam-debian { color: #e36fa0; }
+.tok-pkgmgr.fam-void { color: #4fc3a1; }
+.tok-pkgmgr.fam-alpine { color: #4fb3d9; }
+.tok-pkgmgr.fam-gentoo { color: #b39ddb; }
+.tok-pkgmgr.fam-flatpak { color: #7fa7ff; }
+.tok-install { color: #5dd39e; font-weight: 600; }
+.tok-remove { color: #ff9f43; font-weight: 600; }
+.tok-package { color: #c49bff; }
+.tok-path { color: #62e3f0; }
+.tok-flag { color: #8f879f; }
+.tok-service { color: #f5c451; font-weight: 600; }
+.tok-command { color: var(--text); font-weight: 600; }
+.tok-arg { color: var(--text-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 16px 0 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-1); align-items: baseline; font-size: 12px; }
+.leg { display: inline-flex; gap: 6px; align-items: baseline; }
+.swatch { font: 600 12px var(--mono); }
+.scope { display: grid; gap: 4px; margin: 2px 0 6px; }
+.scope label { display: flex !important; gap: 6px; align-items: center; color: var(--text) !important; grid-template-columns: none !important; }
+.allow-form > label { display: grid; grid-template-columns: 72px 1fr; gap: 8px; align-items: center; margin: 8px 0; color: var(--text-2); }
+.preview ul { margin: 4px 0; padding-left: 18px; color: var(--text-2); }
+.sev-word { font-weight: 600; color: var(--text-2); }
+.sev-word.danger { color: var(--danger-text); }
+.sev-word.warn { color: var(--warn); }
+.al-head { padding-top: 13px; }
+.allow-form .scope input { width: auto; flex: none; margin: 0; }
+.allow-form .scope label { justify-content: flex-start; }
+.allow-form > label input { font-family: var(--sans); }

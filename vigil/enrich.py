@@ -444,7 +444,8 @@ class Enricher:
                 "threat_intel", FEEDS[name]["points"],
                 f"Listed by {FEEDS[name]['title'].split(':')[0]} as {what}{port}{seen}",
                 f"{name} feed downloaded {_date(feed.get('fetched_at'))} ({feed.get('entries')} "
-                f"entries{age}, sha256 {str(feed.get('sha256'))[:12]}…); {hit['reference'] or ''}"))
+                f"entries{age}, sha256 {str(feed.get('sha256'))[:12]}…); {hit['reference'] or ''}",
+                stats={"signal": "threat", "feed": FEEDS[name]["title"].split(":")[0], "label": what}))
         baseline = ctx["baseline"]
         if pair["scope"] == "internet" and baseline is not None:
             g = self.geo(pair["ip"])
@@ -456,7 +457,7 @@ class Enricher:
                     f"First connection from this PC to a server in {g['country_name']} ({c}), "
                     f"at {clock(first)}",
                     f"offline IPtoASN database ({g['range']}, AS{g['asn']}) and the destinations "
-                    f"table"))
+                    f"table", stats={"signal": "new_country", "country": c, "name": g["country_name"], "at": first}))
         return out
 
 

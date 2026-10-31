@@ -79,11 +79,14 @@ def alert_fingerprint(pair):
     return f"{pair['program']}|{pair['ip']}|{pair['direction']}"
 
 
-def finding(check, points, reason, data, means=None):
-    """One explained finding. `means` says, in plain words, what it would do to you."""
+def finding(check, points, reason, data, means=None, stats=None):
+    """One explained finding. `means` says, in plain words, what it would do to you.
+    `stats` holds the raw numbers behind it (and its `signal` kind), for wording.py."""
     f = {"check": check, "points": round(points, 1), "reason": reason, "data": data}
     if means:
         f["means"] = means
+    if stats:
+        f["stats"] = stats
     return f
 
 
@@ -163,12 +166,16 @@ def beacon_findings(conns, poll, endpoint):
     out.append(finding(
         "beacon", POINTS["beacon_regularity"] * clamp((CV_CEILING - b["cv"]) / (CV_CEILING - 0.05)),
         f"{kind}: every {fmt_interval(b['interval'])} ± {pct}% (coefficient of variation "
-        f"{b['cv']:.2f} over {b['checkins']} check-ins{missed})", data))
+        f"{b['cv']:.2f} over {b['checkins']} check-ins{missed})", data,
+        stats={"signal": "timer", "interval": round(b["interval"], 1), "cv": round(b["cv"], 3),
+               "checkins": b["checkins"], "missed": b["missed"], "pauses": [round(x) for x in b["pauses"]],
+               "first": b["first"], "last": b["last"], "connections": len(conns), "poll": poll}))
     span = b["last"] - b["first"]
     out.append(finding(
         "beacon", POINTS["beacon_persistence"] * clamp((b["samples"] - MIN_CHECKINS) / 24),
         f"Kept up for {fmt_duration(span)} ({b['samples']} check-ins counting missed ones)",
-        data))
+        data, stats={"signal": "duration", "span": round(span), "samples": b["samples"],
+                     "first": b["first"], "last": b["last"]}))
     sizes = [c["bytes_sent"] + c["bytes_recv"] for c in conns
              if c["closed_at"] is not None and c["bytes_sent"] is not None]
     if len(sizes) >= 5 and statistics.fmean(sizes) > 0:
@@ -179,7 +186,8 @@ def beacon_findings(conns, poll, endpoint):
                 "beacon", POINTS["beacon_size"] * clamp((CV_CEILING - scv) / (CV_CEILING - 0.10)),
                 f"Similar size each time: ≈ {fmt_bytes(mean)} ± {round(scv * 100)}%",
                 f"sock_diag byte counts of {len(sizes)} closed connections (last poll before "
-                f"close, so slightly low)"))
+                f"close, so slightly low)",
+                stats={"signal": "same_size", "mean": round(mean), "cv": round(scv, 3), "n": len(sizes)}))
     return [f for f in out if f["points"] > 0]
 
 
@@ -194,7 +202,9 @@ def long_connection_finding(conns, now, baseline):
     return finding(
         "long_connection", points,
         f"One connection open {at_least}{fmt_duration(dur)} (since {clock(best['opened_at'])}, {state})",
-        f"connections table: connection #{best['id']}, local port {best['local_port']}")
+        f"connections table: connection #{best['id']}, local port {best['local_port']}",
+        stats={"signal": "long", "duration": round(dur), "opened_at": best["opened_at"],
+               "closed_at": best["closed_at"], "at_least": bool(at_least)})
 
 
 def location_findings(info, key):
@@ -209,17 +219,20 @@ def location_findings(info, key):
         if path.startswith(TEMP_DIRS):
             out.append(finding("process_location", POINTS["temp_executable"],
                                f"Runs from {path}: a world-writable temporary directory, a common "
-                               f"drop location for downloaded payloads", src))
+                               f"drop location for downloaded payloads", src,
+                               stats={"signal": "temp_dir", "path": path}))
             break
         hidden = [part for part in path.split("/")[1:-1] if part.startswith(".")]
         if hidden and hidden[0] not in HIDDEN_DIR_OK:
             out.append(finding("process_location", POINTS["hidden_dir_executable"],
-                               f"Runs from a hidden directory ({path})", src))
+                               f"Runs from a hidden directory ({path})", src,
+                               stats={"signal": "hidden_dir", "path": path}))
             break
     if info.get("exe_deleted"):
         out.append(finding("process_location", POINTS["deleted_executable"],
                            "Its executable was deleted or replaced while running. Normal right "
-                           "after a package upgrade; otherwise a way to leave no file behind", src))
+                           "after a package upgrade; otherwise a way to leave no file behind", src,
+                           stats={"signal": "deleted_exe"}))
     return out
 
 
@@ -401,7 +414,8 @@ class Scorer:
                 "first_seen", POINTS["new_destination"],
                 f"New destination: first contacted at {clock(dest['first_seen'])}, after Vigil's "
                 f"baseline of {time.strftime('%Y-%m-%d %H:%M', time.localtime(baseline))}",
-                "destinations table (first-seen tracking)"))
+                "destinations table (first-seen tracking)",
+                stats={"signal": "new_destination", "at": dest["first_seen"], "baseline": baseline}))
         if (direction == "out" and not prog.get("hidden") and baseline is not None
                 and (prog.get("first_outbound") or 0) > baseline
                 and now - prog["first_outbound"] < RECENT):
@@ -409,19 +423,22 @@ class Scorer:
                 "first_seen", POINTS["new_program"],
                 f"This program made its first outbound connection at "
                 f"{clock(prog['first_outbound'])}; it had not used the network since Vigil "
-                f"started watching", "programs table (first outbound connection)"))
+                f"started watching", "programs table (first outbound connection)",
+                stats={"signal": "new_program", "at": prog["first_outbound"]}))
         prev = ctx["prevalence"].get(ip, (0, 0))
         if pair["scope"] == "internet" and prev[0] <= 1 and prev[1] <= 5:
             out.append(finding(
                 "rarity", POINTS["rare_destination"],
                 f"Rare: only this program has ever contacted this address ({prev[1]} "
                 f"connection{'s' if prev[1] != 1 else ''} in Vigil's history)",
-                "pairs table (all programs, all time)"))
+                "pairs table (all programs, all time)",
+                stats={"signal": "rare", "programs": prev[0], "connections": prev[1]}))
         if port not in COMMON_PORTS and pair["scope"] != "loopback":
             out.append(finding(
                 "uncommon_port", POINTS["uncommon_port"],
                 f"{proto}/{port} is not a common service port",
-                f"connections table: {'local' if direction == 'in' else 'remote'} port"))
+                f"connections table: {'local' if direction == 'in' else 'remote'} port",
+                stats={"signal": "odd_port", "port": port, "proto": proto}))
         if not prog.get("hidden"):
             out += location_findings(json.loads(prog.get("info") or "{}"), program)
         for check in self.extra:
