@@ -5,18 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vigil</title>
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/static/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/style.css">
 <script type="module" src="/static/app.js"></script>
 </head>
 <body>
+<canvas id="fx" aria-hidden="true"></canvas>
+
 <header class="topbar">
-  <div class="brand"><img src="/static/icon.svg" alt="" width="18" height="18">Vigil</div>
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="bm-top" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9fbff"/><stop offset="1" stop-color="#5dbdb9"/></linearGradient>
+        <linearGradient id="bm-left" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5dbdb9"/><stop offset="1" stop-color="#00665d"/></linearGradient>
+        <linearGradient id="bm-right" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#59bddf"/><stop offset="1" stop-color="#1d5f73"/></linearGradient>
+      </defs>
+      <g class="orbit"><polygon points="16,1.5 28.6,8.75 28.6,23.25 16,30.5 3.4,23.25 3.4,8.75" fill="none" stroke="#ff9f43" stroke-width="1.4" stroke-dasharray="5 3"/></g>
+      <polygon points="16,7 23.8,11.5 16,16 8.2,11.5" fill="url(#bm-top)"/>
+      <polygon points="8.2,11.5 16,16 16,25 8.2,20.5" fill="url(#bm-left)"/>
+      <polygon points="23.8,11.5 16,16 16,25 23.8,20.5" fill="url(#bm-right)"/>
+      <circle class="core" cx="16" cy="16" r="2.4" fill="#ff9f43"/>
+    </svg>
+    Vigil <small>blue-team lab</small>
+  </div>
   <nav class="tabs" id="tabs">
     <button type="button" data-tab="network" class="active">Network Map</button>
     <button type="button" data-tab="alerts">Alerts<span class="count" id="alert-count" hidden></span></button>
     <button type="button" data-tab="files">Files</button>
     <button type="button" data-tab="cases">Cases</button>
     <button type="button" data-tab="intel">Intel</button>
+    <span class="tab-indicator" aria-hidden="true"></span>
   </nav>
   <div class="status" id="status" aria-live="polite"></div>
 </header>
@@ -24,6 +42,10 @@
 <main>
   <section class="tab active" id="tab-network">
     <div class="toolbar">
+      <div class="seg view-switch" id="view-mode" title="Map: everything. Analyzer: the selected program's process chain and destinations.">
+        <button type="button" data-mode="map" class="on">Map</button>
+        <button type="button" data-mode="analyzer">Analyzer</button>
+      </div>
       <label class="field">Window
         <select id="window">
           <option value="0">Live now</option>
@@ -39,15 +61,15 @@
         <label><input type="checkbox" value="loopback">Loopback</label>
         <label><input type="checkbox" value="multicast,link-local,reserved">Other</label>
       </fieldset>
-      <input type="search" id="filter" placeholder="Filter program or IP" autocomplete="off">
+      <input type="search" id="filter" placeholder="Filter program, IP or owner" autocomplete="off">
       <span class="summary" id="graph-summary"></span>
     </div>
     <div class="workspace">
+      <aside class="panel" id="panel"></aside>
       <div class="graph-wrap" id="graph-wrap">
         <svg id="graph" role="img" aria-label="Programs and the destinations they connect to"></svg>
         <div class="empty" id="graph-empty" hidden></div>
       </div>
-      <aside class="panel" id="panel"></aside>
     </div>
   </section>
 
@@ -71,10 +93,14 @@
       <aside class="side">
         <label class="drop" id="drop">
           <input type="file" id="file-input" hidden>
+          <svg class="drop-icon" viewBox="0 0 48 48" aria-hidden="true">
+            <polygon points="24,4 41,14 41,34 24,44 7,34 7,14" fill="none" stroke="#ff9f43" stroke-width="2"/>
+            <path d="M24 31V17m0 0-6 6m6-6 6 6" fill="none" stroke="#62f3ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
           <strong>Choose a file</strong> or drop it here
           <span class="faint">Read in memory by Vigil on this machine. Never opened, run or stored.</span>
         </label>
-        <div class="form-msg" id="upload-status"></div>
+        <div id="upload-status"></div>
         <h3>Inspected files</h3>
         <div id="file-history"></div>
       </aside>
@@ -110,5 +136,7 @@
     </div>
   </section>
 </main>
+
+<div id="toasts" aria-live="polite"></div>
 </body>
 </html>

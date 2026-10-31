@@ -1,6 +1,7 @@
 // Intel: the threat feeds and the country/ASN database, their freshness, the buttons
 // that download them (the only network use in Vigil), and an offline address lookup.
 import { api, el, clear, fmtClock, fmtAgo, kv } from "./ui.js";
+import { toast } from "./fx.js";
 
 export class IntelView {
   constructor(root, { onShowDestination }) {
@@ -28,12 +29,16 @@ export class IntelView {
     this.busy = true;
     button.disabled = true;
     button.textContent = "Downloading…";
+    button.after(el("div", { class: "scanning" }));
     try {
       const res = await api.send("POST", "/api/intel/update", { what });
       this.sig = "";
       this.busy = false;
       this.render(res.status, res.results);
+      const bad = res.results.filter((r) => !r.ok);
+      toast(bad.length ? `${bad.length} source(s) failed; previous data kept` : "Updated; scores recalculated", bad.length ? "err" : "ok");
     } catch (e) {
+      if (button.nextElementSibling?.classList.contains("scanning")) button.nextElementSibling.remove();
       this.busy = false;
       button.disabled = false;
       button.textContent = `Failed: ${e.message}`;

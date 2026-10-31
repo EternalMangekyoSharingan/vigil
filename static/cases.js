@@ -1,5 +1,6 @@
 // Cases: evidence, indicators, notes and status in one place, with exports.
 import { api, el, clear, fmtClock, findingList } from "./ui.js";
+import { toast } from "./fx.js";
 
 const STATUS = ["open", "investigating", "closed"];
 const IOC_TYPES = ["ip", "domain", "url", "email", "md5", "sha1", "sha256"];
@@ -58,7 +59,7 @@ export class CasesView {
       this.sig = "";
       this.refresh();
     } catch (e) {
-      window.alert(e.message);
+      toast(e.message, "err");
     }
   }
 

@@ -1,6 +1,7 @@
 // Alerts: scored pairs at or above the threshold that no allowlist rule covers,
 // plus the allowlist itself. Every alert shows the findings that produced it.
 import { api, el, clear, fmtClock, scoreClass, pairTitle, findingList, allowlistForm, addToCase } from "./ui.js";
+import { toast } from "./fx.js";
 
 export class AlertsView {
   constructor(root, { onShowProgram }) {
@@ -62,6 +63,7 @@ export class AlertsView {
             const note = a.status === "open" ? window.prompt("Why dismiss? (kept with the alert)", "") : "";
             if (note === null) return;
             await api.send("POST", "/api/alerts/update", { id: a.id, status: a.status === "open" ? "dismissed" : "open", note });
+            toast(`Alert #${a.id} ${a.status === "open" ? "dismissed" : "reopened"}`);
             this.reload();
           },
         }),

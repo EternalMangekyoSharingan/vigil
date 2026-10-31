@@ -1,6 +1,7 @@
 // Small DOM, API and formatting helpers shared by every view.
 // All text goes in through textContent: process names and command lines are
 // attacker-controllable strings, so nothing is ever parsed as HTML.
+import { toast } from "./fx.js";
 
 export const api = {
   async get(path) {
@@ -25,6 +26,7 @@ export function el(tag, attrs = {}, ...children) {
   for (const [k, v] of Object.entries(attrs)) {
     if (v === null || v === undefined || v === false) continue;
     if (k === "class") node.className = v;
+    else if (k === "style") node.style.cssText = v; // CSSOM: allowed by the page's CSP, unlike a style attribute
     else if (k === "text") node.textContent = v;
     else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v === true ? "" : v);
@@ -92,15 +94,39 @@ export function kv(pairs) {
   return dl;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "Oct 30, 2026 @ 21:42:12.778", the event-list timestamp style.
+export function fmtStamp(ts) {
+  const d = new Date(ts * 1000);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} @ ${pad(d.getHours())}:${pad(d.getMinutes())}:` +
+    `${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+}
+
+const ENDPOINT = /(\[[0-9a-fA-F:]+\]:\d+|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b)/;
+
+// Text with IP addresses picked out (and clickable when onIp is given).
+function withAddresses(text, onIp) {
+  const span = el("div", { class: "sum" });
+  for (const part of String(text).split(ENDPOINT)) {
+    if (!ENDPOINT.test(part)) {
+      span.append(part);
+      continue;
+    }
+    const ip = part.startsWith("[") ? part.slice(1, part.indexOf("]")) : part.split(":")[0];
+    span.append(el("span", { class: "ip", text: part, title: onIp ? `Show ${ip}` : null, onclick: onIp ? () => onIp(ip) : null }));
+  }
+  return span;
+}
+
 // Timeline of events, newest first. Every item shows where it came from.
-export function eventList(items, labels = {}) {
+export function eventList(items, labels = {}, onIp = null) {
   if (!items.length) return el("p", { text: "No events recorded yet." });
-  return el("ol", { class: "events" }, items.map((e) =>
-    el("li", { class: e.kind },
-      el("div", { class: "head" },
-        el("time", { text: fmtClock(e.ts), title: new Date(e.ts * 1000).toISOString() }),
-        el("span", { class: "badge", text: labels[e.kind] || e.kind.replace("_", " ") })),
-      el("div", { class: "sum", text: e.summary }),
+  return el("ol", { class: "events" }, items.map((e, i) =>
+    el("li", { class: e.kind, style: i < 12 ? `animation-delay:${i * 30}ms` : null },
+      el("span", { class: "badge", text: labels[e.kind] || e.kind.replace("_", " ") }),
+      el("time", { text: `@ ${fmtStamp(e.ts)}`, title: new Date(e.ts * 1000).toISOString() }),
+      withAddresses(e.summary, onIp),
       e.source ? el("div", { class: "src", text: e.source }) : null)));
 }
 
@@ -143,10 +169,11 @@ export function allowlistForm(pair, onDone) {
         type: "button", class: "btn primary", text: "Add rule",
         onclick: async () => {
           try {
-            await api.send("POST", "/api/allowlist", {
+            const res = await api.send("POST", "/api/allowlist", {
               program: program.value.trim(), ip: ip.value.trim(), port: port.value.trim() === "*" ? null : port.value.trim(),
               proto: pair.proto, direction: pair.direction, reason: reason.value.trim(),
             });
+            toast(`Allowlist rule ${res.rule.id} added; scores updated`);
             onDone?.();
           } catch (e) {
             msg.textContent = e.message;
@@ -179,7 +206,8 @@ export function addToCase(kind, ref, onDone) {
           let id = sel.value;
           if (id === "new") id = (await api.send("POST", "/api/cases", { title: title.value.trim() })).id;
           await api.send("POST", "/api/case/item", { id: Number(id), kind, ref: String(ref) });
-          clear(wrap).append(el("span", { class: "tag live", text: `in case #${id}` }));
+          clear(wrap).append(el("span", { class: "tag orange", text: `in case #${id}` }));
+          toast(`Added to case #${id}`);
           onDone?.(Number(id));
         } catch (e) {
           msg.textContent = e.message;

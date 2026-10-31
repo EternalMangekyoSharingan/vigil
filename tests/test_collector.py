@@ -185,6 +185,10 @@ class SnapshotTests(unittest.TestCase):
 
         firefox = snap["processes"][4410]
         self.assertEqual([a["name"] for a in firefox["ancestry"]], ["gnome-shell", "systemd"])
+        # Ancestor start times let the analyzer label parent → child gaps.
+        self.assertAlmostEqual(firefox["ancestry"][0]["started"], 1793300000 + 3000 / tck)
+        self.assertAlmostEqual(firefox["started"] - firefox["ancestry"][0]["started"],
+                               (123456 - 3000) / tck, places=3)  # epoch-sized floats
         self.assertEqual(firefox["parent"], "gnome-shell")
 
         reasons = {i: (s["hidden"] or {}).get("reason") for i, s in socks.items()}

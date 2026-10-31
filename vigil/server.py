@@ -16,9 +16,10 @@ from .store import Store, Tracker
 
 HOST = "127.0.0.1"  # never configurable: Vigil is not a network service
 STATIC = Path(__file__).resolve().parent.parent / "static"
-STATIC_NAME = re.compile(r"^[a-z0-9_-]+\.(html|css|js|svg)$")
+STATIC_NAME = re.compile(r"^(?:fonts/)?[A-Za-z0-9_-]+\.(html|css|js|svg|woff2|txt)$")
 CONTENT_TYPES = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
-                 "js": "text/javascript; charset=utf-8", "svg": "image/svg+xml"}
+                 "js": "text/javascript; charset=utf-8", "svg": "image/svg+xml",
+                 "woff2": "font/woff2", "txt": "text/plain; charset=utf-8"}
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 SCOPE_NAMES = ("internet", "lan", "loopback", "link-local", "multicast", "reserved")
@@ -358,7 +359,8 @@ class Handler(BaseHTTPRequestHandler):
         if self.server.verbose:
             sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
-    def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None):
+    def _send(self, code, body, ctype="application/json; charset=utf-8", extra=None,
+              cache="no-store"):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -366,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy", CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", cache)
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
@@ -424,8 +426,9 @@ class Handler(BaseHTTPRequestHandler):
         name = "index.html" if path in ("/", "/index.html") else path.removeprefix("/static/")
         if not STATIC_NAME.match(name) or not (STATIC / name).is_file():
             return self._send(404, {"error": "not found"})
-        ctype = CONTENT_TYPES[name.rsplit(".", 1)[1]]
-        self._send(200, (STATIC / name).read_bytes(), ctype)
+        ext = name.rsplit(".", 1)[1]
+        cache = "max-age=604800, immutable" if ext == "woff2" else "no-store"
+        self._send(200, (STATIC / name).read_bytes(), CONTENT_TYPES[ext], cache=cache)
 
     def do_GET(self):
         self._dispatch("GET")

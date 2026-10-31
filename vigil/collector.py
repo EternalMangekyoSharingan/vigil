@@ -329,7 +329,8 @@ def read_process(proc_root, pid, btime=None, ancestry_depth=12):
             pst = _status(proc_root, p)
         except OSError:
             break
-        ancestry.append({"pid": p, "name": pst.get("Name", "?")})
+        ancestry.append({"pid": p, "name": pst.get("Name", "?"),
+                         "started": _start_time(proc_root, p, btime)})
         p = int(pst.get("PPid", "0") or 0)
     return {
         "pid": pid, "key": key, "name": name, "comm": comm, "exe": exe,

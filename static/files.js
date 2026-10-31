@@ -2,6 +2,7 @@
 // under it, and what the check cannot tell you. The file goes from this page to
 // Vigil on 127.0.0.1 only, is read in memory, and is never opened or run.
 import { api, el, clear, fmtClock, kv, findingList, addToCase } from "./ui.js";
+import { gauge, toast } from "./fx.js";
 
 const VERDICT_CLASS = { "Likely malicious": "danger", "Suspicious": "warn" };
 
@@ -45,18 +46,20 @@ export class FilesView {
   }
 
   async upload(file) {
-    this.status.textContent = `Reading ${file.name} (${file.size} bytes)…`;
+    clear(this.status).append(el("div", { class: "faint", text: `Inspecting ${file.name} (${file.size.toLocaleString()} bytes)…` }),
+      el("div", { class: "scanning" }));
     try {
       const buf = await file.arrayBuffer();
       const report = await api.send("POST", "/api/inspect", buf, "application/octet-stream",
         { "X-Filename": encodeURIComponent(file.name) });
-      this.status.textContent = "";
+      clear(this.status);
       this.current = report.id;
       this.sig = "";
       this.render(report);
       this.refresh();
+      toast(`${report.name}: ${report.verdict}`, report.score >= 70 ? "err" : "ok");
     } catch (e) {
-      this.status.textContent = `Could not inspect: ${e.message}`;
+      clear(this.status).append(el("div", { class: "form-msg", text: `Could not inspect: ${e.message}` }));
     }
   }
 
@@ -78,13 +81,12 @@ export class FilesView {
     const box = clear(this.report);
     const cls = VERDICT_CLASS[r.verdict] || "none";
     const top = r.findings.filter((f) => f.points > 0).slice(0, 3).map((f) => f.reason);
-    box.append(el("div", { class: `verdict ${cls}` },
-      el("div", { class: "verdict-line" },
-        el("span", { class: "verdict-label", text: r.verdict }),
-        el("span", { class: `score ${cls === "none" ? "" : cls}`, text: `${Math.round(r.score)} / 100` })),
-      el("div", { class: "verdict-name mono", text: r.name }),
-      top.length ? el("div", { class: "verdict-why", text: top.join(" · ") })
-        : el("div", { class: "verdict-why", text: "Nothing this check looks for was found. That is not a guarantee: see what this check cannot tell you, below." })));
+    box.append(el("div", { class: `verdict ${cls}` }, gauge(r.score),
+      el("div", {},
+        el("div", { class: "verdict-label", text: r.verdict }),
+        el("div", { class: "verdict-name mono", text: r.name }),
+        top.length ? el("div", { class: "verdict-why", text: top.join(" · ") })
+          : el("div", { class: "verdict-why", text: "Nothing this check looks for was found. That is not a guarantee: see what this check cannot tell you, below." }))));
 
     box.append(el("h3", { text: "Identity" }), kv([
       ["Type", `${r.type.description}${r.type.extension ? ` · named .${r.type.extension}` : ""}`],
