@@ -11,6 +11,7 @@ found. The verdict is never "safe": the best it says is "no suspicious indicator
 found", followed by what this kind of check cannot see.
 """
 
+import bisect
 import bz2
 import hashlib
 import io
@@ -265,6 +266,33 @@ def disguise_findings(name, family):
 
 # ---- IOC extraction --------------------------------------------------------------------
 
+
+PRINTABLE_RE = re.compile(rb"[\x20-\x7e\t\r\n]{4,}")
+
+
+def _printable_runs(blob):
+    """Like `strings`: the runs of printable text in `blob`, joined by NUL, plus a function
+    mapping an offset in the joined text back to the offset in `blob`. Every indicator
+    is printable ASCII, so nothing is lost, and binaries shrink about tenfold."""
+    runs = list(PRINTABLE_RE.finditer(blob))
+    if len(runs) == 1 and runs[0].span() == (0, len(blob)):
+        return blob, lambda pos: pos
+    joined, starts, origins = bytearray(), [], []
+    for m in runs:
+        starts.append(len(joined))
+        origins.append(m.start())
+        joined += m.group() + b"\0"
+
+    def at(pos):
+        i = bisect.bisect_right(starts, pos) - 1
+        return origins[i] + pos - starts[i] if i >= 0 else pos
+    return bytes(joined), at
+
+
+def _shift(base):
+    return lambda pos: base + 2 * pos  # UTF-16: two bytes per character
+
+
 class Iocs:
     def __init__(self):
         self.items = {}
@@ -285,8 +313,10 @@ class Iocs:
         if isinstance(blob, str):
             blob = blob.encode("utf-8", "replace")
         blob = blob[:SCAN_MAX]
-        for text, label in ((blob, where), *[(m.group().replace(b"\0", b""), f"{where} (UTF-16 text)")
-                                             for m in UTF16_RE.finditer(blob)]):
+        strings, at = _printable_runs(blob)
+        for text, label, at in ((strings, where, at),
+                                *[(m.group().replace(b"\0", b""), f"{where} (UTF-16 text)", _shift(m.start()))
+                                  for m in UTF16_RE.finditer(blob)]):
             url_spans = []
             for m in URL_RE.finditer(text):
                 url = m.group().decode("ascii", "replace")
@@ -299,14 +329,14 @@ class Iocs:
                 if host in FORMAT_HOSTS:
                     self.ignored_format_urls += 1
                     continue
-                self.add("url", url, f"{label} at offset {m.start():#x}")
+                self.add("url", url, f"{label} at offset {at(m.start()):#x}")
             in_url = lambda s: any(a <= s < b for a, b in url_spans)
             for m in IPV4_RE.finditer(text):
                 ip = m.group().decode()
                 if not in_url(m.start()) and ip not in ("0.0.0.0", "255.255.255.255"):
-                    self.add("ip", ip, f"{label} at offset {m.start():#x}")
+                    self.add("ip", ip, f"{label} at offset {at(m.start()):#x}")
             for m in EMAIL_RE.finditer(text):
-                self.add("email", m.group().decode("ascii", "replace"), f"{label} at offset {m.start():#x}")
+                self.add("email", m.group().decode("ascii", "replace"), f"{label} at offset {at(m.start()):#x}")
             for m in DOMAIN_RE.finditer(text):
                 if in_url(m.start()):
                     continue
@@ -321,13 +351,13 @@ class Iocs:
                     continue
                 if any(lbl.isdigit() for lbl in labels):
                     continue
-                self.add("domain", dom, f"{label} at offset {m.start():#x}")
+                self.add("domain", dom, f"{label} at offset {at(m.start()):#x}")
             if hashes:
                 for m in HASH_RE.finditer(text):
                     h = m.group().decode().lower()
                     if len(set(h)) > 4:
                         kind = {32: "md5", 40: "sha1", 64: "sha256"}[len(h)]
-                        self.add(kind, h, f"{label} at offset {m.start():#x}")
+                        self.add(kind, h, f"{label} at offset {at(m.start()):#x}")
 
     def hosts(self):
         """Hosts referenced by URLs, plus bare domains and IPs, for intel matching."""
@@ -1042,6 +1072,11 @@ def inspect_bytes(data, name, depth=0, budget=None):
     return report
 
 
+def _local_only(ip):
+    a = ipaddress.ip_address(ip)
+    return a.is_loopback or a.is_unspecified or a.is_link_local or a.is_multicast
+
+
 def link_context(report, store, enricher=None):
     """Attach threat-feed hits and this PC's own history to the report's IOCs.
 
@@ -1070,6 +1105,8 @@ def link_context(report, store, enricher=None):
                                     f"Contains {item['value']}, which {FEEDS[best['feed']]['title'].split(':')[0]} "
                                     f"lists ({best['label']})", f"{item['where']}; local {best['feed']} feed"))
         ip = host if host and _is_ip(host) else None
+        if ip and _local_only(ip):
+            ip = None  # every PC talks to its own loopback; matching it says nothing about the file
         if ip:
             dest = store.one("SELECT first_seen, last_seen FROM destinations WHERE ip=?", (ip,))
             if dest:

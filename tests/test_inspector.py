@@ -317,5 +317,33 @@ class ContextTests(unittest.TestCase):
             store.close()
 
 
+class IocOffsetTests(unittest.TestCase):
+    def test_offsets_point_into_the_original_bytes(self):
+        # SYNTHETIC binary: noise around an address and a URL; offsets must survive the strings pass.
+        from vigil import inspector as ins
+        blob = b"\x00\x01\xff" * 50 + b"connect 203.0.113.9 now" + b"\x00" * 7 + b"get https://dl.dropper-test.net/x.sh\x00" \
+            + "wide 198.51.100.4".encode("utf-16-le") + b"\x02"
+        iocs = ins.Iocs()
+        iocs.scan(blob, "file")
+        where = {v["value"]: v["where"] for v in iocs.items.values()}
+        self.assertEqual(where["203.0.113.9"], f"file at offset {blob.index(b'203.0.113.9'):#x}")
+        self.assertEqual(where["https://dl.dropper-test.net/x.sh"], f"file at offset {blob.index(b'https://'):#x}")
+        wide = blob.index("198.51.100.4".encode("utf-16-le"))
+        self.assertEqual(where["198.51.100.4"], f"file (UTF-16 text) at offset {wide:#x}")
+
+
+    def test_loopback_mentions_are_not_network_evidence(self):
+        from vigil import inspector as ins
+        store = mock.Mock()
+        store.one.return_value = {"first_seen": 1.0, "last_seen": 2.0}
+        report = {"iocs": [{"type": "ip", "value": "127.0.0.1", "where": "x"},
+                           {"type": "ip", "value": "203.0.113.9", "where": "y"}],
+                  "findings": [], "score": 0}
+        ins.link_context(report, store)
+        seen = [f["reason"] for f in report["findings"] if f["check"] == "seen_on_network"]
+        self.assertEqual(len(seen), 1)
+        self.assertIn("203.0.113.9", seen[0])
+
+
 if __name__ == "__main__":
     unittest.main()

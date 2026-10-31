@@ -7,7 +7,8 @@
 // Nodes are keyed and tweened between layouts, so refreshes move instead of redraw.
 import { api, el, svg, clear, fmtClock, fmtAgo, kv, eventList,
   scoreClass, pairTitle, findingList, allowlistForm, addToCase } from "./ui.js";
-import { tween, reducedMotion, countTo } from "./fx.js";
+import { tween, reducedMotion, countTo, toast } from "./fx.js";
+import { showMenu, copy } from "./menu.js";
 
 const CONTENT = 270;          // width of a node's label/pill/chips block
 const ROW = 92;               // vertical step between nodes in the map view
@@ -42,14 +43,40 @@ function fit(text, weight, size, max) {
   return text.slice(0, lo) + "…";
 }
 
+// Precise gaps for the analyzer: "470 ms", "40.82 s", "3 min 12.4 s", "2 h 05 min".
 export function fmtGap(seconds) {
   if (seconds === null || seconds === undefined || !isFinite(seconds) || seconds < 0) return null;
-  const n = (v, unit) => `${v} ${unit}${v === 1 ? "" : "s"}`;
-  if (seconds < 1) return n(Math.round(seconds * 1000), "millisecond");
-  if (seconds < 60) return n(Math.round(seconds * 10) / 10, "second");
-  if (seconds < 3600) return n(Math.round(seconds / 60), "minute");
-  if (seconds < 86400) return n(Math.round(seconds / 360) / 10, "hour");
-  return n(Math.round(seconds / 8640) / 10, "day");
+  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
+  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 2 : 1)} s`;
+  if (seconds < 3600) {
+    const m = Math.floor(seconds / 60);
+    return `${m} min ${(seconds - m * 60).toFixed(1)} s`;
+  }
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")} min`;
+  return `${Math.floor(seconds / 86400)} d ${Math.floor(seconds % 86400 / 3600)} h`;
+}
+
+// Rounded gaps for map labels, where space is short: "4 min", "3 h".
+function fmtCoarse(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return null;
+  if (seconds < 60) return `${Math.round(seconds)} s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)} h`;
+  return `${Math.round(seconds / 86400)} d`;
+}
+
+// "21:42:12.778": a clock time to the millisecond.
+export function fmtMs(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000);
+  const p = (n, w = 2) => String(n).padStart(w, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+}
+
+function fmtBytes(n) {
+  if (n === null || n === undefined) return "—";
+  for (const [u, v] of [["GB", 1e9], ["MB", 1e6], ["kB", 1e3]]) if (n >= v) return `${(n / v).toFixed(1)} ${u}`;
+  return `${n} B`;
 }
 
 // ---- shapes -------------------------------------------------------------------------------
@@ -199,11 +226,11 @@ export class NetworkMap {
     }
   }
 
-  async select(sel) {
+  async select(sel, tab = "events") {
     this.selected = sel;
     this.detail = null;
     this.panelSig = "";
-    this.ptab = "events";
+    this.ptab = tab;
     if (sel?.type !== "program" && this.mode === "analyzer") this.setMode("map");
     this.render();
     if (!sel) {
@@ -329,7 +356,7 @@ export class NetworkMap {
       const dest = known || { ip: p.ip, scope: "", ports: p.ports.map((q) => `${q.proto}/${q.port}`), live: 0, programs: 1, first_seen: p.first_seen };
       nodes.push({ key: `d:${p.ip}`, type: "dest", side: "ltr", data: dest, x: px + 300, y: py + 86 + j * 96 });
       const e = live.get(p.ip);
-      const after = info.started ? fmtGap(p.first_seen - info.started) : null;
+      const after = info.started ? fmtGap(p.first_seen - info.started) : null; // first contact after start
       const port = p.ports.map((q) => (q.direction === "in" ? `in ${q.port}` : q.port)).slice(0, 2).join(",");
       links.push({ key: `e:${d.key}|${p.ip}`, a: `p:${d.key}`, b: `d:${p.ip}`,
         data: e || { live: 0, score: 0, ports: p.ports, last: p.last_seen },
@@ -392,6 +419,7 @@ export class NetworkMap {
         node.g.setAttribute("transform", `translate(${n.x},${n.y})`);
         node.g.addEventListener("click", (e) => { e.stopPropagation(); node.onclick?.(); });
         node.g.addEventListener("dblclick", (e) => { e.stopPropagation(); node.ondblclick?.(); });
+        node.g.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); node.oncontext?.(e); });
         this.gNodes.append(node.g);
         this.nodes.set(n.key, node);
       } else if (node.inner.classList.contains("exit")) {
@@ -576,7 +604,8 @@ export class NetworkMap {
       chips.push({ text: `${d.destinations} dst` });
       if (!d.hidden && d.info?.pid) chips.push({ text: `pid ${d.info.pid}` });
       if (!d.hidden && d.first_outbound && d.first_outbound > baseline && now - d.first_outbound < 86400) chips.push({ text: "new", cls: "new" });
-      tooltip = `${d.key}\n${d.hidden ? d.info?.explanation || "" : `pid ${d.info?.pid} · ${d.info?.user}`}\nfirst seen ${fmtClock(d.first_seen)}`;
+      tooltip = `${d.title ? `${d.title}\n` : ""}${d.key}\n${d.hidden ? d.info?.explanation || "" : `pid ${d.info?.pid} · ${d.info?.user}`}\nfirst seen ${fmtClock(d.first_seen)}\nRight-click for more`;
+      node.oncontext = (e) => this.menuFor("program", d, e);
       node.onclick = () => this.select({ type: "program", id: d.key });
       node.ondblclick = () => this.analyze(d.key);
     } else if (n.type === "ancestor") {
@@ -585,8 +614,9 @@ export class NetworkMap {
       pill = "pillGhost";
       shape = cube(22, false, true);
       chips.push({ text: `pid ${d.pid}` });
-      if (d.started) chips.push({ text: `started ${fmtClock(d.started)}` });
-      tooltip = `${d.name} (pid ${d.pid}), a parent of the analyzed program`;
+      if (d.started) chips.push({ text: `started ${fmtMs(d.started)}` });
+      tooltip = `${d.name} (pid ${d.pid}), a parent of the analyzed program, started ${fmtMs(d.started)}`;
+      node.oncontext = (e) => this.menuFor("ancestor", d, e);
       node.onclick = null;
       node.ondblclick = null;
     } else {
@@ -604,7 +634,8 @@ export class NetworkMap {
       if (d.programs > 1) chips.push({ text: `${d.programs} prog` });
       if (d.label) chips.push({ text: d.label.length > 30 ? d.label.slice(0, 29) + "…" : d.label });
       if (d.first_seen > baseline && now - d.first_seen < 86400) chips.push({ text: "new", cls: "new" });
-      tooltip = `${d.ip} · ${d.label || SCOPE_TEXT[d.scope] || ""}\nports ${(d.ports || []).join(", ")}\nfirst seen ${fmtClock(d.first_seen)}`;
+      tooltip = `${d.ip} · ${d.label || SCOPE_TEXT[d.scope] || ""}\nports ${(d.ports || []).join(", ")}\nfirst seen ${fmtClock(d.first_seen)}\nRight-click for more`;
+      node.oncontext = (e) => this.menuFor("dest", d, e);
       node.onclick = () => this.select({ type: "dest", id: d.ip });
       node.ondblclick = null;
     }
@@ -626,7 +657,7 @@ export class NetworkMap {
     const px = rtl ? anchorX - pw : anchorX;
     g.append(svg("text", { class: `n-kind${alerting ? " alerting" : ""}`, x: rtl ? anchorX : anchorX + 2, y: -21, "text-anchor": rtl ? "end" : "start", text: kind }));
     g.append(svg("rect", { class: "pill-bg", x: px, y: -15, width: pw, height: 26, rx: 6, fill: `url(#${pill})` }));
-    g.append(svg("text", { class: `pill-text${pill === "pillSky" ? " cyan" : pill === "pillGhost" ? " ghost" : ""}`, x: px + 12, y: 2.5, "dominant-baseline": "middle", text }));
+    g.append(svg("text", { class: `pill-text${pill === "pillSky" ? " cyan" : pill === "pillGhost" ? " ghost" : ""}`, x: px + 12, y: -2, "dominant-baseline": "central", text }));
     let cx = rtl ? anchorX : anchorX;
     const row = svg("g");
     const list = rtl ? [...chips].reverse() : chips;
@@ -637,7 +668,7 @@ export class NetworkMap {
       row.append(svg("g", { class: `chip ${c.cls || ""}` },
         c.title ? svg("title", { text: c.title }) : null,
         svg("rect", { x, y: 17, width: w, height: 18, rx: 4 }),
-        svg("text", { x: x + w / 2, y: 26.5, "text-anchor": "middle", "dominant-baseline": "middle", text: c.text })));
+        svg("text", { x: x + w / 2, y: 26, "text-anchor": "middle", "dominant-baseline": "central", text: c.text })));
       cx = rtl ? cx - w - 5 : cx + w + 5;
     }
     g.append(row);
@@ -695,17 +726,27 @@ export class NetworkMap {
         text: this.mode === "analyzer" ? "Back to map" : "Analyze process",
         onclick: () => (this.mode === "analyzer" ? this.setMode("map") : this.analyze(data.key)) }));
     }
+    if (isProg && !data.hidden) {
+      actions.append(el("button", { type: "button", class: "btn", text: "Inspect executable",
+        title: "Static triage of this program's file, read through /proc. Never runs it.", onclick: () => this.inspectExe(data) }));
+    }
     actions.append(addToCase(isProg ? "program" : "destination", isProg ? data.key : data.ip));
     p.append(actions);
+    this.renderAbout(p, data.about);
 
-    const tabs = [["events", "Events", events.length], ["details", "Details", null], ["scores", "Scores", (data.findings || []).length]];
+    const tabs = [["events", "Events", events.length]];
+    if (isProg) tabs.push(["connections", "Connections", (data.connections || []).filter((c) => c.kind === "connection").length]);
+    tabs.push(["details", "Details", null], ["scores", "Scores", (data.findings || []).length]);
     p.append(el("div", { class: "ptabs" }, tabs.map(([id, label, n]) => el("button", {
       type: "button", class: this.ptab === id ? "on" : "",
       onclick: () => { this.ptab = id; this.panelSig = ""; this.renderPanel(); },
     }, label, n !== null ? el("span", { class: "n", text: n }) : null))));
 
     if (this.ptab === "events") {
-      p.append(eventList(events, EVENT_LABELS, (ip) => this.select({ type: "dest", id: ip })));
+      p.append(eventList(events, EVENT_LABELS, (ip) => this.select({ type: "dest", id: ip }),
+        (ip, e) => this.menuFor("dest", { ip }, e)));
+    } else if (this.ptab === "connections") {
+      this.renderConnections(p, data);
     } else if (this.ptab === "scores") {
       if (!(data.findings || []).length) p.append(el("p", { class: "faint", text: "Nothing about this scored above zero in the last 24 hours." }));
       this.renderFindings(p, data);
@@ -713,6 +754,110 @@ export class NetworkMap {
       this.renderProgramDetails(p, data);
     } else {
       this.renderDestDetails(p, data);
+    }
+  }
+
+  // "What is this?": what the program or address does, from the offline catalog,
+  // plus what Vigil itself observed. Collapsible; the choice is remembered.
+  renderAbout(p, about) {
+    if (!about) return;
+    const box = el("details", { class: "about" });
+    box.open = this.aboutOpen !== false;
+    box.addEventListener("toggle", () => { this.aboutOpen = box.open; });
+    const k = about.knowledge;
+    box.append(el("summary", {}, el("span", { text: k ? k.title : "What is this?" }),
+      el("span", { class: "faint", text: k ? " · from Vigil's offline notes" : "" })));
+    if (k) {
+      box.append(el("p", { text: k.what }));
+      const rows = [["Why it uses the network", k.net], ["What is normal", k.normal]];
+      if (k.watch && k.watch !== "-") rows.push(["Worth a second look", k.watch]);
+      box.append(kv(rows));
+    } else if (about.knowledge === null) {
+      box.append(el("p", { class: "faint", text: "Vigil has no notes on this program. What follows is what Vigil observed." }));
+    }
+    for (const f of about.facts || []) if (f) box.append(el("p", { text: f }));
+    if (about.provenance) box.append(el("p", { class: "prov", text: about.provenance }));
+    if ((about.ports || []).length) {
+      box.append(el("div", { class: "port-list" }, about.ports.map((pt) =>
+        el("span", { class: "tag", title: pt.what }, `${pt.proto}/${pt.port} · ${pt.service}`))));
+    }
+    p.append(box);
+  }
+
+  // Every connection, to the millisecond: when it opened and closed, to where, how much.
+  renderConnections(p, d) {
+    const rows = (d.connections || []).filter((c) => c.kind === "connection");
+    if (!rows.length) {
+      p.append(el("p", { class: "faint", text: "No connections recorded." }));
+      return;
+    }
+    const now = Date.now() / 1000;
+    p.append(el("p", { class: "faint", text: "Times are when Vigil saw each connection (polls every few seconds; closes dated by the kernel's TIME_WAIT timer when it has one). Bytes come from the kernel's socket counters." }));
+    p.append(el("table", { class: "list conns" },
+      el("tr", {}, el("th", { text: "Opened" }), el("th", { text: "Duration" }), el("th", { text: "Sent / recv" })),
+      rows.flatMap((c) => {
+        const live = c.closed_at === null;
+        const remote = c.remote_ip.includes(":") ? `[${c.remote_ip}]:${c.remote_port}` : `${c.remote_ip}:${c.remote_port}`;
+        const pi = c.port_name ? ` · ${c.port_name}` : "";
+        const title = `${c.proto} ${c.local_ip}:${c.local_port} ${c.direction === "in" ? "←" : "→"} ${remote}\n` +
+          `opened ${fmtMs(c.opened_at)}${live ? "" : `, closed ${fmtMs(c.closed_at)}`}\nstate ${c.state} · socket inode ${c.inode}` +
+          `${c.close_note ? `\n${c.close_note}` : ""}`;
+        return [
+          el("tr", { class: "head", title }, el("td", { colspan: 3 },
+            el("span", { class: "remote ip", text: `${c.direction === "in" ? "← from " : "→ "}${c.proto}/${remote}${pi}`,
+              onclick: () => this.select({ type: "dest", id: c.remote_ip }),
+              oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); this.menuFor("dest", { ip: c.remote_ip }, e); } }))),
+          el("tr", { title },
+            el("td", { class: "mono", text: fmtMs(c.opened_at) }),
+            el("td", {}, live ? el("span", { class: "tag live", text: `open ${fmtGap(now - c.opened_at)}` })
+              : el("span", { text: `${fmtGap(c.closed_at - c.opened_at) || "<1 s"}, closed` })),
+            el("td", { class: "mono", text: c.bytes_sent === null ? "—" : `↑ ${fmtBytes(c.bytes_sent)}` },
+              c.bytes_recv === null ? null : el("div", { class: "sub", text: `↓ ${fmtBytes(c.bytes_recv)}` })))];
+      })));
+  }
+
+  // Right-click on a node or an address.
+  menuFor(kind, d, e) {
+    const show = (sel, tab) => this.select(sel, tab);
+    let items;
+    if (kind === "program") {
+      const sel = { type: "program", id: d.key };
+      items = [{ heading: d.title ? `${d.name} · ${d.title}` : d.name },
+        { label: "Analyze process chain", hint: "double-click", disabled: d.hidden, run: () => this.analyze(d.key) },
+        { label: "Inspect executable", hint: "read-only", disabled: d.hidden, run: () => this.inspectExe(d) },
+        { label: "What is this?", run: () => { this.aboutOpen = true; show(sel, "details"); } },
+        { label: "Connections, to the millisecond", run: () => show(sel, "connections") },
+        { label: "Events", run: () => show(sel, "events") },
+        { label: "Why this score", disabled: !d.score, run: () => show(sel, "scores") },
+        "-",
+        { label: "Show only this program", run: () => { this.filterInput.value = d.name; this.render(); } },
+        { label: "Copy executable path", disabled: !d.info?.exe, run: () => copy(d.info.exe) },
+        { label: "Copy process ID", disabled: !d.info?.pid, run: () => copy(d.info.pid) }];
+    } else if (kind === "dest") {
+      const sel = { type: "dest", id: d.ip };
+      items = [{ heading: d.label ? `${d.ip} · ${d.label}` : d.ip },
+        { label: "Who is this? (offline lookup)", run: () => { this.aboutOpen = true; show(sel, "details"); } },
+        { label: "Events", run: () => show(sel, "events") },
+        { label: "Why this score", disabled: !d.score, run: () => show(sel, "scores") },
+        "-",
+        { label: "Show only this address", run: () => { this.filterInput.value = d.ip; this.render(); } },
+        { label: "Copy address", run: () => copy(d.ip) }];
+    } else {
+      items = [{ heading: `${d.name} · pid ${d.pid}` },
+        { label: `Started ${fmtMs(d.started)}`, disabled: true },
+        { label: "Copy process ID", run: () => copy(d.pid) }];
+    }
+    showMenu(e.clientX, e.clientY, items);
+  }
+
+  async inspectExe(d) {
+    toast(`Reading ${d.name}’s executable (bytes only; large programs take a few seconds)…`);
+    try {
+      const report = await api.send("POST", "/api/program/inspect", { key: d.key });
+      toast(`${report.name}: ${report.verdict}`, report.score >= 70 ? "err" : "ok");
+      this.onInspect?.(report.id);
+    } catch (err) {
+      toast(err.message, "err");
     }
   }
 
@@ -950,7 +1095,7 @@ function edgeLabel(e) {
   const ports = e.ports.map((p) => (p.direction === "in" ? `in ${p.port}` : p.port));
   const portText = ports.length > 2 ? `${ports.slice(0, 2).join(",")}+${ports.length - 2}` : ports.join(",");
   if (e.live) return `${portText} · ${e.live} live`;
-  const ago = fmtGap(Date.now() / 1000 - e.last);
+  const ago = fmtCoarse(Date.now() / 1000 - e.last);
   return ago ? `${portText} · ${ago} ago` : portText;
 }
 

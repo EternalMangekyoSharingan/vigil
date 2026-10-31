@@ -77,7 +77,7 @@ variable). Code is in JetBrains Mono (OFL, 40 KB).
 - **Analyzer view.** Double-click a program, or press "Analyze process": the map
   rearranges into a diagonal cascade from the program's parents (oldest first) to the
   program and then the addresses it contacted. Edges between processes are labelled
-  with the real time between their starts (`470 milliseconds`, `10 minutes`).
+  with the real time between their starts (`470 ms`, `3 min 12.4 s`).
 - **Motion, kept light.** Nodes move between layouts instead of jumping, edges draw
   themselves in, and a faint constellation drifts behind everything (one canvas,
   ≤ 30 fps, stopped when the window is hidden). Results arrive as toasts, scores fill
@@ -97,6 +97,22 @@ variable). Code is in JetBrains Mono (OFL, 40 KB).
   recorded as the baseline, so "new" means new since Vigil started watching.
 - **Listening sockets** and their exposure (all interfaces, one interface, this
   machine only).
+- **What is this?** The top of the panel says what the selected program *does*, not
+  just what it is. It draws on Vigil's offline notes on about 50 common Linux programs
+  and services (what it does, why it uses the network, what is normal, what deserves
+  a second look) and on what Vigil observed: who started it and when, which ports it
+  used and what those ports are for, and whether its executable belongs to an
+  installed package (dpkg, pacman, rpm, Snap, Flatpak, AppImage, Nix) or was put there
+  by hand. Addresses get the same treatment: where they are, who owns them (with the
+  geo database), which programs use them and over what.
+- **Right-click anything.** Programs, parents in the analyzer, destinations and every
+  address in an event list or connection table have a context menu: analyze the
+  process chain, inspect the executable, "what is this?", connections, events, why
+  this score, show only this, copy path/PID/address. Arrow keys, Enter and Esc work.
+- **Precision.** The Connections tab lists every connection a program made: when it
+  opened (to the millisecond), how long it lasted, local and remote ends, the service
+  on that port, state, socket inode and bytes sent and received. Gaps in the analyzer
+  read `470 ms`, `40.82 s`, `3 min 12.4 s`; parents show their exact start time.
 
 ## Scores and alerts
 
@@ -170,10 +186,28 @@ this check cannot tell you**.
 | Office (OOXML) | VBA macros, with source decompressed from `vbaProject.bin` (MS-OVBA); auto-run entry points (`AutoOpen`, `Document_Open`, `Workbook_Open`, ActiveX events); behaviour (Shell, downloads, COM, file writes, Win32 API, memory, obfuscation); Excel 4.0 macro sheets and `Auto_Open`; remote templates (T1221); remote OLE objects, including the Follina `mhtml:`/`ms-msdt:` pattern; DDE/DDEAUTO fields; embedded objects and executables; ActiveX; macros in a `.docx` |
 | Office (legacy OLE2) | the same VBA analysis for `.doc`/`.xls`/`.ppt`; BIFF8 macro sheets (including "very hidden") and `Auto_Open` names; packaged files (`Ole10Native`); encrypted documents |
 | RTF | embedded objects, `\objupdate`, Equation Editor (CVE-2017-11882), `OLE2Link` (CVE-2017-0199), executables inside `\objdata`, malformed headers |
+| Archive bombs | measured **without extracting**: each compressed stream is decompressed into a counter that keeps only 4 KB at the start and 1 MB at the end, so memory stays flat however large the output. Nested zips are read from that tail. Reported: total expanded size (exact, or "at least" when a 1 GB per-stream or 12 s cap is hit), many names sharing one block of compressed data (overlapping entries, the trick behind non-recursive bombs such as `42.zip`'s successors), sizes the directory lies about, forged end-of-directory records, ratios no real compressor produces, zip-slip paths (`../../.bashrc`), symlink members and entry floods. A bomb is never unpacked further |
+| Compressed streams | `.gz`, `.bz2`, `.xz`: expansion measured the same way, then (when small enough) the content is inspected like any other file |
 | Archives | every member inspected in turn (two levels deep); password-protected members reported |
 | Scripts, shortcuts, HTML | PowerShell download cradles and hidden or encoded launches, `curl … \| sh`, reverse shells, LOLBins, temp-dir `chmod +x`, persistence; LNK arguments; HTML smuggling |
 | Indicators | URLs, IPs, domains, e-mail addresses (and hashes in text), from raw bytes, UTF-16 strings, inflated streams, XML parts and macro source. Format namespaces (`schemas.openxmlformats.org`, …) and version strings are filtered out. Indicators are shown as text, never as links |
-| Context | indicators matched against the downloaded threat feeds, and addresses **this PC has actually connected to** (linked to the Network Map) |
+| Context | indicators matched against the downloaded threat feeds, and addresses **this PC has actually connected to** (linked to the Network Map; loopback and link-local addresses are ignored, every PC talks to those) |
+
+Each finding carries a plain-language line saying what it means for you (for
+example "Opening this archive would try to write about 275 GB. Do not extract it.").
+
+**Example.** A real non-recursive zip bomb (257 KB, from a public GitHub collection)
+holds one 40 MB zip whose 256 entries all point at the same compressed block and
+each claim to be 2 bytes. Vigil reports it as Likely malicious (100): at least
+275 GB if extracted, overlapping entries, lying sizes and a forged directory. It
+takes about 1.5 s, writes nothing to disk and never unpacks it.
+
+**Inspect a running program's executable.** Right-click a program on the map, or
+press "Inspect executable" in its panel. Vigil reads the binary through
+`/proc/<pid>/exe` (so it works even if the file was deleted or replaced on disk) and
+runs the same static triage. It never runs it. Programs get identity, string and
+indicator checks only. Indicators are searched in the file's printable strings, the
+way `strings` does, so a 300 MB binary takes about 5 s.
 
 ## Cases and exports (Cases tab)
 
@@ -291,6 +325,8 @@ vigil/store.py       SQLite evidence store; tracker turning polls into history
 vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
 vigil/enrich.py      threat feeds and country/ASN database (download on request)
 vigil/inspector.py   File Inspector: static triage, verdict, indicators
+vigil/archives.py    archive-bomb measurement: streamed decompression, nothing extracted
+vigil/knowledge.py   offline notes on programs and ports; package ownership; plain-language summaries
 vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
 vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown
 vigil/desktop.py     desktop window (WebKitGTK / Chromium app mode), menu entry, data lock
@@ -298,6 +334,7 @@ vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph
 static/fx.js         motion: background, tweens, toasts, score rings
+static/menu.js       right-click menu
 static/fonts/        Inter and JetBrains Mono (variable woff2) with their OFL licences
 tests/               unittest suite and synthetic fixtures
 ```

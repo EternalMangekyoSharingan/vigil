@@ -466,6 +466,10 @@ class Tracker:
                                       " LIMIT 100", (key,))
         p["timeline"] = self.timeline(program=key)
         p["findings"] = self.findings(program=key)
+        p["connections"] = self.store.query(
+            "SELECT id, kind, direction, proto, tbl, local_ip, local_port, remote_ip, remote_port,"
+            " state, inode, pid, opened_at, last_seen, closed_at, close_note, bytes_sent, bytes_recv"
+            " FROM connections WHERE program=? ORDER BY opened_at DESC LIMIT 200", (key,))
         return p
 
     def destination_detail(self, ip):

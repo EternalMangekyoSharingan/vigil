@@ -22,6 +22,7 @@ views.cases = new CasesView(document.getElementById("tab-cases"), {
   onShowDestination: showDestination,
   onShowFile: (id) => { showTab("files"); views.files.open(id); },
 });
+views.network.onInspect = (id) => { showTab("files"); views.files.open(id); };
 let active = "network";
 let status = null;
 

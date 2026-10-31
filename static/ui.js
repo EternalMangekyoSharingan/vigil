@@ -106,7 +106,7 @@ export function fmtStamp(ts) {
 const ENDPOINT = /(\[[0-9a-fA-F:]+\]:\d+|\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b)/;
 
 // Text with IP addresses picked out (and clickable when onIp is given).
-function withAddresses(text, onIp) {
+function withAddresses(text, onIp, onIpMenu) {
   const span = el("div", { class: "sum" });
   for (const part of String(text).split(ENDPOINT)) {
     if (!ENDPOINT.test(part)) {
@@ -114,19 +114,21 @@ function withAddresses(text, onIp) {
       continue;
     }
     const ip = part.startsWith("[") ? part.slice(1, part.indexOf("]")) : part.split(":")[0];
-    span.append(el("span", { class: "ip", text: part, title: onIp ? `Show ${ip}` : null, onclick: onIp ? () => onIp(ip) : null }));
+    span.append(el("span", { class: "ip", text: part, title: onIp ? `Show ${ip} (right-click for more)` : null,
+      onclick: onIp ? () => onIp(ip) : null,
+      oncontextmenu: onIpMenu ? (e) => { e.preventDefault(); onIpMenu(ip, e); } : null }));
   }
   return span;
 }
 
 // Timeline of events, newest first. Every item shows where it came from.
-export function eventList(items, labels = {}, onIp = null) {
+export function eventList(items, labels = {}, onIp = null, onIpMenu = null) {
   if (!items.length) return el("p", { text: "No events recorded yet." });
   return el("ol", { class: "events" }, items.map((e, i) =>
     el("li", { class: e.kind, style: i < 12 ? `animation-delay:${i * 30}ms` : null },
       el("span", { class: "badge", text: labels[e.kind] || e.kind.replace("_", " ") }),
       el("time", { text: `@ ${fmtStamp(e.ts)}`, title: new Date(e.ts * 1000).toISOString() }),
-      withAddresses(e.summary, onIp),
+      withAddresses(e.summary, onIp, onIpMenu),
       e.source ? el("div", { class: "src", text: e.source }) : null)));
 }
 
@@ -143,13 +145,67 @@ export function pairTitle(r) {
     : `${r.name || r.program} → ${r.proto} ${ep}`;
 }
 
-// Each finding: its points, the plain reason, and which check and data produced it.
+// What each kind of finding means for you, in plain words. A finding's own `means`
+// (set where the backend knows more, e.g. the size of a zip bomb) takes precedence.
+export const CHECK_HELP = {
+  beacon: "The program contacts this address on a regular timer. Updaters and chat apps do this; so does malware checking in with whoever controls it (\"beaconing\"). That is why a timer alone never raises an alert.",
+  long_connection: "A connection held open for hours. Normal for chat, mail, sync and VPN apps; also how a remote-control backdoor keeps its line open.",
+  first_seen: "Vigil had not seen this before it started watching. New is not bad, but almost everything bad is new.",
+  rarity: "Hardly anything on this PC talks to this address.",
+  uncommon_port: "Ports identify the service on the other end. Nearly all legitimate traffic uses a handful of well-known ones (443 above all).",
+  process_location: "Where the program's file lives. Software installed normally lives in /usr, /opt, Flatpak or Snap; things that run from temporary or hidden folders are a classic malware habit.",
+  threat_intel: "A public threat feed you downloaded lists this as used by malware. That turns a guess into a lead.",
+  rare_country: "The first time this PC has talked to a server in this country.",
+  disguise: "The name is built to make you think it is a harmless document. Opening it would run a program.",
+  file_type: "Files of this kind run code when opened.",
+  type_mismatch: "What is inside does not match the name. Programs dressed up as documents are a common trick.",
+  pdf_javascript: "PDFs can carry JavaScript, which your PDF reader runs.",
+  pdf_autorun: "Something runs the moment the PDF is opened, without any click.",
+  pdf_launch: "The PDF can ask your reader to start a program or open another file.",
+  pdf_embedded: "Files tucked inside the PDF, a common way to deliver a second payload.",
+  pdf_obfuscation: "Written to hide from scanners; ordinary PDFs have no reason to.",
+  pdf_feature: "A PDF feature that has been used to exploit readers.",
+  pdf_structure: "The file's layout is irregular: something extra is packed in.",
+  pdf_encrypted: "Encrypted content cannot be checked.",
+  macros: "Office macros are small programs inside the document. Once enabled they can do anything you can: read your files, download and run software.",
+  macro_autoexec: "Runs the moment you click \"Enable content\", without any further action.",
+  macro_behaviour: "What the macro code does when it runs.",
+  xlm_macro: "Excel 4.0 macros: still supported, almost never used legitimately, popular with malware because many scanners ignore them.",
+  remote_template: "When opened, Office downloads a template from the internet, and whoever runs that server can swap in a malicious one at any time.",
+  remote_object: "Office fetches content from the internet as the document opens; the Follina exploit used this to run commands.",
+  dde: "A field that asks Office to run a command on your PC.",
+  embedded_object: "Another file packed inside this one, often the real payload.",
+  activex: "ActiveX controls can run macro code as soon as the document is displayed.",
+  encrypted: "Password-protected content cannot be inspected, which is exactly why attackers use it.",
+  rtf_object: "RTF documents can embed objects that have been used to exploit Word without macros.",
+  rtf_structure: "The RTF is deliberately malformed in a way Word tolerates but scanners may not.",
+  download_cradle: "Downloads code from the internet and runs it straight from memory, leaving little on disk.",
+  hidden_powershell: "Starts PowerShell out of sight, or with its command scrambled, so you would not notice.",
+  pipe_to_shell: "Runs whatever the server sends, without you ever seeing it.",
+  reverse_shell: "Hands control of a command shell on this PC to another machine.",
+  lolbin: "Uses a built-in Windows tool to run something, which helps it look legitimate.",
+  temp_exec: "Makes a downloaded file runnable in a temporary folder.",
+  persistence: "Arranges to run again later: at login, after a reboot or on a timer.",
+  html_smuggling: "Builds a file inside your browser and saves it, getting past download filters.",
+  seen_on_network: "This file mentions an address your PC has actually connected to, which may mean it already ran.",
+  decompression_bomb: "Built to explode when extracted and swamp your disk or memory.",
+  overlapping_entries: "One block of data reused under many names, a trick no normal archiver uses.",
+  size_lie: "The archive lies about how big its contents are.",
+  forged_directory: "The archive's index was edited to mislead tools.",
+  impossible_ratio: "No real compression achieves this; the sizes are forged or the data is built to explode.",
+  path_traversal: "Extracting it would write files outside the folder you chose.",
+  symlink_member: "Links inside an archive can redirect where files land.",
+  entry_flood: "Enough entries to exhaust tools that list or extract archives.",
+};
+
+// Each finding: its points, the plain reason, what it means, and where it came from.
 export function findingList(findings) {
   return el("ul", { class: "findings" }, [...findings].sort((a, b) => b.points - a.points).map((f) =>
     el("li", {},
       el("span", { class: "pts", text: `+${Math.round(f.points)}` }),
       el("div", {},
         el("div", { text: f.reason }),
+        (f.means || CHECK_HELP[f.check]) ? el("div", { class: "means", text: f.means || CHECK_HELP[f.check] }) : null,
         el("div", { class: "src", text: [f.check, f.data, f.at ? fmtClock(f.at) : null].filter(Boolean).join(" · ") })))));
 }
 

@@ -2,6 +2,7 @@
 
 import ipaddress
 import json
+import os
 import re
 import sys
 import threading
@@ -11,10 +12,11 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import cases, collector, enrich, inspector, scoring
+from . import cases, collector, enrich, inspector, knowledge, scoring
 from .store import Store, Tracker
 
-HOST = "127.0.0.1"  # never configurable: Vigil is not a network service
+HOST = "127.0.0.1"
+EXE_MAX = 512 * 1024 * 1024  # largest executable read for "inspect executable"  # never configurable: Vigil is not a network service
 STATIC = Path(__file__).resolve().parent.parent / "static"
 STATIC_NAME = re.compile(r"^(?:fonts/)?[A-Za-z0-9_-]+\.(html|css|js|svg|woff2|txt)$")
 CONTENT_TYPES = {"html": "text/html; charset=utf-8", "css": "text/css; charset=utf-8",
@@ -128,17 +130,52 @@ class App:
         window = int(q.get("window", "900"))
         scopes = [s for s in q.get("scopes", "internet,lan").split(",") if s in SCOPE_NAMES]
         g = self.tracker.graph(window=window, scopes=scopes)
+        for p in g["programs"]:
+            k = knowledge.lookup_program(p["info"].get("exe"), p["name"], p["key"])
+            p["title"] = k["title"] if k else None
         for d in g["destinations"]:
             d["label"] = self.enricher.label(d["ip"])
             d["intel"] = sorted({h["feed"] for h in self.enricher.intel(d["ip"])})
         return g
 
     def api_program(self, q):
-        return self.tracker.program_detail(q.get("key", "")) or _not_found()
+        d = self.tracker.program_detail(q.get("key", "")) or _not_found()
+        d["about"] = knowledge.about_program(d, self.enricher)
+        for c in d.get("connections") or []:
+            pi = knowledge.port_info(c["proto"], c["remote_port"] if c["direction"] == "out" else c["local_port"])
+            c["port_name"] = pi["service"] if pi else None
+        return d
+
+    def api_program_inspect(self, q, body, headers):
+        """Static triage of a program's executable, read through /proc/<pid>/exe.
+
+        Bytes only: the binary is never run. Works for deleted executables too.
+        """
+        d = self.tracker.program_detail(str(_json_body(body).get("key", ""))) or _not_found()
+        info = d.get("info") or {}
+        if d.get("hidden") or not info.get("pid"):
+            raise BadRequest("this program has no attributable process, so there is no executable to read")
+        path = f"{self.monitor.proc_root}/{info['pid']}/exe"
+        try:
+            with open(path, "rb") as fh:
+                data = fh.read(EXE_MAX + 1)
+        except OSError as exc:
+            raise BadRequest(f"cannot read {path} ({exc.strerror}): the process has exited, or it "
+                             f"belongs to another user") from None
+        if len(data) > EXE_MAX:
+            raise BadRequest(f"the executable is larger than {EXE_MAX // 2**20} MB")
+        name = os.path.basename((info.get("exe") or d["name"]).removesuffix(" (deleted)"))
+        report = inspector.inspect_bytes(data, name)
+        report["about_program"] = {"key": d["key"], "pid": info["pid"], "exe": info.get("exe"),
+                                   "owner": knowledge.package_owner(info.get("exe"))}
+        inspector.link_context(report, self.store, self.enricher)
+        return inspector.save(self.store, report, f"executable of {d['name']} (pid {info['pid']}), "
+                                                  f"read via /proc/{info['pid']}/exe")
 
     def api_destination(self, q):
         d = self.tracker.destination_detail(q.get("ip", "")) or _not_found()
         d["enrichment"] = self.enricher.describe(d["ip"])
+        d["about"] = knowledge.about_destination(d, self.enricher)
         return d
 
     def api_intel_status(self, q):
@@ -298,6 +335,7 @@ class App:
             ("GET", "/api/status"): self.api_status,
             ("GET", "/api/graph"): self.api_graph,
             ("GET", "/api/program"): self.api_program,
+            ("POST", "/api/program/inspect"): self.api_program_inspect,
             ("GET", "/api/destination"): self.api_destination,
             ("GET", "/api/listeners"): self.api_listeners,
             ("GET", "/api/alerts"): self.api_alerts,

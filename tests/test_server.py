@@ -223,6 +223,30 @@ class ServerTests(unittest.TestCase):
         res, _ = self.request("GET", f"/api/inspection?id={report['id']}")
         self.assertEqual(res.status, 404)
 
+    def test_inspect_a_programs_executable(self):
+        # SYNTHETIC: the fixture's /proc/7000/exe becomes a small shell dropper file.
+        import os
+        from . import synth
+        exe = os.path.join(self.app.monitor.proc_root, "7000", "exe")
+        os.remove(exe)
+        with open(exe, "wb") as fh:
+            fh.write(synth.SHELL_DROPPER)
+        prog = self.get_json("/api/program?key=%2Ftmp%2F.x%2Fagent")
+        self.assertIsNone(prog["about"]["knowledge"])
+        self.assertTrue(prog["about"]["facts"][0].startswith("agent (pid 7000)"))
+        self.assertTrue(prog["connections"])
+        self.assertIn("port_name", prog["connections"][0])
+        res, body = self.write("POST", "/api/program/inspect", {"key": "/tmp/.x/agent"})
+        self.assertEqual(res.status, 200, body)
+        report = json.loads(body)
+        self.assertEqual(report["name"], "agent")
+        self.assertIn("pipe_to_shell", {f["check"] for f in report["findings"]})
+        self.assertEqual(report["source"], "executable of agent (pid 7000), read via /proc/7000/exe")
+        res, _ = self.write("POST", "/api/program/inspect", {"key": "missing"})
+        self.assertEqual(res.status, 404)
+        res, _ = self.write("POST", "/api/program/inspect", {"key": "/tmp/.x/agent"}, **{"X-Vigil": None})
+        self.assertEqual(res.status, 403)
+
     def test_oversized_upload_refused_before_reading(self):
         res, body = self.request("POST", "/api/inspect", body=b"x",
                                  headers={"X-Vigil": "1", "Content-Length": str(500 * 2**20)})

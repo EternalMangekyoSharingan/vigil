@@ -594,6 +594,90 @@ with Darktrace-like visuals, lots of purposeful motion, the colours of your wall
 - The bundled fonts cover Latin. Other scripts fall back to system fonts.
 - A browser fallback (option 3) is a normal tab in your browser, with its extensions.
 
+## Bomb detection, explanations, right-click and precision (2026-10-31, at the owner's request)
+
+The owner's feedback: text misaligned; explanations say what something *is* rather
+than what it *does*; a real zip bomb (`location.zip`) got through the File Inspector;
+the analyzer needs more precision and a right-click to look things up.
+
+### What was built
+- **Archive-bomb detection** (`vigil/archives.py`, wired into `inspector.py`). Each
+  compressed stream is decompressed into a counter that keeps a 4 KB head and a 1 MB
+  tail; nothing is extracted or written. The zip directory is found by its record
+  signatures, not by trusting the end record, so a forged end record is reported
+  instead of hiding entries. Entries that share compressed data are grouped and
+  each group is measured once, then multiplied out. Nested zips are parsed from the
+  kept tail and sampled ranges. Caps: 1 GB counted per stream, 12 s overall; past
+  them the size is reported as "at least". Findings: `decompression_bomb` (90/50/20 at
+  10 GB/1 GB/100 MB), `overlapping_entries` 60, `size_lie` 40, `forged_directory` 30,
+  `impossible_ratio` 40, `path_traversal` 50, `symlink_member` 25, `entry_flood` 25.
+  A bomb stops further unpacking. `.gz`, `.bz2` and `.xz` are measured the same way.
+- **Every finding says what it means** (`means` on findings, with a fallback table
+  in the UI): "Opening this archive would try to write about 275 GB…".
+- **Offline knowledge** (`vigil/knowledge.py`): notes on about 50 common programs
+  (what it does, why it uses the network, what is normal, what to watch for), a port
+  catalog, and package ownership read straight from dpkg/pacman databases (falling
+  back to `rpm -qf`; Snap/Flatpak/AppImage/Nix from the path). The panel's "What is
+  this?" card combines those with what Vigil observed. Node tooltips carry the title.
+- **Inspect executable**: `POST /api/program/inspect` reads `/proc/<pid>/exe` as
+  bytes (capped at 512 MB) and runs static triage; the report opens in the Files tab
+  with its source recorded as "executable of X (pid N), read via /proc/N/exe".
+- **Right-click menus** (`static/menu.js`) on programs, parents, destinations and
+  every address in event lists and the connection table. Keyboard friendly.
+- **Precision**: a Connections tab (open time to the millisecond, duration, both
+  ends, service, state, inode, bytes each way); analyzer gaps as `3 min 12.4 s`;
+  parents' exact start times. Map edge labels stay rounded for space.
+- **Alignment and layout**: text in name pills and chips is centred on the shapes'
+  real centres (`dominant-baseline: central`); the window can no longer drift
+  sideways (`overflow: clip`); the tab buttons show a soft orange focus ring for
+  keyboard users only, instead of the white browser outline; long values in tables
+  wrap at word boundaries instead of mid-number; the status area ellipsizes.
+
+### Verification
+- `location.zip` (sha256 `dbbfc2e4…11436`, 257 KB): Likely malicious (100), "at
+  least 275 GB", overlapping entries (256 names, one block), size lie (2 bytes
+  claimed), forged directory. About 1.5 s, memory flat, nothing written; the file was
+  only ever read as bytes and is not in the repository.
+- Synthetic bombs in `tests/test_archives.py`, built at test time: recursive,
+  overlapping with lying sizes, forged counts, a single lying member, the
+  lower-bound path, zip slip and symlinks, gz/bz2/xz, ordinary archives (no false
+  alarm), and a tracemalloc check that 200 MB of output keeps Python's peak under
+  16 MB.
+- 145 tests pass on Python 3.13 and 3.11.
+- Checked in Chromium at 1340×860 with live data: no console errors, no horizontal
+  overflow, menus, about card, Connections tab and the inspect → Files hand-off.
+
+### Bugs found and fixed in this round
+- Indicator search ran Python regexes over up to 64 MB of raw bytes: 15 s for a
+  300 MB binary. It now searches printable runs only (like `strings`, with an offset
+  map so "at offset" stays exact): 5.6 s. A test checks the offsets.
+- An executable mentioning `127.0.0.1` scored "this PC has connected to it". Loopback,
+  link-local, multicast and unspecified addresses no longer count.
+- The about card rounded the score half-to-even (26) while the badge rounded half up
+  (27). Both now round the same way.
+- 30 catalog entries were one-liners ("Mesh VPN."). A test now requires a real
+  explanation for every entry, and they were rewritten.
+- Beacon scoring treated a laptop sleeping for 2 h as 1,025 missed check-ins. Gaps
+  longer than 5 missed intervals are now pauses, reported and left out of the stats.
+
+### Decisions made without asking
+- The knowledge base is hand-written and offline. It ships no data from any outside
+  service and makes no lookups. Unknown programs say so ("Vigil has no notes on
+  this program") and fall back to what was observed.
+- Package lookups read the package databases directly; only rpm needs a subprocess
+  (`rpm -qf`, 3 s timeout), behind one small function, as CLAUDE.md asks.
+- Inspecting a program's executable only works for processes Vigil can read
+  (your own, or all of them as root), and says so otherwise.
+
+### Known limitations
+- The bomb caps mean a large enough bomb is reported as "at least N", not its exact
+  size. The verdict is the same.
+- Only zip, gzip, bzip2 and xz are measured. 7z and RAR need libraries outside the
+  standard library; they are flagged by type only.
+- The knowledge base covers common desktop programs and services, not everything.
+- Kernel process names are cut at 15 characters (`environment-man`), so parents in
+  the chain can be truncated; the executable path is shown where it can be read.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it
@@ -605,7 +689,9 @@ know:
 - what network the guest may reach (none, or a sinkhole on your PC).
 
 ### GitHub
-This session could not push. It had no repository attached, and creating one from
+Pushed to https://github.com/EternalMangekyoSharingan/vigil, branch
+`claude/build-steps-1-5` (the starter is on `main`). The history below is kept for
+the record. Earlier, this session could not push. It had no repository attached, and creating one from
 the container was refused by the session's GitHub proxy ("sessions are bound to their
 configured repositories"). Every step is committed on branch `claude/build-steps-1-5`
 (the starter is on `main`), and a git bundle of the full history was produced with
