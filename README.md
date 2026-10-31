@@ -61,33 +61,34 @@ python3 -m vigil inspect suspicious.docm     # static triage of a file (read onl
 
 ## What you see
 
-The look follows an EDR process analyzer: a dark plum base, warm orange for what
-matters, and the teal-to-ice-cyan of the network for live activity. Type is SF Pro
-where the system has it (macOS) and otherwise Inter, which is bundled (OFL, 48 KB,
-variable). Code is in JetBrains Mono (OFL, 40 KB).
+The look follows an EDR process analyzer, drawn the way professional tools are: flat
+near-black plum surfaces, 1px hairline borders, small corner radii, and colour used
+only where it means something (orange for actions and selection, the teal-to-ice
+cyan for live network activity, red and amber for severity). No gradients, blurs or
+glows, except the marker under the active tab. Type is SF Pro where the system has
+it (macOS) and otherwise Inter, which is bundled (OFL, 48 KB, variable). Code is in
+JetBrains Mono (OFL, 40 KB).
 
 - **Programs → destinations (Map view).** Each program holding a socket is an
-  isometric cube on the left, with a state label above (`LIVE PROCESS`, `IDLE
+  flat-shaded isometric cube on the left, with a state label above (`LIVE PROCESS`, `IDLE
   PROCESS`, `ALERT · …`), its name in an orange pill and count chips below. Each
   remote address is a globe on the right. Edges are thick bands. Particles flow
   along connections that are open now, in the direction of the traffic, and labels
-  ride along each edge (`443 · 6 live`, `80 · 4 minutes ago`). A hexagon ring marks
-  the selected node; a pulsing red ring marks alerts. An orange `new` chip marks
+  ride along each edge (`443 · 6 live`, `80 · 4 minutes ago`). A thin orange hexagon marks
+  the selected node; a dashed red one marks alerts. An orange `new` chip marks
   things first seen after Vigil's baseline (its first poll).
 - **Analyzer view.** Double-click a program, or press "Analyze process": the map
   rearranges into a diagonal cascade from the program's parents (oldest first) to the
   program and then the addresses it contacted. Edges between processes are labelled
   with the real time between their starts (`470 ms`, `3 min 12.4 s`).
-- **Motion, kept light.** Nodes move between layouts instead of jumping, edges draw
-  themselves in, and a faint constellation drifts behind everything (one canvas,
-  ≤ 30 fps, stopped when the window is hidden). Results arrive as toasts, scores fill
-  as rings, and uploads show a scanning bar. With the system's "reduce motion"
-  setting it all stays still. Measured idle cost in Chromium with software rendering:
-  about 6% of one core, a 2.4 MB JavaScript heap; the Python side about 30 MB.
+- **Motion, kept functional.** Nodes move between layouts instead of jumping, edges
+  draw in, and small particles flow along connections that are open right now, in the
+  direction of the traffic. Nothing else moves. With the system's "reduce motion"
+  setting it all stays still.
 - **Direction.** A connection accepted on one of your listening ports is shown as
   inbound (`in 22`), keyed by the service port, not the client's random port.
 - **Side panel (left).** Select a node to see its events, in the style of an EDR event
-  list (`connection, opened` · `@ Oct 30, 2026 @ 21:42:12.778` · addresses you can
+  list (`connection, opened` · `Oct 30, 2026 · 21:42:12.778` · addresses you can
   click). The Details tab has the executable, command line, user, parent chain, start
   time and destinations, and the Scores tab has the scored pairs. Every event says
   where it came from (for example `/proc/net/tcp inode 4069, owner from
@@ -333,7 +334,7 @@ vigil/desktop.py     desktop window (WebKitGTK / Chromium app mode), menu entry,
 vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph
-static/fx.js         motion: background, tweens, toasts, score rings
+static/fx.js         small motion helpers: tweens, toasts, tab marker
 static/menu.js       right-click menu
 static/fonts/        Inter and JetBrains Mono (variable woff2) with their OFL licences
 tests/               unittest suite and synthetic fixtures

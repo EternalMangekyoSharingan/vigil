@@ -2,7 +2,7 @@
 // under it, and what the check cannot tell you. The file goes from this page to
 // Vigil on 127.0.0.1 only, is read in memory, and is never opened or run.
 import { api, el, clear, fmtClock, kv, findingList, addToCase } from "./ui.js";
-import { gauge, toast } from "./fx.js";
+import { toast } from "./fx.js";
 
 const VERDICT_CLASS = { "Likely malicious": "danger", "Suspicious": "warn" };
 
@@ -81,12 +81,16 @@ export class FilesView {
     const box = clear(this.report);
     const cls = VERDICT_CLASS[r.verdict] || "none";
     const top = r.findings.filter((f) => f.points > 0).slice(0, 3).map((f) => f.reason);
-    box.append(el("div", { class: `verdict ${cls}` }, gauge(r.score),
-      el("div", {},
-        el("div", { class: "verdict-label", text: r.verdict }),
-        el("div", { class: "verdict-name mono", text: r.name }),
-        top.length ? el("div", { class: "verdict-why", text: top.join(" · ") })
-          : el("div", { class: "verdict-why", text: "Nothing this check looks for was found. That is not a guarantee: see what this check cannot tell you, below." }))));
+    const meter = el("div", { class: "meter", title: `${Math.round(r.score)} of 100; 70 or more is "Likely malicious"` }, el("span"));
+    meter.firstChild.style.width = `${Math.min(100, r.score)}%`;
+    box.append(el("div", { class: `verdict ${cls}` },
+      el("div", { class: "verdict-top" },
+        el("span", { class: "verdict-label", text: r.verdict }),
+        el("span", { class: "verdict-name", text: r.name }),
+        el("span", { class: "verdict-score" }, el("b", { text: String(Math.round(r.score)) }), "/ 100")),
+      meter,
+      top.length ? el("ul", { class: "verdict-why" }, top.map((t) => el("li", { text: t })))
+        : el("p", { class: "verdict-why", text: "Nothing this check looks for was found. That is not a guarantee: see what this check cannot tell you, below." })));
 
     box.append(el("h3", { text: "Identity" }), kv([
       ["Type", `${r.type.description}${r.type.extension ? ` · named .${r.type.extension}` : ""}`],

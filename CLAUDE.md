@@ -55,6 +55,12 @@ Darktrace's UI; plenty of purposeful motion (kept light, honouring reduced motio
 Apple-like type (SF Pro where present, bundled Inter otherwise). Vigil also runs as a
 desktop app (`python3 -m vigil app`). Still no fake stats.
 
+Updated again 2026-10-31 at the owner's request: same colours, but sleek and
+professional, not "AI-looking". Flat surfaces with hairline borders, small radii,
+no gradients, blurs, glows, coloured side stripes or score rings. The only glow is
+the active top-bar tab marker. Colour only for meaning (actions/selection, live
+traffic, severity). Motion only where it carries information.
+
 ## How to work (I may be away: don't wait for me)
 1. Read existing code and docs/PROGRESS.md before changing anything.
 2. For each step: build it, write tests (pytest is fine as a dev tool), run them,

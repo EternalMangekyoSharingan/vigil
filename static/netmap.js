@@ -86,14 +86,14 @@ function cube(s, hidden, dim) {
   const f = hidden ? "G" : "";
   const face = (pts, fill) => svg("polygon", { points: pts.map((p) => p.join(",")).join(" "), fill });
   const g = svg("g", { class: "shape", opacity: dim ? 0.6 : 1 },
-    face([[0, -s], [h, -s / 2], [0, 0], [-h, -s / 2]], `url(#cubeTop${f})`),
-    face([[-h, -s / 2], [0, 0], [0, s], [-h, s / 2]], `url(#cubeLeft${f})`),
-    face([[h, -s / 2], [0, 0], [0, s], [h, s / 2]], `url(#cubeRight${f})`));
+    face([[0, -s], [h, -s / 2], [0, 0], [-h, -s / 2]], FILL[`cubeTop${f}`]),
+    face([[-h, -s / 2], [0, 0], [0, s], [-h, s / 2]], FILL[`cubeLeft${f}`]),
+    face([[h, -s / 2], [0, 0], [0, s], [h, s / 2]], FILL[`cubeRight${f}`]));
   // the small inner cube from the screenshot: an outline nested in the faces
   const i = s * 0.42, ih = i * 0.866;
   g.append(svg("path", {
     d: `M0,${-i} L${ih},${-i / 2} L${ih},${i / 2} L0,${i} L${-ih},${i / 2} L${-ih},${-i / 2} Z M0,${-i} L0,0 M0,0 L${ih},${i / 2} M0,0 L${-ih},${i / 2}`,
-    fill: "rgba(255,255,255,.08)", stroke: "rgba(255,255,255,.55)", "stroke-width": 1, "stroke-linejoin": "round",
+    fill: "none", stroke: "rgba(255,255,255,.4)", "stroke-width": 1, "stroke-linejoin": "round",
   }));
   if (hidden) g.append(svg("polygon", { points: `0,${-s} ${h},${-s / 2} ${h},${s / 2} 0,${s} ${-h},${s / 2} ${-h},${-s / 2}`, fill: "none", stroke: "var(--text-3)", "stroke-dasharray": "3 3" }));
   return g;
@@ -102,11 +102,11 @@ function cube(s, hidden, dim) {
 function globe(r, scope) {
   const grad = { internet: "globeNet", lan: "globeLan", loopback: "globeLoop" }[scope] || "globeOther";
   return svg("g", { class: "shape" },
-    svg("circle", { r, fill: `url(#${grad})` }),
-    svg("ellipse", { rx: r * 0.42, ry: r, fill: "none", stroke: "rgba(255,255,255,.35)" }),
-    svg("ellipse", { rx: r, ry: r * 0.36, fill: "none", stroke: "rgba(255,255,255,.22)" }),
-    svg("line", { x1: -r, x2: r, y1: 0, y2: 0, stroke: "rgba(255,255,255,.3)" }),
-    svg("circle", { r, fill: "none", stroke: "rgba(255,255,255,.5)", "stroke-width": 1.2 }));
+    svg("circle", { r, fill: FILL[grad] }),
+    svg("ellipse", { rx: r * 0.42, ry: r, fill: "none", stroke: "rgba(255,255,255,.22)" }),
+    svg("ellipse", { rx: r, ry: r * 0.36, fill: "none", stroke: "rgba(255,255,255,.14)" }),
+    svg("line", { x1: -r, x2: r, y1: 0, y2: 0, stroke: "rgba(255,255,255,.18)" }),
+    svg("circle", { r, fill: "none", stroke: "rgba(255,255,255,.3)", "stroke-width": 1 }));
 }
 
 function hexagon(r) {
@@ -118,23 +118,16 @@ function hexagon(r) {
   return pts.join(" ");
 }
 
+// Flat fills: three tones per cube give the isometric depth; no gradients or glows.
+const FILL = {
+  cubeTop: "#9fe3df", cubeLeft: "#2f8f89", cubeRight: "#4fb0ab",
+  cubeTopG: "#5a5068", cubeLeftG: "#342c40", cubeRightG: "#443a52",
+  globeNet: "#4a3a5e", globeLan: "#1f5a55", globeLoop: "#4a3a52", globeOther: "#33363f",
+  pillOrange: "#ff9f43", pillSky: "#2a3440", pillDanger: "#ff5d73", pillGhost: "#2a2433",
+};
+
 function defs() {
-  const stop = (o, c) => svg("stop", { offset: o, "stop-color": c });
-  const lin = (id, a, b, x2 = 0, y2 = 1) => svg("linearGradient", { id, x1: 0, y1: 0, x2, y2 }, stop(0, a), stop(1, b));
-  const rad = (id, a, b) => svg("radialGradient", { id, cx: "35%", cy: "30%", r: "80%" }, stop(0, a), stop(1, b));
-  return svg("defs", {},
-    lin("cubeTop", "#b9fbff", "#5dbdb9", 1, 1), lin("cubeLeft", "#5dbdb9", "#00665d"), lin("cubeRight", "#59bddf", "#1d5f73"),
-    lin("cubeTopG", "#8c80a3", "#5e5272", 1, 1), lin("cubeLeftG", "#5e5272", "#2f2740"), lin("cubeRightG", "#6f6385", "#3a3048"),
-    rad("globeNet", "#b8c2ff", "#5e3a60"), rad("globeLan", "#9cf0e8", "#00665d"), rad("globeLoop", "#e2c9d6", "#5e3a60"),
-    rad("globeOther", "#a9b0c7", "#333a40"),
-    lin("pillOrange", "#ffc078", "#f2762e", 1, 0), lin("pillSky", "#9fe9ff", "#59bddf", 1, 0),
-    lin("pillDanger", "#ff9aa8", "#ff5d73", 1, 0), lin("pillGhost", "#4a5a70", "#3f4d60", 1, 0),
-    svg("filter", { id: "glow", x: "-50%", y: "-50%", width: "200%", height: "200%" },
-      svg("feGaussianBlur", { stdDeviation: 3.5, result: "b" }),
-      svg("feMerge", {}, svg("feMergeNode", { in: "b" }), svg("feMergeNode", { in: "SourceGraphic" }))),
-    svg("pattern", { id: "hexgrid", width: 56, height: 48.5, patternUnits: "userSpaceOnUse" },
-      svg("polygon", { points: hexagon(16).split(" ").map((p) => p.split(",").map(Number)).map(([x, y]) => `${x + 28},${y + 24}`).join(" "),
-        fill: "none", stroke: "rgba(178,144,161,.06)" })));
+  return svg("defs", {});
 }
 
 // ---- the view -------------------------------------------------------------------------------
@@ -162,7 +155,7 @@ export class NetworkMap {
     this.size = { w: 0, h: 0 };
 
     this.svgEl.append(defs());
-    this.bg = svg("rect", { class: "bg", x: 0, y: 0, width: "100%", height: "100%", fill: "url(#hexgrid)" });
+    this.bg = svg("rect", { class: "bg", x: 0, y: 0, width: "100%", height: "100%", fill: "transparent" });
     this.gTitles = svg("g");
     this.gEdges = svg("g");
     this.gLabels = svg("g");
@@ -644,7 +637,6 @@ export class NetworkMap {
     if (isSelected || alerting) {
       const ring = svg("polygon", { class: `ring${isSelected ? " sel" : ""}${alerting ? " alert" : ""}`, points: hexagon(n.type === "dest" ? 33 : 36) });
       g.append(ring);
-      if (isSelected) g.append(svg("polygon", { class: "ring sel", points: hexagon(n.type === "dest" ? 39 : 42), opacity: 0.35 }));
     }
     g.append(shape);
 
@@ -656,8 +648,9 @@ export class NetworkMap {
     const pw = measure(text, 600, 13) + 24;
     const px = rtl ? anchorX - pw : anchorX;
     g.append(svg("text", { class: `n-kind${alerting ? " alerting" : ""}`, x: rtl ? anchorX : anchorX + 2, y: -21, "text-anchor": rtl ? "end" : "start", text: kind }));
-    g.append(svg("rect", { class: "pill-bg", x: px, y: -15, width: pw, height: 26, rx: 6, fill: `url(#${pill})` }));
-    g.append(svg("text", { class: `pill-text${pill === "pillSky" ? " cyan" : pill === "pillGhost" ? " ghost" : ""}`, x: px + 12, y: -2, "dominant-baseline": "central", text }));
+    g.append(svg("rect", { class: "pill-bg", x: px, y: -15, width: pw, height: 26, rx: 5, fill: FILL[pill],
+      stroke: pill === "pillSky" || pill === "pillGhost" ? "rgba(255,255,255,.14)" : "none" }));
+    g.append(svg("text", { class: `pill-text${pill === "pillSky" ? " cyan" : pill === "pillGhost" ? " ghost" : pill === "pillDanger" ? " danger" : ""}`, x: px + 12, y: -2, "dominant-baseline": "central", text }));
     let cx = rtl ? anchorX : anchorX;
     const row = svg("g");
     const list = rtl ? [...chips].reverse() : chips;
@@ -711,15 +704,15 @@ export class NetworkMap {
     const events = data.timeline || [];
     const network = events.filter((e) => e.kind === "open" || e.kind === "close").length;
     p.append(el("div", { class: "crumbs" },
-      el("div", { class: "path" }, el("span", { text: "Events" }), el("span", { class: "sep", text: "/" }),
-        el("b", { text: isProg ? data.name : data.ip }), el("span", { class: "sep", text: "/" }), el("span", { text: `${events.length} events` })),
-      el("div", { class: "big", text: `${network} network` }),
+      el("div", { class: "path" }, el("span", { text: isProg ? "Program" : "Destination" }), el("span", { class: "sep", text: "·" }),
+        el("span", { text: `${events.length} events, ${network} network` })),
+      el("div", { class: "big", text: isProg ? data.name : data.ip }),
       el("div", { class: "counts" },
         top ? el("span", { class: `tag ${scoreClass(top, thr) || ""}`, text: `score ${Math.round(top)}` }) : null,
         isProg && data.info?.exe_deleted ? el("span", { class: "tag warn", text: "executable deleted" }) : null,
         isProg && data.hidden ? el("span", { class: "tag warn", text: "not attributable" }) : null,
         !isProg && (data.enrichment?.intel || []).length ? el("span", { class: "tag danger", text: "listed by a threat feed" }) : null,
-        el("span", { class: "tag", text: isProg ? "program" : `destination · ${SCOPE_TEXT[data.scope] || data.scope}` }))));
+        isProg ? null : el("span", { class: "tag", text: SCOPE_TEXT[data.scope] || data.scope }))));
     const actions = el("div", { class: "actions" });
     if (isProg && !data.hidden) {
       actions.append(el("button", { type: "button", class: `btn ${this.mode === "analyzer" ? "" : "primary"}`,

@@ -99,7 +99,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 // "Oct 30, 2026 @ 21:42:12.778", the event-list timestamp style.
 export function fmtStamp(ts) {
   const d = new Date(ts * 1000);
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} @ ${pad(d.getHours())}:${pad(d.getMinutes())}:` +
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}:` +
     `${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`;
 }
 
@@ -127,7 +127,7 @@ export function eventList(items, labels = {}, onIp = null, onIpMenu = null) {
   return el("ol", { class: "events" }, items.map((e, i) =>
     el("li", { class: e.kind, style: i < 12 ? `animation-delay:${i * 30}ms` : null },
       el("span", { class: "badge", text: labels[e.kind] || e.kind.replace("_", " ") }),
-      el("time", { text: `@ ${fmtStamp(e.ts)}`, title: new Date(e.ts * 1000).toISOString() }),
+      el("time", { text: fmtStamp(e.ts), title: new Date(e.ts * 1000).toISOString() }),
       withAddresses(e.summary, onIp, onIpMenu),
       e.source ? el("div", { class: "src", text: e.source }) : null)));
 }

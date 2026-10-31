@@ -678,6 +678,41 @@ the analyzer needs more precision and a right-click to look things up.
 - Kernel process names are cut at 15 characters (`environment-man`), so parents in
   the chain can be truncated; the executable path is shown where it can be read.
 
+## Visual refinement: sleek, not "AI-looking" (2026-10-31, at the owner's request)
+
+The owner found the look too obviously machine-made (the glowing "Likely malicious"
+card in particular) and asked for something more modern and professional with the
+same colours, glow kept only on the highlighted top-bar tab.
+
+### Research
+Write-ups on the "AI look" agree on the tells: neon glows on dark backgrounds,
+gradient fills, tinted cards with coloured borders and a thick stripe down one side,
+oversized radii, a big number in a ring as the hero, and decoration that moves
+without meaning anything. Professional tools such as Linear go the other way: near
+monochrome surfaces, borders of 5–8% white, one accent, and "don't compete for
+attention you haven't earned".
+
+### What changed
+- Stylesheet rewritten: solid plum-black surfaces in four steps, hairline borders,
+  6–8 px radii, no gradients, blurs or glows. The active tab marker keeps a soft glow.
+- Severity is a small tinted label plus the score as a plain number; the File
+  Inspector verdict is a neutral card with a label, the file name, "100 / 100", a
+  thin meter and the top reasons as a list. The animated score ring is gone.
+- Cards, notes and the "What is this?" card lost their coloured side stripes.
+- Buttons are flat (orange only for the primary action), with no lift or ripple;
+  the segmented control and scope filters are neutral.
+- Graph: flat-shaded cubes and globes, flat pills, one thin selection hexagon, a
+  dashed (not pulsing) alert ring, thinner and dimmer traffic particles, no hexagon
+  background pattern or glow filter.
+- Removed the drifting background canvas, the spinning logo, the spinning drop-zone
+  border and the floating icon. Entrance animations are short fades.
+- The side panel's title is now the program or address name (it showed a count).
+- Event times read `Oct 31, 2026 · 03:38:23.534`.
+
+### Verification
+All tabs checked in Chromium at 1340×860 with live data, no console errors. Tests
+pass (see below).
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

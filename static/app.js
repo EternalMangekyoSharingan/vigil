@@ -1,6 +1,6 @@
 // App shell: tabs, the status line, motion, and the refresh loop.
 import { api, el, clear, fmtClock } from "./ui.js";
-import { constellation, moveIndicator, ripples } from "./fx.js";
+import { moveIndicator } from "./fx.js";
 import { NetworkMap } from "./netmap.js";
 import { AlertsView } from "./alerts.js";
 import { IntelView } from "./intel.js";
@@ -75,8 +75,6 @@ async function tick() {
   }
 }
 
-constellation(document.getElementById("fx"));
-ripples();
 moveIndicator(nav);
 tick();
 setInterval(() => { if (!document.hidden) tick(); }, 3000);
