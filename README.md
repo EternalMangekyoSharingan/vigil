@@ -83,7 +83,9 @@ JetBrains Mono (OFL, 40 KB).
   with the real time between their starts (`470 ms`, `3 min 12.4 s`).
 - **Motion, kept functional.** Nodes move between layouts instead of jumping, edges
   draw in, and small particles flow along connections that are open right now, in the
-  direction of the traffic. Nothing else moves. With the system's "reduce motion"
+  direction of the traffic. The map sits on a faint hexagon grid with a slow
+  constellation drifting behind it (one canvas, ~30 fps, paused whenever the map is
+  not on screen). With the system's "reduce motion"
   setting it all stays still.
 - **Direction.** A connection accepted on one of your listening ports is shown as
   inbound (`in 22`), keyed by the service port, not the client's random port.
@@ -176,9 +178,24 @@ caps, and only the report is kept. The upload goes from your browser to Vigil on
 127.0.0.1.
 
 The report leads with a verdict: **Likely malicious** (score ≥ 70), **Suspicious**
-(≥ 30) or **No suspicious indicators found**. It never says "safe". Below it come
-the findings (points, reason, and where in the file), the indicators, and **what
-this check cannot tell you**.
+(≥ 30) or **No suspicious indicators found**. It never says "safe".
+
+The layout follows the familiar multi-scanner report. A score box shows how many of
+Vigil's analyzers flagged the file, out of those that ran. Next to it are the
+SHA-256, the name, tags for each check that fired, size, when it was inspected and
+the file type. Under them are four tabs:
+- **Detection**: the top finding, then a grid of Vigil's nine analyzers (name and
+  type, archive and bomb analysis, Office macros, Office structure, RTF exploits,
+  PDF, scripts and command lines, offline threat feeds, this PC's network history).
+  Each row says what it found, "Nothing found", or why it did not run. Below the grid
+  come the findings with their points, meaning and source.
+- **Details**: hashes, the format-specific details and **what this check cannot tell
+  you**.
+- **Indicators**: the URLs, addresses and domains found inside.
+- **Behaviour**: empty until the detonation VM exists (build step 6).
+
+The rows are Vigil's own analyzers, all offline. No antivirus vendors are shown or
+implied.
 
 | Area | What is checked |
 | --- | --- |

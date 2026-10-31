@@ -1,7 +1,7 @@
 // File Inspector: upload a file for static triage and read the verdict, the evidence
 // under it, and what the check cannot tell you. The file goes from this page to
 // Vigil on 127.0.0.1 only, is read in memory, and is never opened or run.
-import { api, el, clear, fmtClock, kv, findingList, addToCase } from "./ui.js";
+import { api, el, svg, clear, fmtClock, fmtAgo, kv, findingList, addToCase } from "./ui.js";
 import { toast } from "./fx.js";
 
 const VERDICT_CLASS = { "Likely malicious": "danger", "Suspicious": "warn" };
@@ -78,20 +78,83 @@ export class FilesView {
   }
 
   render(r) {
+    this.shown = r;
     const box = clear(this.report);
     const cls = VERDICT_CLASS[r.verdict] || "none";
-    const top = r.findings.filter((f) => f.points > 0).slice(0, 3).map((f) => f.reason);
-    const meter = el("div", { class: "meter", title: `${Math.round(r.score)} of 100; 70 or more is "Likely malicious"` }, el("span"));
-    meter.firstChild.style.width = `${Math.min(100, r.score)}%`;
-    box.append(el("div", { class: `verdict ${cls}` },
-      el("div", { class: "verdict-top" },
-        el("span", { class: "verdict-label", text: r.verdict }),
-        el("span", { class: "verdict-name", text: r.name }),
-        el("span", { class: "verdict-score" }, el("b", { text: String(Math.round(r.score)) }), "/ 100")),
-      meter,
-      top.length ? el("ul", { class: "verdict-why" }, top.map((t) => el("li", { text: t })))
-        : el("p", { class: "verdict-why", text: "Nothing this check looks for was found. That is not a guarantee: see what this check cannot tell you, below." })));
+    const rows = r.analyzers || [];
+    const ran = rows.filter((a) => a.status !== "skipped");
+    const flagged = rows.filter((a) => a.status === "flagged");
 
+    // ---- header: score box + summary card ----
+    const score = el("div", { class: "fscore" },
+      ring(flagged.length, ran.length || 1, cls),
+      el("div", { class: "fscore-cap" }, el("div", { text: "analyzers flagged" }),
+        el("span", { class: `score ${cls === "none" ? "" : cls}`, text: `score ${Math.round(r.score)}` })));
+    const strip = el("div", { class: `fstrip ${cls}` },
+      el("span", { class: "fstrip-ico", text: flagged.length ? "!" : "✓" }),
+      el("span", { text: flagged.length
+        ? `${flagged.length} of ${ran.length} Vigil analyzers flagged this file · ${r.verdict}`
+        : `None of the ${ran.length} Vigil analyzers that ran found anything · ${r.verdict}` }),
+      el("span", { class: "fstrip-actions" }, addToCase("inspection", r.id), el("button", {
+        type: "button", class: "btn", text: "Delete report",
+        onclick: async () => {
+          await api.send("DELETE", `/api/inspection?id=${r.id}`);
+          this.current = null;
+          this.sig = "";
+          this.renderEmpty();
+          this.refresh();
+        },
+      })));
+    const ext = (r.type.extension || r.type.detected || "?").toUpperCase().slice(0, 4);
+    const tags = [r.type.detected, ...new Set(r.findings.filter((f) => f.points > 0).map((f) => f.check.replace(/_/g, "-")))];
+    const summary = el("div", { class: "fsum" }, strip,
+      el("div", { class: "fsum-body" },
+        el("div", { class: "fsum-id" },
+          el("div", { class: "mono fsum-hash", text: r.hashes.sha256, title: "SHA-256" }),
+          el("div", { class: "fsum-name", text: r.name }),
+          el("div", { class: "fsum-tags" }, tags.map((t, i) => el("span", { class: `tag ${i === 0 ? "live" : ""}`, text: t })))),
+        el("div", { class: "fsum-facts" },
+          el("div", {}, el("div", { class: "faint", text: "Size" }), el("div", { text: fmtSize(r.size) })),
+          el("div", {}, el("div", { class: "faint", text: "Inspected" }),
+            el("div", { text: r.inspected_at && Date.now() / 1000 - r.inspected_at > 60 ? fmtAgo(r.inspected_at) : "just now", title: r.inspected_at ? fmtClock(r.inspected_at) : "" })),
+          el("div", { class: "ftype", text: ext, title: r.type.description }))));
+    box.append(el("div", { class: "fhead" }, score, summary));
+
+    // ---- tabs ----
+    const tabs = [["detection", "Detection"], ["details", "Details"], ["indicators", `Indicators`, r.iocs.length], ["behaviour", "Behaviour"]];
+    if (!tabs.some(([k]) => k === this.rtab)) this.rtab = "detection";
+    box.append(el("div", { class: "ftabs" }, tabs.map(([k, label, n]) => el("button", {
+      type: "button", class: k === this.rtab ? "on" : "", onclick: () => { this.rtab = k; this.render(r); },
+    }, label, n !== undefined ? el("span", { class: "n", text: String(n) }) : null))));
+
+    if (this.rtab === "detection") this.renderDetection(box, r, rows);
+    else if (this.rtab === "details") this.renderIdentity(box, r);
+    else if (this.rtab === "indicators") this.renderIocs(box, r);
+    else this.renderBehaviour(box);
+  }
+
+  renderDetection(box, r, rows) {
+    const top = r.findings.find((f) => f.points > 0);
+    box.append(el("div", { class: "fband" },
+      el("div", {}, el("b", { text: "Top finding" }),
+        top ? el("span", { class: "danger-text", text: top.reason }) : el("span", { class: "faint", text: "none" })),
+      el("div", {}, el("b", { text: "Checks fired" }),
+        ...([...new Set(r.findings.filter((f) => f.points > 0).map((f) => f.check.replace(/_/g, "-")))].slice(0, 6).map((t) => el("span", { class: "tag", text: t }))),
+        r.findings.some((f) => f.points > 0) ? null : el("span", { class: "faint", text: "none" }))));
+    if (rows.length) {
+      box.append(el("div", { class: "fgrid-head" }, el("b", { text: "Vigil analyzers" }),
+        el("span", { class: "faint", text: "All run on this machine, offline. Hover a row for what it checks." })));
+      box.append(el("div", { class: "fgrid" }, rows.map((a) => el("div", { class: `frow ${a.status}`, title: a.about },
+        el("span", { class: "frow-name", text: a.title }),
+        el("span", { class: "frow-res" }, el("span", { class: "ico", text: a.status === "flagged" ? "!" : a.status === "nothing" ? "✓" : "–" }),
+          el("span", { text: a.label }))))));
+    }
+    box.append(el("h3", { text: `Findings (${r.findings.length})` }));
+    if (r.findings.length) box.append(findingList(r.findings));
+    else box.append(el("p", { class: "faint", text: "None. That is not a guarantee: see the Details tab for what this check cannot tell you." }));
+  }
+
+  renderIdentity(box, r) {
     box.append(el("h3", { text: "Identity" }), kv([
       ["Type", `${r.type.description}${r.type.extension ? ` · named .${r.type.extension}` : ""}`],
       ["Size", `${r.size.toLocaleString()} bytes`],
@@ -101,41 +164,32 @@ export class FilesView {
       ["Inspected", r.inspected_at ? `${fmtClock(r.inspected_at)} · ${r.source || ""}` : null],
       ["Engine", r.engine],
     ]));
-
-    box.append(el("h3", { text: `Findings (${r.findings.length})` }));
-    if (r.findings.length) box.append(findingList(r.findings));
-    else box.append(el("p", { class: "faint", text: "None." }));
-
     this.renderDetails(box, r.details || {}, r.type.detected);
-
-    box.append(el("h3", { text: `Indicators (${r.iocs.length})` }));
-    if (!r.iocs.length) {
-      box.append(el("p", { class: "faint", text: `None found${r.ignored_format_urls ? ` (${r.ignored_format_urls} format namespace URLs ignored)` : ""}.` }));
-    } else {
-      box.append(el("p", { class: "faint", text: "Shown as text, never as links. Check them in the Intel tab's offline lookup." }));
-      box.append(el("table", { class: "list iocs" },
-        el("tr", {}, el("th", { text: "Type" }), el("th", { text: "Value" }), el("th", { text: "Found in" }), el("th", { text: "Context" })),
-        r.iocs.map((i) => el("tr", {},
-          el("td", { text: i.type }),
-          el("td", { class: "mono", text: i.value }),
-          el("td", { class: "faint", text: i.where }),
-          el("td", {},
-            (i.intel || []).map((h) => el("span", { class: "tag danger", text: `${h.feed}: ${h.label}`, title: h.reference || "" })),
-            i.seen ? el("button", { type: "button", class: "linkish", text: "this PC connected to it", onclick: () => this.onShowDestination(i.value) }) : null)))));
-    }
-
     box.append(el("h3", { text: "What this check cannot tell you" }),
       el("ul", { class: "limits" }, r.limits.map((l) => el("li", { text: l }))));
-    box.append(el("div", { class: "actions" }, addToCase("inspection", r.id), el("button", {
-      type: "button", class: "btn", text: "Delete this report",
-      onclick: async () => {
-        await api.send("DELETE", `/api/inspection?id=${r.id}`);
-        this.current = null;
-        this.sig = "";
-        this.renderEmpty();
-        this.refresh();
-      },
-    })));
+  }
+
+  renderIocs(box, r) {
+    if (!r.iocs.length) {
+      box.append(el("p", { class: "faint", text: `No indicators found${r.ignored_format_urls ? ` (${r.ignored_format_urls} format namespace URLs ignored)` : ""}.` }));
+      return;
+    }
+    box.append(el("p", { class: "faint", text: "Shown as text, never as links. Check them in the Intel tab's offline lookup." }));
+    box.append(el("table", { class: "list iocs" },
+      el("tr", {}, el("th", { text: "Type" }), el("th", { text: "Value" }), el("th", { text: "Found in" }), el("th", { text: "Context" })),
+      r.iocs.map((i) => el("tr", {},
+        el("td", { text: i.type }),
+        el("td", { class: "mono", text: i.value }),
+        el("td", { class: "faint", text: i.where }),
+        el("td", {},
+          (i.intel || []).map((h) => el("span", { class: "tag danger", text: `${h.feed}: ${h.label}`, title: h.reference || "" })),
+          i.seen ? el("button", { type: "button", class: "linkish", text: "this PC connected to it", onclick: () => this.onShowDestination(i.value) }) : null)))));
+  }
+
+  renderBehaviour(box) {
+    box.append(el("div", { class: "note" },
+      el("p", { text: "Behaviour analysis means running the file and watching what it does: processes it starts, files it writes, addresses it contacts." }),
+      el("p", { class: "faint", text: "Vigil never runs a file on this machine. This tab fills in once the detonation VM (build step 6) is set up: an isolated virtual machine that runs the file, records what it does, and is thrown away." })));
   }
 
   renderDetails(box, d, family) {
@@ -173,4 +227,18 @@ export class FilesView {
           })));
     }
   }
+}
+
+function fmtSize(n) {
+  for (const [u, v] of [["GB", 1e9], ["MB", 1e6], ["KB", 1e3]]) if (n >= v) return `${(n / v).toFixed(2)} ${u}`;
+  return `${n} B`;
+}
+
+// The score box ring: how many analyzers flagged the file, out of those that ran.
+function ring(n, total, cls) {
+  const r = 34, c = 2 * Math.PI * r;
+  const arc = svg("circle", { cx: 42, cy: 42, r, class: `arc ${cls}`, "stroke-dasharray": `${c * Math.min(1, n / total)} ${c}` });
+  return el("div", { class: "fring" },
+    svg("svg", { viewBox: "0 0 84 84" }, svg("circle", { cx: 42, cy: 42, r, class: "track" }), arc),
+    el("div", { class: "fring-num" }, el("b", { class: cls, text: String(n) }), el("span", { text: `/ ${total}` })));
 }

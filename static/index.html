@@ -59,9 +59,12 @@
     </div>
     <div class="workspace">
       <aside class="panel" id="panel"></aside>
-      <div class="graph-wrap" id="graph-wrap">
-        <svg id="graph" role="img" aria-label="Programs and the destinations they connect to"></svg>
-        <div class="empty" id="graph-empty" hidden></div>
+      <div class="graph-area">
+        <canvas class="netfx" id="netfx" aria-hidden="true"></canvas>
+        <div class="graph-wrap" id="graph-wrap">
+          <svg id="graph" role="img" aria-label="Programs and the destinations they connect to"></svg>
+          <div class="empty" id="graph-empty" hidden></div>
+        </div>
       </div>
     </div>
   </section>

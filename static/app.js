@@ -1,6 +1,6 @@
 // App shell: tabs, the status line, motion, and the refresh loop.
 import { api, el, clear, fmtClock } from "./ui.js";
-import { moveIndicator } from "./fx.js";
+import { moveIndicator, constellation } from "./fx.js";
 import { NetworkMap } from "./netmap.js";
 import { AlertsView } from "./alerts.js";
 import { IntelView } from "./intel.js";
@@ -32,9 +32,12 @@ function showTab(name) {
   for (const b of nav.querySelectorAll("button")) b.classList.toggle("active", b.dataset.tab === name);
   for (const s of document.querySelectorAll("main > .tab")) s.classList.toggle("active", s.id === `tab-${name}`);
   moveIndicator(nav);
+  netfx.restart?.();
   views[name].refresh?.();
 }
 for (const b of nav.querySelectorAll("button")) b.addEventListener("click", () => showTab(b.dataset.tab));
+const netfx = document.getElementById("netfx");
+constellation(netfx, () => active === "network");
 window.addEventListener("resize", () => moveIndicator(nav));
 document.fonts?.ready.then(() => moveIndicator(nav));
 

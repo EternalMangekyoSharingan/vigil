@@ -140,6 +140,19 @@ class ArchiveBombTests(unittest.TestCase):
         r, c = self.checks(synth.docm_dropper(), "invoice.docm")
         self.assertNotIn("decompression_bomb", c)
 
+    @SMALL
+    def test_analyzer_rows(self):
+        block = deflate(b"\0" * (8 * MB))
+        data = raw_zip([(f"f/{i:02x}.txt", 0, 2) for i in range(12)], [("f/00.txt", block, 8 * MB)])
+        r = inspector.inspect_bytes(data, "location.zip")
+        rows = {a["id"]: a for a in r["analyzers"]}
+        self.assertEqual(rows["archive"]["status"], "flagged")
+        self.assertIn("decompression_bomb", rows["archive"]["checks"])
+        self.assertEqual(rows["identity"]["status"], "nothing")
+        self.assertEqual(rows["pdf"]["status"], "skipped")
+        self.assertEqual(rows["intel"]["status"], "skipped")  # no feeds outside the app
+        self.assertNotIn("clean", {a["status"] for a in r["analyzers"]})
+
     def test_memory_stays_flat(self):
         # 200 MB of output is counted, not kept: Python allocations stay small.
         block = deflate(b"\0" * (200 * MB))

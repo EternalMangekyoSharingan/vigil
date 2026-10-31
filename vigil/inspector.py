@@ -996,6 +996,91 @@ def _dedupe(findings):
 
 # ---- the inspection --------------------------------------------------------------------
 
+# ---- analyzers: the report's "detection" grid ---------------------------------------------
+# Each row is one of Vigil's own analyzers, named for what it looks at. A row says whether
+# it ran on this kind of file and which of its checks fired. No third-party engines are
+# implied: rows only ever describe checks this file actually went through.
+
+ARCHIVE_FAMILIES = {"zip", "ooxml", "jar", "apk", "odf", "gzip", "bzip2", "xz"}
+ANALYZERS = [
+    ("identity", "Name and file type",
+     "Disguised names, extensions that lie about the content, programs.",
+     {"disguise", "type_mismatch", "file_type"}, lambda f: True),
+    ("archive", "Archive and bomb analysis",
+     "Measures what unpacking would write, without unpacking; size lies, overlapping and "
+     "forged entries, paths that escape the folder.",
+     {"decompression_bomb", "overlapping_entries", "size_lie", "forged_directory", "impossible_ratio",
+      "path_traversal", "symlink_member", "entry_flood"}, lambda f: f in ARCHIVE_FAMILIES),
+    ("macro", "Office macros",
+     "VBA source (decompressed), auto-run entry points, what the code calls; Excel 4.0 macros; ActiveX.",
+     {"macros", "macro_autoexec", "macro_behaviour", "xlm_macro", "activex"},
+     lambda f: f in ("ooxml", "ole2", "odf")),
+    ("office", "Office structure",
+     "Remote templates and objects (Follina), DDE fields, embedded files and programs, encryption.",
+     {"remote_template", "remote_object", "dde", "embedded_object", "encrypted"},
+     lambda f: f in ("ooxml", "ole2", "odf", "rtf")),
+    ("rtf", "RTF exploits",
+     "Embedded objects, Equation Editor and OLE2Link exploits, malformed headers.",
+     {"rtf_object", "rtf_structure"}, lambda f: f == "rtf"),
+    ("pdf", "PDF actions and scripts",
+     "JavaScript, auto-actions, launch actions, embedded files, obfuscated names, hidden streams.",
+     {"pdf_javascript", "pdf_autorun", "pdf_launch", "pdf_embedded", "pdf_obfuscation",
+      "pdf_feature", "pdf_structure", "pdf_encrypted"}, lambda f: f == "pdf"),
+    ("commands", "Scripts and command lines",
+     "Download-and-run commands, hidden PowerShell, reverse shells, persistence, HTML smuggling.",
+     {"download_cradle", "hidden_powershell", "lolbin", "persistence", "pipe_to_shell", "reverse_shell",
+      "temp_exec", "html_smuggling"}, lambda f: f in TEXT_FAMILIES or f == "lnk"),
+    ("intel", "Threat feeds (offline)",
+     "Indicators matched against the abuse.ch lists you downloaded.",
+     {"threat_intel"}, None),
+    ("history", "This PC's network history",
+     "Addresses in the file that this PC has really connected to.",
+     {"seen_on_network"}, None),
+]
+
+
+def summarize_analyzers(report, context=None):
+    """Fill report["analyzers"]: one row per analyzer, with its status and the checks that fired.
+
+    `context` says whether the offline sources were available: {"feeds": n, "history": bool}.
+    Without it (the command line, or before link_context), those two rows read "not run".
+    """
+    context = context or {}
+    if "type" not in report:
+        return report
+    family = report["type"]["detected"]
+    families = {family} | {n["type"] for n in report["details"].get("nested", [])}  # members were inspected too
+    rows = []
+    for key, title, about, checks, applies in ANALYZERS:
+        hits = [f for f in report["findings"] if f["check"] in checks and f["points"] > 0]
+        if key == "intel":
+            ran = bool(context.get("feeds"))
+            why_not = "Not run: no feeds downloaded (Intel tab)"
+        elif key == "history":
+            ran = bool(context.get("history"))
+            why_not = "Not run: only inside the Vigil app"
+        else:
+            ran = any(applies(f) for f in families) or bool(hits)
+            why_not = "Not run: not for this file type"
+        if hits:
+            top = max(hits, key=lambda f: f["points"])
+            status, label = ("flagged", _short(top["reason"]))
+        elif ran:
+            status, label = ("nothing", "Nothing found")
+        else:
+            status, label = ("skipped", why_not)
+        rows.append({"id": key, "title": title, "about": about, "status": status, "label": label,
+                     "checks": sorted({f["check"] for f in hits}),
+                     "points": round(sum(f["points"] for f in hits), 1)})
+    report["analyzers"] = rows
+    return report
+
+
+def _short(reason, limit=64):
+    reason = reason.split(":", 1)[0] if len(reason) > limit and ":" in reason[:limit] else reason
+    return reason if len(reason) <= limit else reason[:limit - 1].rstrip() + "…"
+
+
 def inspect_bytes(data, name, depth=0, budget=None):
     """Static triage of one file. Returns a report dict; never raises on bad input."""
     budget = budget or Budget()
@@ -1069,7 +1154,7 @@ def inspect_bytes(data, name, depth=0, budget=None):
         "Code can behave differently when it runs, and obfuscated or encrypted content can hide "
         "what it does. Behaviour analysis needs the detonation VM (build step 6).",
     ]))
-    return report
+    return summarize_analyzers(report)
 
 
 def _local_only(ip):
@@ -1119,7 +1204,8 @@ def link_context(report, store, enricher=None):
         report["findings"] = sorted(_dedupe(report["findings"] + findings), key=lambda f: -f["points"])
         report["score"] = min(100.0, round(sum(f["points"] for f in report["findings"]), 1))
         report["verdict"] = verdict_for(report["score"])
-    return report
+    feeds = store.one("SELECT COUNT(*) AS n FROM feeds WHERE entries > 0") if enricher is not None else None
+    return summarize_analyzers(report, {"feeds": (feeds or {}).get("n", 0), "history": True})
 
 
 def _is_ip(value):

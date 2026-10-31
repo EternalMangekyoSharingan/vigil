@@ -713,6 +713,26 @@ attention you haven't earned".
 All tabs checked in Chromium at 1340×860 with live data, no console errors. Tests
 pass (see below).
 
+## File report in a multi-scanner layout; network background back (2026-10-31)
+
+At the owner's request (with a VirusTotal report as the reference):
+- **Analyzers** (`inspector.summarize_analyzers`): every report now carries one row
+  per Vigil analyzer, with `flagged` (and the top reason), `nothing` or `skipped`
+  (and why: wrong file type, no feeds downloaded, outside the app). An analyzer
+  counts as having run if it applies to the file or to any archive member that was
+  inspected. Statuses never say "clean"; a test enforces it.
+- **Report layout**: score box (flagged analyzers out of those that ran, plus the
+  score), summary card (status strip, SHA-256, name, tags, size, age, type badge),
+  and tabs for Detection, Details, Indicators and Behaviour. Behaviour says plainly
+  that it needs the detonation VM.
+- **Network Map background** restored, on that view only: a faint hexagon grid and
+  the slow constellation, paused when the map is hidden.
+
+### Decisions made without asking
+- No vendor rows. The grid shows only Vigil's own offline analyzers. External
+  engines (ClamAV, YARA, VirusTotal hash lookups) need a new dependency, sudo or an
+  outside service, so they wait for the owner's decision.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it
