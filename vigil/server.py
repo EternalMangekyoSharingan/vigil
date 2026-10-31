@@ -241,6 +241,7 @@ class App:
         for c in d.get("connections") or []:
             pi = knowledge.port_info(c["proto"], c["remote_port"] if c["direction"] == "out" else c["local_port"])
             c["port_name"] = pi["service"] if pi else None
+        d["why"] = wording.why_node(d, self.scorer.threshold, True, base_ctx={"poll": self.monitor.interval})
         return d
 
     def api_program_inspect(self, q, body, headers):
@@ -279,6 +280,7 @@ class App:
         d["about"] = knowledge.about_destination(d, self.enricher)
         d["transport"] = _transports(sorted({f"{p['proto']}/{p['port']}" for p in d.get("pairs") or []}))
         d["identity"] = self.identities([d["ip"]]).get(d["ip"])
+        d["why"] = wording.why_node(d, self.scorer.threshold, False, base_ctx={"poll": self.monitor.interval})
         return d
 
     def api_intel_status(self, q):

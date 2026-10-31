@@ -385,3 +385,92 @@ def present(ctx, now=None):
     return {"title": title(ctx), "subtitle": subtitle(ctx, now), "severity": severity(ctx),
             "adjusted_score": adjusted_score(ctx), "explain": explain(ctx, now), "who": friendly_name(ctx),
             "to": destination(ctx)}
+
+
+# ---- "Why is this red?" for a map node ---------------------------------------------------------
+# A node on the Network Map turns red when its score reaches the alert threshold, or when a
+# threat feed lists it. This answers that in plain words, right in the panel: which program is
+# doing it, and why it counts. It directly answers "why is GitHub red when I don't have it open?"
+# — because a background program (git, an editor, an updater) is talking to it on a timer.
+
+_WHY_SEV = ["Info", "Low", "Medium", "High"]
+
+
+def why_node(detail, threshold, is_program, now=None, base_ctx=None):
+    """Plain-language 'why flagged' for a program or destination detail, or None if not flagged."""
+    now = now or time.time()
+    base = base_ctx or {}
+    pairs = [p for p in (detail.get("findings") or []) if not p.get("allowlisted")]
+    listed = [h for h in ((detail.get("enrichment") or {}).get("intel") or [])]
+    scored = [p for p in pairs if (p.get("score") or 0) >= threshold]
+    if not scored and not listed:
+        return None
+
+    lines, seen, sev = [], set(), "Info"
+    programs, dests = {}, {}
+    for p in sorted(scored, key=lambda x: -(x.get("score") or 0)):
+        ctx = dict(base, program=p.get("program") or detail.get("key"),
+                   name=p.get("name"), ip=p.get("ip") or detail.get("ip"),
+                   port=p.get("port"), proto=p.get("proto"), direction=p.get("direction"),
+                   findings=p.get("findings") or [], hidden=_hidden_reason(p.get("program")),
+                   scope=detail.get("scope"), poll=base.get("poll", 2))
+        if is_program:
+            ctx["info"] = detail.get("info") or {}
+        who = friendly_name(ctx) or "An unidentified program"
+        programs[who] = programs.get(who, 0) + 1
+        dests[destination(ctx)] = dests.get(destination(ctx), 0) + 1
+        sev = max(sev, severity(ctx), key=_WHY_SEV.index)
+        for f in sorted(ctx["findings"], key=lambda f: -f["points"]):
+            st = f.get("stats") or {}
+            text = signal_line(st.get("signal"), st, ctx) if st.get("signal") else None
+            if text and text not in seen:
+                seen.add(text)
+                lines.append({"signal": st.get("signal"), "text": text,
+                              "strength": round(min(1.0, f["points"] / MAX_POINTS.get(st.get("signal"), 50)), 2)})
+        if plain_http(ctx):
+            t = "Uses unencrypted HTTP, so anyone on the network path can read it"
+            if t not in seen:
+                seen.add(t)
+                lines.append({"signal": "plain_http", "text": t, "strength": 0.5})
+
+    feed_lines = []
+    for h in listed:
+        sev = "High"
+        feed_lines.append(f"{h.get('title', h.get('feed', 'A threat feed'))}: {h.get('label', 'listed')}")
+
+    # The headline: the thing a confused user needs most — who is doing this.
+    if listed:
+        head = f"This address is on a threat-intelligence blocklist ({len(listed)} feed{'s' if len(listed) != 1 else ''})."
+    elif is_program:
+        where = ", ".join(list(dests)[:2])
+        head = f"This program is flagged for how it talks to {where}."
+    else:
+        names = [n for n in programs if n != "An unidentified program"]
+        if len(programs) == 1 and names:
+            head = f"{names[0]} is contacting this address in the background — you don't need it open."
+        elif names:
+            head = f"{len(programs)} programs contact this address, including {', '.join(names[:2])}."
+        else:
+            head = "A program Vigil can't identify is contacting this address."
+
+    return {"flagged": True, "severity": sev, "headline": head, "reasons": lines,
+            "listed": feed_lines, "programs": list(programs), "destinations": list(dests),
+            "score": round(max([p.get("score") or 0 for p in scored] + [0]), 0),
+            "what_now": _what_now(sev, bool(listed), is_program)}
+
+
+def _hidden_reason(program_key):
+    if program_key and program_key.startswith("hidden:"):
+        return program_key.split(":")[1]
+    return None
+
+
+def _what_now(sev, listed, is_program):
+    if listed:
+        return ["This is the strongest signal Vigil has. Don't dismiss it.",
+                "Find which program uses it (Scores tab), then block the address or remove that program."]
+    if sev == "High":
+        return ["Check which program is responsible in the Scores tab below.",
+                "If you don't recognise it, treat it as suspicious until you do."]
+    return ["Open the Scores tab for the exact reasons.",
+            "If it's an app you trust doing normal background work, use Allowlist to stop the alert."]
