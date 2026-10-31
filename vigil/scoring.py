@@ -32,6 +32,7 @@ POINTS = {
 }
 # Threat-intel points are per feed, in enrich.FEEDS: a listed botnet C2 alerts alone.
 MIN_CHECKINS = 6           # fewer than this and regularity means nothing
+MAX_MISSED_RUN = 5         # a longer silence is a pause (sleep, restart), not missed polls
 CV_PERIODIC = 0.20         # the usual beacon threshold (RITA and others)
 CV_CEILING = 0.35          # above this, no beacon points at all
 LONG_MIN, LONG_MAX = 3600, 8 * 3600   # long-connection scoring starts at 1 h (as in RITA)
@@ -108,8 +109,10 @@ def beacon_stats(times, poll):
     """Regularity of a pair's connection start times, or None if there is too little.
 
     Starts closer together than 1.5 poll intervals are one check-in (programs often
-    open several connections at once). An interval close to a whole multiple of the
-    median is taken as check-ins the poller missed, not as irregularity.
+    open several connections at once). An interval close to a small whole multiple of
+    the median is taken as check-ins the poller missed, not as irregularity. A much
+    longer silence (laptop asleep, program restarted) is a pause: it is left out of
+    the statistics and reported, not treated as hundreds of missed check-ins.
     """
     checkins = []
     for t in sorted(times):
@@ -121,18 +124,22 @@ def beacon_stats(times, poll):
     med = statistics.median(raw)
     if med < 3 * poll:  # too frequent to tell apart from continuous traffic
         return None
-    intervals, missed = [], 0
+    intervals, missed, pauses = [], 0, []
     for x in raw:
         k = round(x / med)
-        if k >= 2 and abs(x / k - med) <= 0.15 * med:
+        if k > MAX_MISSED_RUN + 1:
+            pauses.append(x)
+        elif k >= 2 and abs(x / k - med) <= 0.15 * med:
             intervals.extend([x / k] * k)
             missed += k - 1
         else:
             intervals.append(x)
+    if len(intervals) + 1 < MIN_CHECKINS:
+        return None
     mean = statistics.fmean(intervals)
     return {"checkins": len(checkins), "missed": missed, "interval": mean,
             "cv": statistics.pstdev(intervals) / mean, "first": checkins[0],
-            "last": checkins[-1], "samples": len(intervals) + 1}
+            "last": checkins[-1], "samples": len(intervals) + 1 + len(pauses), "pauses": pauses}
 
 
 def beacon_findings(conns, poll, endpoint):
@@ -144,6 +151,9 @@ def beacon_findings(conns, poll, endpoint):
     pct = round(b["cv"] * 100)
     kind = "Periodic" if b["cv"] < CV_PERIODIC else "Loosely periodic"
     missed = (f"; {b['missed']} probably missed between polls" if b["missed"] else "")
+    if b["pauses"]:
+        missed += (f"; {len(b['pauses'])} pause{'s' if len(b['pauses']) > 1 else ''} "
+                   f"(longest {fmt_duration(max(b['pauses']))}) left out")
     data = (f"connections table: {len(conns)} connections to {endpoint} opened "
             f"{clock(b['first'])}–{clock(b['last'])}, start times measured to ±{poll:g} s")
     out.append(finding(

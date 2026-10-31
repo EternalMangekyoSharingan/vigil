@@ -491,6 +491,109 @@ known limitations, and decisions made without asking.
 - The evidence snapshot is not re-hashed or signed. The case database is as
   trustworthy as the `data/` directory's permissions (0700).
 
+## Redesign and desktop app (2026-10-31, at the owner's request)
+
+You asked for the UI to look almost exactly like your EDR process-analyzer screenshot,
+with Darktrace-like visuals, lots of purposeful motion, the colours of your wallpaper
+(dark purple, warm orange), Apple-like fonts, a desktop app, and to keep it light.
+
+### What was built
+- **Palette, measured from your wallpaper.** It is an 8-pixel repeating stripe of teal
+  `#00665d`, aqua `#5dbdb9`, slate `#333a40`, mauve `#b290a1`, plum `#5e3a60`,
+  periwinkle `#7780a9`, sky `#59bddf` and ice `#62f3ff`. Base: plum-graphite derived
+  from the plum and slate. Main accent: warm orange `#ff9f43`. The teal → ice gradient
+  is used for process cubes and live traffic; periwinkle and mauve for supporting
+  shapes; coral `#ff5d73` for alerts.
+- **Type.** `-apple-system`/SF Pro wherever the system has it, otherwise **Inter**,
+  the open typeface closest to SF, bundled as a 48 KB variable woff2 covering every
+  weight. Code is in JetBrains Mono (40 KB). Both are SIL OFL; their licences are in
+  `static/fonts/`. SF Pro itself can't be bundled (Apple's licence).
+- **Graph (`static/netmap.js`, rewritten).**
+  - Map view: isometric cubes for processes (inner cube as in your screenshot); state
+    labels above (`LIVE PROCESS`, `IDLE PROCESS`, `ALERT · …`, `ANALYZED · …`); names
+    in orange pills; count chips; globes with cyan pills for destinations; hexagon
+    rings for the selected node and pulsing ones for alerts.
+  - Edges: thick bands with particles flowing in the traffic's direction, and labels
+    rotated along the edge. Labels take the first free spot along their curve, tested
+    with each label's rotated bounding box, in priority order (selected, alerting,
+    live); one with no free spot steps aside to the tooltip.
+  - **Analyzer view**: your screenshot's diagonal cascade. Parents (oldest first) →
+    program → destinations, with edges labelled by the real time between process
+    starts. The collector now records each ancestor's start time.
+  - Nodes are keyed and tweened, so refreshes and view switches glide instead of
+    redrawing.
+  - The event panel is on the left, as in the screenshot: breadcrumb header, Events /
+    Details / Scores tabs, and screenshot-style event items with clickable addresses.
+- **Motion (`static/fx.js`).** A background constellation canvas (≤ 30 fps, stopped
+  when hidden), a sliding tab indicator, button ripples, toasts for every action,
+  animated score rings, count-up tiles, a scanning bar for uploads and feed
+  downloads, a rotating gradient border on the drop zone, a radar sweep for the empty
+  map, and a breathing brand mark. Everything is still under `prefers-reduced-motion`.
+- **Desktop app (`vigil/desktop.py`)**: `python3 -m vigil app`, with no new
+  dependency. The window comes from a native WebKitGTK window when PyGObject is
+  installed, otherwise a Chromium-family browser in `--app` mode with a private
+  profile and background networking off, otherwise the default browser. The server
+  lives exactly as long as the window. `install-desktop` / `uninstall-desktop` add or
+  remove a per-user menu entry and icon (XDG, no root).
+- **One Vigil per data directory**: an `flock` plus a port file. `serve` refuses a
+  second poller; `app` opens a window onto the running instance.
+
+### Verification
+- **127 tests, all passing on Python 3.13.17 and 3.11.17.** New: 8 desktop tests
+  (browser discovery, app-mode flags, window/server lifetime, single-instance join,
+  fallback, launcher file parsed back, Exec quoting, XDG), font serving, ancestor
+  start times, and beacon pauses.
+- **The real desktop window**: `python3 -m vigil app --window chromium`, run as the
+  unprivileged `nobody` user on a virtual X display (Xvfb), opened an app-mode window
+  with no tabs or address bar. I captured the X screen. It showed live data in the
+  non-root view: root's connections as "Hidden: root" with the explanation. Closing
+  the window stopped Vigil, closed its port and removed the port file.
+- Headless Chromium screenshots of every tab against a live instance with a loopback
+  test beacon: alert styling, Analyzer cascade (with "40.8 seconds" from real start
+  times), files with score ring and toasts, cases, intel. No console errors.
+- **Lightness, measured**: idle map with all animations, Chromium software
+  rendering: 5.8% of one core on the renderer main thread, scripts 0.1%, JS heap
+  2.4 MB. The Python backend uses about 30 MB and under 1% CPU. Polling the API pauses
+  while the window is hidden.
+
+### Bugs found and fixed in this round
+- **Scoring: long silences counted as "missed check-ins".** The test beacon stopped
+  for two hours (worker restart) and resumed. The scorer reported "1025 probably
+  missed between polls" and "1083 check-ins". Missed-check-in recovery now applies
+  only to gaps of up to 5 periods. Longer gaps are *pauses* (sleep, restart): left
+  out of the statistics and named in the reason ("1 pause (longest 2h 4m) left
+  out"). New test.
+- The entrance animations replayed on every refresh (the panel rebuilt on each
+  count change). The overview now updates numbers in place, and re-renders of the
+  same panel are drawn without entrance motion.
+- `hidden` badges still displayed (a CSS `display` rule beat the attribute); chip rows
+  overflowed the node block; colliding edge labels; a CSS transform on the exit
+  animation would have dropped a node's position; an inline `style` attribute would
+  have been blocked by the page's CSP (now set through the CSSOM).
+
+### Decisions made without asking
+- **No Electron/Tauri/pywebview.** Each means npm, a Rust toolchain or a pip
+  dependency, plus 100+ MB. The shell uses what Linux desktops already have. If you
+  would rather have a single self-contained binary, that's a dependency decision for
+  you.
+- **Inter instead of SF Pro**: SF Pro may not be redistributed. Inter was drawn in the
+  same spirit and is what Vigil falls back to everywhere except macOS.
+- Fonts came from the `@fontsource-variable` packages' published files (fetched once
+  at development time, Latin subset). Nothing is loaded from a CDN at runtime.
+- `CLAUDE.md`'s UI-style section now carries a dated note recording your new
+  direction, so later sessions don't revert it. Your original text is unchanged.
+
+### Known limitations
+- The native WebKitGTK path is untested here: this container's PyGObject is broken.
+  It is tried first, and any failure falls through to Chromium. The Chromium path was
+  verified end to end.
+- The "Chrome for Testing" banner in the desktop screenshot belongs to Playwright's
+  test build; normal Chromium/Chrome doesn't show it.
+- On Wayland, Chromium's `--class` may not set the app id, so the taskbar may group
+  the window with the browser.
+- The bundled fonts cover Latin. Other scripts fall back to system fonts.
+- A browser fallback (option 3) is a normal tab in your browser, with its extensions.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

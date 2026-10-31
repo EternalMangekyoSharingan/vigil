@@ -69,6 +69,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
   background:
@@ -325,6 +326,9 @@ input[type=checkbox] { accent-color: var(--orange); }
 #graph .enter, #graph .exit { transform-box: fill-box; transform-origin: center; }
 #graph .enter { animation: nodeIn .6s var(--spring) both; }
 #graph .exit { animation: nodeOut .35s var(--ease) both; }
+
+/* re-renders of the same panel: no entrance motion */
+.still .card, .still ol.events li, .still ul.findings li, .still .tile, .still .crumbs { animation: none !important; }
 
 /* overview tiles */
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; margin: 4px 0 14px; }
@@ -652,6 +656,7 @@ ul.hits, ul.limits { margin: 6px 0; padding-left: 18px; color: var(--text-2); }
 ul.limits li { margin: 4px 0; }
 ul.limits li::marker { color: var(--orange); }
 table.iocs td { word-break: break-all; }
+td .tag { margin-left: 8px; }
 .hist {
   display: grid;
   grid-template-columns: 10px 1fr auto;

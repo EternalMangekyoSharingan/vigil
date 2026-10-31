@@ -176,3 +176,17 @@ export function ripples(root = document) {
     dot.addEventListener("animationend", () => dot.remove(), { once: true });
   });
 }
+
+// Animate a tile's number from what it shows to `value` (the accent follows non-zero).
+export function countTo(tileEl, value) {
+  const v = tileEl.querySelector(".v");
+  const from = Number(v.textContent);
+  const to = Number(value);
+  const accent = tileEl.dataset.accent;
+  if (accent) tileEl.classList.toggle(accent, to > 0);
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from === to) {
+    if (value !== undefined && value !== null) v.textContent = String(value);
+    return;
+  }
+  tween(500, (t) => { v.textContent = String(Math.round(from + (to - from) * t)); });
+}

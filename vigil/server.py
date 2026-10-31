@@ -454,12 +454,20 @@ def make_server(app, port=8765, verbose=False, max_body=100 * 1024 * 1024):
 
 
 def serve(data_dir, port=8765, interval=2.0, verbose=False):
+    from .desktop import DataLock
+    lock = DataLock(data_dir)
+    if not lock.acquire():  # two pollers would record every connection twice
+        running = lock.running_port()
+        sys.exit("Vigil is already running with this data directory"
+                 + (f": open http://{HOST}:{running}/" if running else "."))
     try:
         httpd = make_server(None, port, verbose)
     except OSError as exc:
+        lock.release()
         sys.exit(f"Cannot listen on {HOST}:{port}: {exc.strerror}. Is Vigil already running? "
                  f"Choose another port with --port.")
     app = httpd.app = App(data_dir, interval)
+    lock.publish(httpd.server_address[1])
     print(f"Vigil is watching. Open http://{HOST}:{httpd.server_address[1]}/  (Ctrl+C to stop)")
     print(f"Evidence store: {app.store.path}")
     try:
@@ -469,3 +477,4 @@ def serve(data_dir, port=8765, interval=2.0, verbose=False):
     finally:
         app.monitor.stop()
         httpd.server_close()
+        lock.release()

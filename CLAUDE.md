@@ -47,6 +47,14 @@ Graph-first like an EDR process analyzer: nodes with small count chips, timed ed
 a side panel listing the selected node's events. No neon, no fake stats, no decoration
 without a purpose.
 
+Updated 2026-10-31 at the owner's request (supersedes the colours above): dark purple
+base with warm orange as the main accent, and the teal/aqua/ice-cyan of the owner's
+wallpaper for network activity; look and feel close to an EDR process analyzer
+(isometric process cubes, name pills, timed edges, event panel on the left) and to
+Darktrace's UI; plenty of purposeful motion (kept light, honouring reduced motion);
+Apple-like type (SF Pro where present, bundled Inter otherwise). Vigil also runs as a
+desktop app (`python3 -m vigil app`). Still no fake stats.
+
 ## How to work (I may be away: don't wait for me)
 1. Read existing code and docs/PROGRESS.md before changing anything.
 2. For each step: build it, write tests (pytest is fine as a dev tool), run them,

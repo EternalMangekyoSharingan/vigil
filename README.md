@@ -14,6 +14,30 @@ started: it needs root and a virtual machine set up on your PC, so it waits for 
 
 Needs Python 3.11 or newer on Linux. Nothing to install; no root needed.
 
+As a desktop app, in its own window:
+
+```bash
+python3 -m vigil app
+```
+
+To put Vigil in your application menu (for your user only, no root):
+
+```bash
+python3 -m vigil install-desktop
+```
+
+The window comes from what your machine already has, with no new dependency: a
+native WebKitGTK window when PyGObject and WebKit2GTK are installed (most GNOME
+desktops), otherwise Chromium, Chrome, Brave, Edge or Vivaldi in `--app` mode, which
+gives a window with no tabs or address bar, a private profile in `data/app-profile`,
+and the browser's background networking switched off. Failing both, it opens your
+default browser. Pick one with `--window native|chromium|browser`, or point
+`VIGIL_BROWSER` at a browser binary. Closing the window stops Vigil. Starting the app
+while Vigil is already running opens a window onto the running one: one data
+directory never gets two pollers.
+
+Or as a local web page:
+
 ```bash
 python3 -m vigil
 ```
@@ -37,16 +61,36 @@ python3 -m vigil inspect suspicious.docm     # static triage of a file (read onl
 
 ## What you see
 
-- **Programs → destinations.** Each program holding a socket is a node on the left;
-  each remote address is a node on the right. Solid lines are open now, dashed lines
-  closed within the selected window. Labels show the port and how long ago. Chips
-  count live connections, destinations and programs. A blue `new` chip marks things
-  first seen after Vigil's baseline (its first poll).
+The look follows an EDR process analyzer: a dark plum base, warm orange for what
+matters, and the teal-to-ice-cyan of the network for live activity. Type is SF Pro
+where the system has it (macOS) and otherwise Inter, which is bundled (OFL, 48 KB,
+variable). Code is in JetBrains Mono (OFL, 40 KB).
+
+- **Programs → destinations (Map view).** Each program holding a socket is an
+  isometric cube on the left, with a state label above (`LIVE PROCESS`, `IDLE
+  PROCESS`, `ALERT · …`), its name in an orange pill and count chips below. Each
+  remote address is a globe on the right. Edges are thick bands. Particles flow
+  along connections that are open now, in the direction of the traffic, and labels
+  ride along each edge (`443 · 6 live`, `80 · 4 minutes ago`). A hexagon ring marks
+  the selected node; a pulsing red ring marks alerts. An orange `new` chip marks
+  things first seen after Vigil's baseline (its first poll).
+- **Analyzer view.** Double-click a program, or press "Analyze process": the map
+  rearranges into a diagonal cascade from the program's parents (oldest first) to the
+  program and then the addresses it contacted. Edges between processes are labelled
+  with the real time between their starts (`470 milliseconds`, `10 minutes`).
+- **Motion, kept light.** Nodes move between layouts instead of jumping, edges draw
+  themselves in, and a faint constellation drifts behind everything (one canvas,
+  ≤ 30 fps, stopped when the window is hidden). Results arrive as toasts, scores fill
+  as rings, and uploads show a scanning bar. With the system's "reduce motion"
+  setting it all stays still. Measured idle cost in Chromium with software rendering:
+  about 6% of one core, a 2.4 MB JavaScript heap; the Python side about 30 MB.
 - **Direction.** A connection accepted on one of your listening ports is shown as
   inbound (`in 22`), keyed by the service port, not the client's random port.
-- **Side panel.** Select a node to see the executable, command line, user, parent
-  chain and start time, the destinations it used, and a timeline of events. Every
-  event says where it came from (for example `/proc/net/tcp inode 4069, owner from
+- **Side panel (left).** Select a node to see its events, in the style of an EDR event
+  list (`connection, opened` · `@ Oct 30, 2026 @ 21:42:12.778` · addresses you can
+  click). The Details tab has the executable, command line, user, parent chain, start
+  time and destinations, and the Scores tab has the scored pairs. Every event says
+  where it came from (for example `/proc/net/tcp inode 4069, owner from
   /proc/90/fd`).
 - **First-seen tracking.** Vigil remembers every destination, program-to-destination
   pair and each program's first outbound connection in SQLite. The first poll is
@@ -249,8 +293,11 @@ vigil/enrich.py      threat feeds and country/ASN database (download on request)
 vigil/inspector.py   File Inspector: static triage, verdict, indicators
 vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
 vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown
+vigil/desktop.py     desktop window (WebKitGTK / Chromium app mode), menu entry, data lock
 vigil/server.py      127.0.0.1 web server, JSON API, background poller
 vigil/__main__.py    command line
 static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph
+static/fx.js         motion: background, tweens, toasts, score rings
+static/fonts/        Inter and JetBrains Mono (variable woff2) with their OFL licences
 tests/               unittest suite and synthetic fixtures
 ```

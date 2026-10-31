@@ -71,6 +71,19 @@ class ServerTests(unittest.TestCase):
                 res, _ = self.request("GET", bad)
                 self.assertEqual(res.status, 404)
 
+    def test_bundled_fonts(self):
+        res, data = self.request("GET", "/static/fonts/Inter-Variable.woff2")
+        self.assertEqual(res.status, 200)
+        self.assertEqual(res.getheader("Content-Type"), "font/woff2")
+        self.assertIn("immutable", res.getheader("Cache-Control"))
+        self.assertTrue(data.startswith(b"wOF2"))
+        res, data = self.request("GET", "/static/fonts/OFL-Inter.txt")
+        self.assertIn(b"SIL OPEN FONT LICENSE", data)
+        for bad in ("/static/fonts/../app.js", "/static/fonts/x/y.woff2", "/static/fonts/a.ttf"):
+            with self.subTest(path=bad):
+                res, _ = self.request("GET", bad)
+                self.assertEqual(res.status, 404)
+
     def test_status(self):
         s = self.get_json("/api/status")
         self.assertEqual(s["polls"], 1)

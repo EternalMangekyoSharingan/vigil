@@ -54,6 +54,17 @@ class BeaconStatsTests(unittest.TestCase):
         self.assertAlmostEqual(b["cv"], 0, places=6)
         self.assertEqual(b["samples"], 30)
 
+    def test_long_silence_is_a_pause_not_missed_checkins(self):
+        # Ten check-ins, the machine sleeps two hours, ten more: still every 60 s.
+        times = [1000 + 60 * i for i in range(10)] + [9000 + 60 * i for i in range(10)]
+        b = beacon_stats(times, poll=2)
+        # 18 regular intervals in two runs of ten: twenty check-ins in all.
+        self.assertEqual((b["missed"], b["samples"], len(b["pauses"])), (0, 20, 1))
+        self.assertAlmostEqual(b["cv"], 0)
+        fs = beacon_findings(conns(times), 2, "x")
+        self.assertIn("1 pause (longest 2h 4m) left out", fs[0]["reason"])  # 9000 - 1540 s
+        self.assertNotIn("missed", fs[0]["reason"])
+
     def test_bursts_merge_into_one_checkin(self):
         times = []
         for i in range(10):

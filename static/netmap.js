@@ -7,7 +7,7 @@
 // Nodes are keyed and tweened between layouts, so refreshes move instead of redraw.
 import { api, el, svg, clear, fmtClock, fmtAgo, kv, eventList,
   scoreClass, pairTitle, findingList, allowlistForm, addToCase } from "./ui.js";
-import { tween, reducedMotion } from "./fx.js";
+import { tween, reducedMotion, countTo } from "./fx.js";
 
 const CONTENT = 270;          // width of a node's label/pill/chips block
 const ROW = 92;               // vertical step between nodes in the map view
@@ -443,12 +443,15 @@ export class NetworkMap {
       edge.g.setAttribute("class", `edge${live ? " live" : ""}${hot ? " hot" : ""}${inbound ? " inbound" : ""}${l.lineage ? " lineage" : ""}${!analyzer && selKey && !(l.a === selKey || l.b === selKey) ? " dim" : ""}`);
       edge.band.setAttribute("stroke-width", l.lineage ? 13 : live ? 10 : 7);
       edge.title.textContent = l.lineage ? `parent → child, started ${label || "?"} apart` : edgeTitle(l.data, l.a, l.b);
-      const showLabel = label && (showAll || (selKey && (l.a === selKey || l.b === selKey)));
+      const related = selKey && (l.a === selKey || l.b === selKey);
+      const showLabel = label && (selKey && !analyzer ? related : showAll);
+      edge.priority = (related ? 4 : 0) + (hot ? 2 : 0) + (live ? 1 : 0);
       edge.label.setAttribute("class", `elabel${live ? " live" : ""}${hot ? " hot" : ""}${showLabel ? "" : " dim"}`);
       const t = edge.label.querySelector("text");
       if (t.textContent !== label) {
         t.textContent = label || "";
         const w = measure(label || "", 650, 10.5) + 18;
+        edge.labelWidth = w;
         const r = edge.label.querySelector("rect");
         r.setAttribute("width", w);
         r.setAttribute("height", 18);
@@ -498,31 +501,53 @@ export class NetworkMap {
   }
 
   // Edge geometry from the current node positions (called every tween frame).
+  // Labels sit at the middle of their edge, or slide along it to the first spot
+  // that does not overlap a label already placed.
   placeEdges() {
-    for (const edge of this.edges.values()) {
+    const placed = [];
+    const order = [...this.edges.values()].sort((x, y) => (y.priority || 0) - (x.priority || 0));
+    for (const edge of order) {
       const a = this.nodes.get(edge.a), b = this.nodes.get(edge.b);
       if (!a || !b) continue;
-      let d, mx, my, ang;
+      let pts;
       if (edge.curve) {
-        const x1 = a.x + 26, y1 = a.y, x2 = b.x - 24, y2 = b.y;
-        const dx = (x2 - x1) * 0.45;
-        d = `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
-        mx = (x1 + x2) / 2;
-        my = (y1 + y2) / 2;
-        // tangent at t = .5 of a symmetric cubic: along the chord, softened
-        ang = Math.atan2(y2 - y1, (x2 - x1) * 1.6) * 180 / Math.PI;
+        const x1 = a.x + 26, y1 = a.y, x2 = b.x - 24, y2 = b.y, dx = (x2 - x1) * 0.45;
+        pts = [[x1, y1], [x1 + dx, y1], [x2 - dx, y2], [x2, y2]];
       } else {
-        d = `M${a.x},${a.y} L${b.x},${b.y}`;
-        mx = (a.x + b.x) / 2;
-        my = (a.y + b.y) / 2;
-        ang = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+        pts = [[a.x, a.y], [a.x, a.y], [b.x, b.y], [b.x, b.y]];
       }
-      if (ang > 90) ang -= 180;
-      if (ang < -90) ang += 180;
+      const d = edge.curve
+        ? `M${pts[0]} C${pts[1]} ${pts[2]} ${pts[3]}`
+        : `M${pts[0]} L${pts[3]}`;
       edge.band.setAttribute("d", d);
       edge.core.setAttribute("d", d);
       edge.flow.setAttribute("d", d);
-      edge.label.setAttribute("transform", `translate(${mx.toFixed(1)},${my.toFixed(1)}) rotate(${ang.toFixed(1)})`);
+      if (edge.label.classList.contains("dim")) continue;
+      edge.label.style.opacity = "";
+      // Each candidate spot is tested with the label's bounding box at that angle.
+      const w = edge.labelWidth || 60, h = 18;
+      let best = null;
+      for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8]) {
+        const [x, y] = bezier(pts, t);
+        const [tx, ty] = bezierTangent(pts, t);
+        let ang = Math.atan2(ty, tx);
+        if (ang > Math.PI / 2) ang -= Math.PI;
+        if (ang < -Math.PI / 2) ang += Math.PI;
+        const c = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));
+        const box = [x, y, (w * c + h * sn) / 2, (w * sn + h * c) / 2, ang];
+        const free = placed.every(([px, py, hx, hy]) => Math.abs(px - x) >= hx + box[2] || Math.abs(py - y) >= hy + box[3]);
+        if (free) {
+          best = box;
+          break;
+        }
+      }
+      if (!best) { // nowhere free: leave it to the tooltip rather than overlap
+        edge.label.style.opacity = 0;
+        continue;
+      }
+      placed.push(best);
+      const [x, y, , , ang] = best;
+      edge.label.setAttribute("transform", `translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${(ang * 180 / Math.PI).toFixed(1)})`);
     }
   }
 
@@ -607,13 +632,13 @@ export class NetworkMap {
     const list = rtl ? [...chips].reverse() : chips;
     for (const c of list) {
       const w = measure(c.text, 600, 10.5) + 14;
+      if (Math.abs(cx - anchorX) + w > CONTENT) break; // keep the row inside the node's block
       const x = rtl ? cx - w : cx;
       row.append(svg("g", { class: `chip ${c.cls || ""}` },
         c.title ? svg("title", { text: c.title }) : null,
         svg("rect", { x, y: 17, width: w, height: 18, rx: 4 }),
         svg("text", { x: x + w / 2, y: 26.5, "text-anchor": "middle", "dominant-baseline": "middle", text: c.text })));
       cx = rtl ? cx - w - 5 : cx + w + 5;
-      if (Math.abs(cx - anchorX) > CONTENT) break;
     }
     g.append(row);
   }
@@ -640,6 +665,9 @@ export class NetworkMap {
     if (this.panel.querySelector(".allow-form, .add-case select")) return; // don't wipe a form in use
     const sig = JSON.stringify([data, this.ptab]);
     if (sig === this.panelSig) return; // unchanged: keep the scroll position
+    const view = `${sel.type}:${sel.id}:${this.ptab}`;
+    this.panel.classList.toggle("still", this.panelView === view); // entrance motion only when new
+    this.panelView = view;
     this.panelSig = sig;
     const p = clear(this.panel);
     if (data.error) {
@@ -819,18 +847,30 @@ export class NetworkMap {
     if (this.selected) return;
     const g = this.data;
     const live = g ? g.edges.reduce((n, e) => n + e.live, 0) : 0;
-    const sig = JSON.stringify([s?.hidden, s?.unreadable, s?.missing_tables, s?.viewer, listeners, g?.programs.length, g?.destinations.length, live, s?.alerts_open]);
-    if (sig === this.panelSig) return;
+    const hidden = (s?.hidden || []).reduce((n, h) => n + h.count, 0);
+    const counts = { programs: g?.programs.length, destinations: g?.destinations.length, live,
+                     alerts: s?.alerts_open, hidden };
+    const sig = JSON.stringify([s?.hidden?.map((h) => [h.reason, h.label]), s?.unreadable, s?.missing_tables,
+                                s?.viewer, s?.loopback_hidden > 0, listeners]);
+    if (sig === this.panelSig && this.tiles) {
+      for (const [k, node] of Object.entries(this.tiles)) countTo(node, counts[k]); // numbers only
+      return;
+    }
+    this.panel.classList.toggle("still", this.panelView === "overview");
+    this.panelView = "overview";
     this.panelSig = sig;
     const p = clear(this.panel);
-    const hidden = (s?.hidden || []).reduce((n, h) => n + h.count, 0);
     p.append(el("div", { class: "crumbs" },
       el("div", { class: "path" }, el("span", { text: "Network" }), el("span", { class: "sep", text: "/" }), el("b", { text: "Overview" })),
       el("div", { class: "big", text: "Who is this PC talking to?" })));
-    p.append(el("div", { class: "tiles" },
-      tile(g ? g.programs.length : "–", "programs"), tile(g ? g.destinations.length : "–", "destinations"),
-      tile(live, "live connections", "ice"), tile(s?.alerts_open ?? "–", "open alerts", s?.alerts_open ? "danger" : ""),
-      tile(hidden, "not attributed", hidden ? "warn" : "")));
+    const tiles = [["programs", "programs", ""], ["destinations", "destinations", ""], ["live", "live connections", "ice"],
+                   ["alerts", "open alerts", "danger"], ["hidden", "not attributed", "warn"]];
+    this.tiles = {};
+    p.append(el("div", { class: "tiles" }, tiles.map(([k, label, cls]) => {
+      const t = tile(counts[k] ?? "–", label, cls);
+      this.tiles[k] = t;
+      return t;
+    })));
     p.append(el("p", { text: "Cubes are programs holding network sockets, attributed through /proc; globes are the addresses they talk to. Particles flow along connections open right now. Select a node for its events; double-click a program to analyze its process chain." }));
     const v = el("section", { id: "visibility" }, el("h3", { text: "What Vigil can and cannot see" }));
     p.append(v);
@@ -873,13 +913,26 @@ export class NetworkMap {
   }
 }
 
+function bezier(p, t) {
+  const u = 1 - t;
+  return [0, 1].map((i) => u * u * u * p[0][i] + 3 * u * u * t * p[1][i] + 3 * u * t * t * p[2][i] + t * t * t * p[3][i]);
+}
+
+function bezierTangent(p, t) {
+  const u = 1 - t;
+  return [0, 1].map((i) => 3 * u * u * (p[1][i] - p[0][i]) + 6 * u * t * (p[2][i] - p[1][i]) + 3 * t * t * (p[3][i] - p[2][i]));
+}
+
 const EVENT_LABELS = {
   open: "connection, opened", close: "connection, closed", first_seen: "first seen, info",
   listen: "listener, opened", alert: "alert, raised", alert_status: "analyst, note",
 };
 
+// A count tile; the accent colour only shows while the number is non-zero.
 function tile(value, label, cls = "") {
-  return el("div", { class: `tile ${cls}` }, el("div", { class: "v", text: value }), el("div", { class: "l", text: label }));
+  const t = el("div", { class: "tile", "data-accent": cls }, el("div", { class: "v", text: value }), el("div", { class: "l", text: label }));
+  if (cls && Number(value) > 0) t.classList.add(cls);
+  return t;
 }
 
 function exposure(ip) {

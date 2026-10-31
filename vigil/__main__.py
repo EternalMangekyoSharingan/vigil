@@ -135,7 +135,28 @@ def cmd_inspect(args):
         print(f"  - {line}")
 
 
-COMMANDS = ("serve", "snapshot", "update-feeds", "update-geo", "lookup", "inspect")
+def cmd_app(args):
+    """Vigil in its own window; it stops when the window closes."""
+    from . import desktop
+    how = desktop.run(args.data, port=args.port, interval=args.interval, mode=args.window)
+    print(f"Window closed ({how}).")
+
+
+def cmd_install_desktop(args):
+    from . import desktop
+    entry, icon = desktop.install_launcher(data_dir=args.data if args.data != DEFAULT_DATA else None)
+    print(f"Added Vigil to your application menu:\n  {entry}\n  {icon}")
+    print("It runs as your user; nothing outside your home directory was changed.")
+
+
+def cmd_uninstall_desktop(args):
+    from . import desktop
+    removed = desktop.uninstall_launcher()
+    print("Removed:\n  " + "\n  ".join(map(str, removed)) if removed else "No Vigil menu entry was installed.")
+
+
+COMMANDS = ("serve", "app", "install-desktop", "uninstall-desktop", "snapshot", "update-feeds",
+            "update-geo", "lookup", "inspect")
 
 
 def main(argv=None):
@@ -152,6 +173,17 @@ def main(argv=None):
     s.add_argument("--interval", type=float, default=2.0, help="seconds between /proc polls")
     s.add_argument("--verbose", action="store_true", help="log every HTTP request")
     s.set_defaults(func=cmd_serve)
+    a = sub.add_parser("app", parents=[common], help="open Vigil as a desktop app in its own window")
+    a.add_argument("--port", type=int, default=0, help="default: any free port")
+    a.add_argument("--interval", type=float, default=2.0, help="seconds between /proc polls")
+    a.add_argument("--window", choices=["auto", "native", "chromium", "browser"], default="auto",
+                   help="how to show the window (default: the best available)")
+    a.set_defaults(func=cmd_app)
+    sub.add_parser("install-desktop", parents=[common],
+                   help="add Vigil to your application menu (per user, no root)"
+                   ).set_defaults(func=cmd_install_desktop)
+    sub.add_parser("uninstall-desktop", parents=[common], help="remove the menu entry"
+                   ).set_defaults(func=cmd_uninstall_desktop)
     n = sub.add_parser("snapshot", parents=[common], help="print current connections once and exit")
     n.add_argument("--json", action="store_true")
     n.add_argument("--all", action="store_true", help="include listening sockets")

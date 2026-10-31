@@ -49,7 +49,7 @@ function renderStatus() {
     el("span", { class: `dot ${err ? "err" : "live"}` }),
     err ? `Collector error: ${err}` : `Live · every ${status.interval}s`));
   if (status.viewer) {
-    box.append(el("span", { text: `as ${status.viewer.user}${status.viewer.root ? " (root)" : ""}` }));
+    box.append(el("span", { text: `as ${status.viewer.user}${status.viewer.root && status.viewer.user !== "root" ? " (root)" : ""}` }));
     const hidden = (status.hidden || []).reduce((n, h) => n + h.count, 0);
     box.append(el("button", {
       class: "linkish", type: "button",
