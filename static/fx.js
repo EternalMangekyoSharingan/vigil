@@ -148,7 +148,7 @@ export function toast(message, kind = "ok") {
   t.className = `toast ${kind === "err" ? "err" : ""}`;
   const ico = document.createElement("span");
   ico.className = "ico";
-  ico.textContent = kind === "err" ? "!" : "✓";
+  ico.append(statusIcon(kind === "err" ? "flagged" : "nothing"));
   const text = document.createElement("span");
   text.textContent = message;
   t.append(ico, text);
@@ -182,4 +182,37 @@ export function countTo(tileEl, value) {
     return;
   }
   tween(500, (t) => { v.textContent = String(Math.round(from + (to - from) * t)); });
+}
+
+// ---- status icons: drawn as vectors, never as text characters ------------------------------
+const NS = "http://www.w3.org/2000/svg";
+const ICONS = {
+  // circle + exclamation (a rounded bar and a dot)
+  flagged: '<circle cx="10" cy="10" r="8.25" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="1.5"/>'
+    + '<path d="M10 5.6v5.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'
+    + '<circle cx="10" cy="14.1" r="1.15" fill="currentColor"/>',
+  // circle + check stroke
+  nothing: '<circle cx="10" cy="10" r="8.25" fill="currentColor" fill-opacity=".1" stroke="currentColor" stroke-width="1.5"/>'
+    + '<path d="M6.3 10.3l2.5 2.5 4.9-5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  // dashed circle + dash: not run / not applicable
+  skipped: '<circle cx="10" cy="10" r="8.25" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.6 2.4"/>'
+    + '<path d="M6.8 10h6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  // track + arc: in progress (the arc spins in CSS)
+  pending: '<circle cx="10" cy="10" r="8.25" fill="none" stroke="currentColor" stroke-opacity=".25" stroke-width="1.6"/>'
+    + '<path class="arc" d="M10 1.75a8.25 8.25 0 0 1 8.25 8.25" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+};
+
+export function statusIcon(kind, label) {
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 20 20");
+  svg.setAttribute("class", `sico ${kind}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", label || { flagged: "Flagged", nothing: "Nothing found", skipped: "Not run", pending: "In progress" }[kind]);
+  svg.innerHTML = ICONS[kind] || ICONS.skipped;  // fixed markup from this file only
+  if (label) {  // hover tooltip, set as text (never markup)
+    const t = document.createElementNS(NS, "title");
+    t.textContent = label;
+    svg.prepend(t);
+  }
+  return svg;
 }

@@ -808,7 +808,7 @@ table.conns .sub { color: var(--text-3); font-size: 11.5px; }
 }
 .fstrip.danger { color: var(--danger-text); }
 .fstrip.warn { color: var(--warn); }
-.fstrip-ico { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid currentColor; border-radius: 50%; font: 700 11px var(--sans); flex: none; }
+.fstrip-ico-unused { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid currentColor; border-radius: 50%; font: 700 11px var(--sans); flex: none; }
 .fstrip-actions { margin-left: auto; display: flex; gap: 6px; font-weight: 500; color: var(--text); }
 .fsum-body { display: flex; gap: 18px; align-items: center; padding: 14px; flex-wrap: wrap; }
 .fsum-id { flex: 1; min-width: 260px; display: grid; gap: 6px; }
@@ -975,3 +975,28 @@ details.tech summary { cursor: pointer; color: var(--text-2); font-weight: 500; 
 .allow-form .scope input { width: auto; flex: none; margin: 0; }
 .allow-form .scope label { justify-content: flex-start; }
 .allow-form > label input { font-family: var(--sans); }
+
+/* vector status icons */
+.sico { width: 18px; height: 18px; flex: none; display: block; color: var(--text-3); overflow: visible; }
+.sico.flagged { color: var(--danger-text); }
+.sico.nothing { color: var(--aqua); }
+.sico.skipped { color: var(--text-3); }
+.sico.pending { color: var(--orange); }
+.sico.pending .arc { transform-origin: 10px 10px; animation: spin .9s linear infinite; }
+.fstrip .sico { width: 19px; height: 19px; color: inherit; }
+.fstrip.none .sico, .fstrip:not(.danger):not(.warn) .sico { color: var(--aqua); }
+.toast .ico { background: none !important; width: 20px; height: 20px; }
+.toast .ico .sico { width: 20px; height: 20px; color: var(--orange); }
+.toast.err .ico .sico { color: var(--danger); }
+.frow .ico, .frow.pending .ico { display: none; }
+
+/* hover an icon (or its row) to highlight the property it belongs to */
+.frow { position: relative; transition: background .12s; border-radius: 6px; }
+.frow .sico { cursor: help; transition: transform .12s var(--ease); }
+.frow:hover, .frow:has(.sico:hover) { background: rgba(255, 255, 255, .035); }
+.frow:has(.sico:hover) { box-shadow: inset 0 0 0 1px var(--line-2); }
+.frow:has(.sico:hover) .frow-name { color: var(--text); font-weight: 600; }
+.frow:has(.sico:hover) .sico { transform: scale(1.18); }
+.frow.flagged:has(.sico:hover) { background: var(--danger-soft); box-shadow: inset 0 0 0 1px rgba(255, 93, 115, .35); }
+.frow.nothing:has(.sico:hover) { background: rgba(93, 189, 185, .08); box-shadow: inset 0 0 0 1px rgba(93, 189, 185, .3); }
+.frow-name { padding-left: 6px; }

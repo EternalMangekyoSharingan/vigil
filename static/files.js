@@ -2,7 +2,7 @@
 // under it, and what the check cannot tell you. The file goes from this page to
 // Vigil on 127.0.0.1 only, is read in memory, and is never opened or run.
 import { api, el, svg, clear, fmtClock, fmtAgo, kv, findingList, addToCase } from "./ui.js";
-import { toast } from "./fx.js";
+import { toast, statusIcon } from "./fx.js";
 
 const VERDICT_CLASS = { "Likely malicious": "danger", "Suspicious": "warn" };
 
@@ -119,7 +119,7 @@ export class FilesView {
         r.lookups?.virustotal?.found ? el("span", { class: `vt-mini ${r.lookups.virustotal.malicious ? "danger" : ""}`,
           text: `VirusTotal ${r.lookups.virustotal.malicious} / ${r.lookups.virustotal.engines}` }) : null));
     const strip = el("div", { class: `fstrip ${cls}` },
-      el("span", { class: "fstrip-ico", text: flagged.length ? "!" : "✓" }),
+      statusIcon(flagged.length ? "flagged" : "nothing"),
       el("span", { text: flagged.length
         ? `${flagged.length} of ${ran.length} Vigil analyzers flagged this file · ${r.verdict}`
         : `None of the ${ran.length} Vigil analyzers that ran found anything · ${r.verdict}` }),
@@ -174,7 +174,7 @@ export class FilesView {
         el("span", { class: "faint", text: "All run on this machine, offline. Hover a row for what it checks." })));
       box.append(el("div", { class: "fgrid" }, rows.map((a) => el("div", { class: `frow ${a.status}`, title: a.about },
         el("span", { class: "frow-name", text: a.title }),
-        el("span", { class: "frow-res" }, el("span", { class: "ico", text: a.status === "flagged" ? "!" : a.status === "nothing" ? "✓" : a.status === "pending" ? "" : "–" }),
+        el("span", { class: "frow-res" }, statusIcon(a.status === "flagged" || a.status === "nothing" || a.status === "pending" ? a.status : "skipped", `${a.title}: ${a.label}`),
           el("span", { text: a.label }))))));
     }
     this.renderLookups(box, r);
@@ -226,7 +226,7 @@ export class FilesView {
           const label = st === "flagged" ? e.result || e.category : st === "nothing" ? "Undetected"
             : { "type-unsupported": "Unable to process file type", timeout: "Timed out", failure: "Failed" }[e.category] || e.category;
           return el("div", { class: `frow ${st}` }, el("span", { class: "frow-name", text: e.engine }),
-            el("span", { class: "frow-res" }, el("span", { class: "ico", text: st === "flagged" ? "!" : st === "nothing" ? "✓" : "–" }),
+            el("span", { class: "frow-res" }, statusIcon(st, `${e.engine}: ${label}`),
               el("span", { text: label })));
         }));
         body.append(grid);
