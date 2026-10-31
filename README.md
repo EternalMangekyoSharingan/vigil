@@ -199,10 +199,13 @@ The rows are Vigil's own analyzers, all offline.
 ### Second opinions: ClamAV and hash lookups (optional)
 
 - **ClamAV (local antivirus)** appears as a row in the analyzer grid. When it is
-  installed, every inspected file is streamed to it on stdin. Vigil uses `clamdscan`
-  if the clamd daemon is running (fast: its signatures are already loaded) and
-  otherwise `clamscan` with archive limits (400 MB scanned, 16 levels deep, 90 s), so
-  a zip bomb can't hurt it. A malware signature counts 70 points, a "PUA." name 25 and
+  installed, inspected files are passed to it on stdin, in the background: the report
+  appears at once and the ClamAV row fills in when the scan finishes. Vigil uses
+  `clamdscan` if the clamd daemon is running (fast: its signatures are already loaded)
+  and otherwise `clamscan` with archive limits (400 MB scanned, 16 levels deep, 90 s).
+  ClamAV unpacks archives to scan inside them (with temporary files it deletes
+  afterwards), so a file Vigil has measured as an archive bomb, or one that would
+  expand past 1 GB, is **not** given to ClamAV; its row says why. A malware signature counts 70 points, a "PUA." name 25 and
   a "Heuristics." name 20. Each finding records the engine and signature versions.
   If ClamAV isn't installed, the row says so and nothing else changes. To install it
   (needs sudo once, for the package):
@@ -353,8 +356,10 @@ not visible. Missing `/proc/net/tcp6` (IPv6 disabled) is reported, not an error.
   that `urlopen` appears in exactly one function, another runs a full poll, score and
   lookup with networking patched to fail, and another checks that an upload makes no
   request.
-- ClamAV, when installed, gets the file's bytes on stdin. Nothing is written to disk,
-  and ClamAV only reads them.
+- ClamAV, when installed, gets the file's bytes on stdin; Vigil writes nothing. ClamAV
+  never runs a file, but it unpacks archives to scan inside them, using temporary
+  files it deletes afterwards. So Vigil never hands it a file it has measured as an
+  archive bomb, or one that would expand past 1 GB.
 - The evidence store (`data/vigil.db`) is created in a directory only you can read.
 
 ## Tests

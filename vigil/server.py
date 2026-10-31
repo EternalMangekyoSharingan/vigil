@@ -76,6 +76,9 @@ class App:
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.store = Store(str(self.data_dir / "vigil.db"))
+        self.report_lock = threading.Lock()     # load-modify-save of a stored report
+        self.clamav_slot = threading.Semaphore(1)
+        self.clamav_threads = []
         self.tracker = Tracker(self.store)
         self.allowlist = scoring.Allowlist(str(self.data_dir / "allowlist.json"))
         self.scorer = scoring.Scorer(self.store, self.allowlist, interval)
@@ -166,12 +169,15 @@ class App:
             raise BadRequest(f"the executable is larger than {EXE_MAX // 2**20} MB")
         name = os.path.basename((info.get("exe") or d["name"]).removesuffix(" (deleted)"))
         report = inspector.inspect_bytes(data, name)
-        inspector.run_clamav(report, data)
+        scan = inspector.clamav_plan(report)
         report["about_program"] = {"key": d["key"], "pid": info["pid"], "exe": info.get("exe"),
                                    "owner": knowledge.package_owner(info.get("exe"))}
         inspector.link_context(report, self.store, self.enricher)
-        return inspector.save(self.store, report, f"executable of {d['name']} (pid {info['pid']}), "
-                                                  f"read via /proc/{info['pid']}/exe")
+        inspector.save(self.store, report, f"executable of {d['name']} (pid {info['pid']}), "
+                                           f"read via /proc/{info['pid']}/exe")
+        if scan:
+            self.clamav_later(report["id"], data)
+        return report
 
     def api_destination(self, q):
         d = self.tracker.destination_detail(q.get("ip", "")) or _not_found()
@@ -198,9 +204,26 @@ class App:
         """Static triage of uploaded bytes. The file stays in memory; only the report is kept."""
         name = urllib.parse.unquote(headers.get("X-Filename") or "upload")[:255] or "upload"
         report = inspector.inspect_bytes(body, name)
-        inspector.run_clamav(report, body)
+        scan = inspector.clamav_plan(report)
         inspector.link_context(report, self.store, self.enricher)
-        return inspector.save(self.store, report, "upload via the Vigil page")
+        inspector.save(self.store, report, "upload via the Vigil page")
+        if scan:
+            self.clamav_later(report["id"], body)
+        return report
+
+    def clamav_later(self, report_id, data):
+        """Run ClamAV after the report is returned, so a slow scan never holds up the page.
+        One scan at a time: clamscan without the daemon can use about 1 GB of memory."""
+        def work():
+            with self.clamav_slot:
+                result = engines.clamav_scan(data)
+            with self.report_lock:
+                row = self.store.one("SELECT report FROM inspections WHERE id=?", (report_id,))
+                if row:  # the report may have been deleted meanwhile
+                    inspector.resave(self.store, inspector.clamav_apply(json.loads(row["report"]), result))
+        t = threading.Thread(target=work, name=f"clamav-{report_id}", daemon=True)
+        self.clamav_threads.append(t)
+        t.start()
 
     def api_inspection_lookup(self, q, body, headers):
         """Hash lookup on VirusTotal or MalwareBazaar. Network: only because the user pressed
@@ -212,8 +235,7 @@ class App:
         row = self.store.one("SELECT report FROM inspections WHERE id=?", (int(req.get("id") or 0),))
         if not row:
             raise NotFound()
-        report = json.loads(row["report"])
-        sha = report["hashes"]["sha256"]
+        sha = json.loads(row["report"])["hashes"]["sha256"]
         try:
             if service == "virustotal":
                 result = engines.virustotal(sha, self.lookup_key("virustotal"))
@@ -221,8 +243,11 @@ class App:
                 result = engines.malwarebazaar(sha, self.enricher.auth_key())
         except engines.LookupError_ as exc:
             raise BadRequest(str(exc)) from None
-        inspector.apply_lookup(report, service, result)
-        return inspector.resave(self.store, report)
+        with self.report_lock:  # a background ClamAV scan may have updated it meanwhile
+            report = json.loads(self.store.one("SELECT report FROM inspections WHERE id=?",
+                                               (int(req.get("id") or 0),))["report"])
+            inspector.apply_lookup(report, service, result)
+            return inspector.resave(self.store, report)
 
     def lookup_key(self, service):
         if service == "virustotal":

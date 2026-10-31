@@ -104,7 +104,7 @@ export class IntelView {
       c ? el("div", { class: "card-meta", text: `Engine ${c.engine}${c.db_version ? ` · signatures ${c.db_version}` : ""}${c.db_date ? ` (${c.db_date})` : ""}` })
         : el("div", { class: "card-meta", text: "Install it with your package manager; it needs sudo once, to add the package. Then run freshclam (or enable the clamav-freshclam service) to download signatures, and enable clamd for fast scans." }),
       c ? null : el("pre", { class: "code", text: "Debian/Ubuntu/Mint:  sudo apt install clamav clamav-daemon\nFedora:              sudo dnf install clamav clamav-update clamd\nArch:                sudo pacman -S clamav\nopenSUSE:            sudo zypper install clamav" }),
-      el("div", { class: "src", text: "Bytes are streamed to clamdscan (or clamscan, with archive limits) on stdin. Nothing is written to disk and nothing is run." })));
+      el("div", { class: "src", text: "Bytes are passed to clamdscan (or clamscan, with archive limits) on stdin, in the background. ClamAV never runs a file, but it unpacks archives to scan inside them, so Vigil never gives it an archive bomb." })));
     box.append(this.keyCard("virustotal", "VirusTotal hash lookup", keys.virustotal,
       "Free personal API key from virustotal.com (sign in → API key). Free keys allow 4 lookups a minute and 500 a day, for non-commercial use.",
       "Sends the SHA-256 and your key to www.virustotal.com. VirusTotal (and its customers) can see that this hash was looked up."));

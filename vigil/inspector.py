@@ -1062,6 +1062,7 @@ def summarize_analyzers(report, context=None):
             clam = (report.get("engines") or {}).get("clamav") or {}
             ran = clam.get("status") in ("flagged", "nothing")
             why_not = {"unavailable": "Not run: ClamAV is not installed",
+                       "skipped": f"Not run: {clam.get('reason')}",
                        "error": f"Not run: {clam.get('reason', 'ClamAV failed')}"}.get(clam.get("status"),
                                                                                     "Not run: inside the Vigil app only")
         elif key == "intel":
@@ -1073,7 +1074,9 @@ def summarize_analyzers(report, context=None):
         else:
             ran = any(applies(f) for f in families) or bool(hits)
             why_not = "Not run: not for this file type"
-        if hits:
+        if key == "clamav" and ((report.get("engines") or {}).get("clamav") or {}).get("status") == "pending":
+            status, label = ("pending", "Scanning…")
+        elif hits:
             top = max(hits, key=lambda f: f["points"])
             status, label = ("flagged", _short(top["reason"]))
         elif ran:
@@ -1236,15 +1239,51 @@ def _rescore(report):
     return summarize_analyzers(report)
 
 
-def run_clamav(report, data, scan=engines.clamav_scan, version=engines.clamav_version):
-    """Scan the bytes with ClamAV if it is installed. The file goes to ClamAV on stdin only."""
-    result = scan(data)
+# ClamAV unpacks archives to scan inside them (and writes temporary files while it does),
+# so it must never be handed something Vigil has measured as a bomb.
+BOMB_CHECKS = {"decompression_bomb", "overlapping_entries", "size_lie", "forged_directory",
+               "impossible_ratio", "entry_flood"}
+CLAM_EXPANSION_MAX = 1 << 30
+
+
+def clamav_unsafe(report):
+    """Why ClamAV must not scan this file, or None."""
+    if any(f["check"] in BOMB_CHECKS and f["points"] > 0 for f in report["findings"]):
+        return "Vigil found an archive bomb, and ClamAV would try to unpack it"
+    exp = report.get("details", {}).get("expansion") or {}
+    if exp.get("lower_bound") or (exp.get("estimated") or 0) > CLAM_EXPANSION_MAX:
+        return "it would expand to over 1 GB, and ClamAV unpacks archives to scan them"
+    return None
+
+
+def clamav_plan(report, available=None):
+    """Decide whether ClamAV scans this file. Marks the report "pending" (scan to follow),
+    "skipped" (with the reason) or "unavailable". Returns True when a scan should run."""
+    available = available or engines.clamav_available
+    why = clamav_unsafe(report)
+    if why:
+        report.setdefault("engines", {})["clamav"] = {"status": "skipped", "reason": why}
+        report["limits"].append(f"ClamAV was not run: {why}.")
+    elif not available():
+        report.setdefault("engines", {})["clamav"] = {"status": "unavailable", "reason": "ClamAV is not installed"}
+        report["limits"].append("ClamAV is not installed, so no antivirus signatures were checked.")
+    else:
+        report.setdefault("engines", {})["clamav"] = {"status": "pending", "started": time.time()}
+        summarize_analyzers(report)
+        return True
+    summarize_analyzers(report)
+    return False
+
+
+def clamav_apply(report, result, version=None):
+    """Put a finished ClamAV scan into the report and rescore it."""
     if result["status"] in ("flagged", "nothing"):
-        result.update(version() or {})
+        result.update((version or engines.clamav_version)() or {})
     report.setdefault("engines", {})["clamav"] = result
+    report["findings"] = [f for f in report["findings"] if f["check"] != "antivirus"]
     if result["status"] == "flagged":
         where = (f"ClamAV {result.get('engine', '?')} via {result['tool']}, signatures "
-                 f"{result.get('db_version') or '?'} ({result.get('db_date') or 'date unknown'}); scanned from memory")
+                 f"{result.get('db_version') or '?'} ({result.get('db_date') or 'date unknown'}); bytes passed on stdin")
         for sig in result["signatures"][:5]:
             pts, kind = engines.clamav_points(sig)
             report["findings"].append(finding("antivirus", pts, f"ClamAV identifies it as {sig} ({kind})", where))
@@ -1253,6 +1292,13 @@ def run_clamav(report, data, scan=engines.clamav_scan, version=engines.clamav_ve
     elif result["status"] == "error":
         report["limits"].append(f"ClamAV could not scan it: {result['reason']}.")
     return _rescore(report)
+
+
+def run_clamav(report, data, scan=None, version=None, available=None):
+    """Plan and run ClamAV in one go (command line and tests; the app runs it in the background)."""
+    if clamav_plan(report, available or (lambda: True)):
+        clamav_apply(report, (scan or engines.clamav_scan)(data), version)
+    return report
 
 
 def apply_lookup(report, service, result):

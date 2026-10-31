@@ -158,6 +158,27 @@ class LookupTests(unittest.TestCase):
         self.assertNotRegex(json.dumps(r).lower(), r"\bsafe\b|\bclean\b")
 
 
+class BombGateTests(unittest.TestCase):
+    def test_a_bomb_is_never_handed_to_clamav(self):
+        from .test_archives import SMALL, deflate, raw_zip, MB
+
+        def scan(data):
+            raise AssertionError("ClamAV must not see an archive bomb")
+        with SMALL:
+            block = deflate(b"\0" * (8 * MB))
+            r = inspector.inspect_bytes(raw_zip([(f"f/{i}", 0, 2) for i in range(12)], [("f/0", block, 8 * MB)]), "b.zip")
+        inspector.run_clamav(r, b"", scan=scan)
+        self.assertEqual(r["engines"]["clamav"]["status"], "skipped")
+        row = {a["id"]: a for a in r["analyzers"]}["clamav"]
+        self.assertEqual(row["label"], "Not run: Vigil found an archive bomb, and ClamAV would try to unpack it")
+
+    def test_large_expansion_is_not_scanned_either(self):
+        r = inspector.inspect_bytes(b"hello\n", "a.txt")
+        r["details"]["expansion"] = {"estimated": 3 << 30, "lower_bound": False}
+        self.assertFalse(inspector.clamav_plan(r, available=lambda: True))
+        self.assertIn("over 1 GB", r["engines"]["clamav"]["reason"])
+
+
 class ServerLookupTests(unittest.TestCase):
     def setUp(self):
         from vigil import server
@@ -197,6 +218,28 @@ class ServerLookupTests(unittest.TestCase):
         self.assertEqual(saved["score"], out["score"])
         row = self.app.store.one("SELECT score FROM inspections WHERE id=?", (report["id"],))
         self.assertEqual(row["score"], out["score"])
+
+
+    def test_clamav_runs_after_the_upload_returns(self):
+        import threading
+        release = threading.Event()
+
+        def slow_scan(data):
+            release.wait(5)
+            return {"status": "flagged", "tool": "clamdscan", "signatures": ["Win.Trojan.Synthetic-1"]}
+        with mock.patch.object(engines, "clamav_available", return_value=True), \
+                mock.patch.object(engines, "clamav_scan", side_effect=slow_scan), \
+                mock.patch.object(engines, "clamav_version", return_value={"engine": "1.0.7"}), \
+                mock.patch.object(inspector.engines, "clamav_available", return_value=True):
+            report = self.app.api_inspect({}, b"hello\n", {"X-Filename": "a.txt"})
+            self.assertEqual(report["engines"]["clamav"]["status"], "pending")  # returned before the scan
+            self.assertEqual({a["id"]: a for a in report["analyzers"]}["clamav"]["label"], "Scanning…")
+            release.set()
+            for t in self.app.clamav_threads:
+                t.join(5)
+        saved = self.app.api_inspection({"id": report["id"]})
+        self.assertEqual(saved["engines"]["clamav"]["status"], "flagged")
+        self.assertEqual(saved["verdict"], "Likely malicious")
 
 
 if __name__ == "__main__":

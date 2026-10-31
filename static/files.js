@@ -87,6 +87,24 @@ export class FilesView {
 
   render(r) {
     this.shown = r;
+    clearTimeout(this.pollTimer);
+    if (r.engines?.clamav?.status === "pending") {
+      // ClamAV runs in the background; fetch the report again until its result is in.
+      this.pollTimer = setTimeout(async () => {
+        if (this.shown?.id !== r.id) return;
+        try {
+          const next = await api.get(`/api/inspection?id=${r.id}`);
+          if (this.shown?.id !== r.id) return;
+          this.render(next);
+          if (next.engines?.clamav?.status !== "pending") {
+            this.sig = "";
+            this.refresh();
+            const c = next.engines.clamav;
+            if (c.status === "flagged") toast(`ClamAV: ${c.signatures[0]}`, "err");
+          }
+        } catch { /* report deleted meanwhile */ }
+      }, 1500);
+    }
     const box = clear(this.report);
     const cls = VERDICT_CLASS[r.verdict] || "none";
     const rows = r.analyzers || [];
@@ -156,7 +174,7 @@ export class FilesView {
         el("span", { class: "faint", text: "All run on this machine, offline. Hover a row for what it checks." })));
       box.append(el("div", { class: "fgrid" }, rows.map((a) => el("div", { class: `frow ${a.status}`, title: a.about },
         el("span", { class: "frow-name", text: a.title }),
-        el("span", { class: "frow-res" }, el("span", { class: "ico", text: a.status === "flagged" ? "!" : a.status === "nothing" ? "✓" : "–" }),
+        el("span", { class: "frow-res" }, el("span", { class: "ico", text: a.status === "flagged" ? "!" : a.status === "nothing" ? "✓" : a.status === "pending" ? "" : "–" }),
           el("span", { text: a.label }))))));
     }
     this.renderLookups(box, r);

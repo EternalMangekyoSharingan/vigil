@@ -788,6 +788,23 @@ VirusTotal's API as well.
 - A hash lookup only knows files someone has already submitted. A new or targeted
   file is often unknown.
 
+## Fix: ClamAV and archive bombs (2026-10-31, reported by the owner)
+
+The owner installed ClamAV and inspected `location.zip`; the upload hung. Cause:
+Vigil's own check still took ~1.5 s, but the file was then handed to ClamAV, which
+*does* unpack archives (with temporary files) and ground on the bomb until its own
+limits. The earlier claim that "nothing is written to disk" was true of Vigil, not of
+ClamAV; the docs now say so.
+
+- `inspector.clamav_unsafe`: a file with any archive-bomb finding, or whose measured
+  expansion exceeds 1 GB (or is only a lower bound), is never given to ClamAV. Its
+  row reads "Not run: Vigil found an archive bomb, and ClamAV would try to unpack it".
+- ClamAV now runs in a background thread, one scan at a time. The report returns
+  at once with ClamAV "Scanning…"; the page polls and fills the row in.
+- Tests: a bomb never reaches the scan function; a large expansion is gated; an upload
+  returns "pending" before a (deliberately blocked) scan finishes, and the saved
+  report has the result afterwards. 159 tests pass on 3.13 and 3.11.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

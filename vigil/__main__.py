@@ -105,11 +105,11 @@ def cmd_lookup(args):
 
 def cmd_inspect(args):
     """Static triage of a file on disk: its bytes are read, nothing is opened or run."""
-    from . import inspector
+    from . import engines, inspector
     path = Path(args.file)
     data = path.read_bytes()
     report = inspector.inspect_bytes(data, path.name)
-    inspector.run_clamav(report, data)
+    inspector.run_clamav(report, data, available=engines.clamav_available)
     store, enricher = _offline(args)
     inspector.link_context(report, store, enricher)
     if not args.no_save:

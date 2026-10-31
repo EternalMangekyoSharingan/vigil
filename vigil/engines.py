@@ -1,8 +1,10 @@
 """Second opinions on a file.
 
-- ClamAV, on this PC: the bytes are streamed to ClamAV on stdin (nothing is written to
-  disk), with archive limits so a bomb cannot hurt it. ClamAV only reads; it never runs
-  the file. Prefers the clamd daemon (signatures already loaded), falls back to clamscan.
+- ClamAV, on this PC: Vigil passes the bytes to ClamAV on stdin and writes nothing
+  itself. ClamAV never runs the file, but it does unpack archives to scan inside them
+  (using temporary files it deletes afterwards), so Vigil never hands it anything it
+  has measured as an archive bomb. Prefers the clamd daemon (signatures already
+  loaded), falls back to clamscan with archive limits.
 - Hash lookups, only when the user presses a button: VirusTotal and MalwareBazaar get the
   file's SHA-256 and nothing else. The file itself never leaves this machine.
 
@@ -41,6 +43,10 @@ def clamav_version(runner=subprocess.run):
         if m:
             return {"engine": m.group(1), "db_version": m.group(2), "db_date": (m.group(3) or "").strip() or None}
     return None
+
+
+def clamav_available(which=shutil.which):
+    return bool(which("clamdscan") or which("clamscan"))
 
 
 def clamav_scan(data, runner=subprocess.run, which=shutil.which):

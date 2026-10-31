@@ -889,3 +889,5 @@ table.conns .sub { color: var(--text-3); font-size: 11.5px; }
 .lk .fgrid.vt .frow { min-height: 38px; }
 .vt-mini { font-size: 11.5px; color: var(--text-2); }
 .vt-mini.danger { color: var(--danger-text); }
+.frow.pending .frow-res { color: var(--text-2); }
+.frow.pending .ico { border-color: var(--line-3); border-top-color: var(--orange); animation: spin .9s linear infinite; }
