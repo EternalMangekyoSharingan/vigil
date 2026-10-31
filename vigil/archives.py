@@ -238,6 +238,45 @@ def local_data_range(blob, offset, csize):
     return start, start + csize
 
 
+HEADER_SEARCH = 65536  # how far before a bad offset to look for the real local header
+
+
+def resolve_local(blob, offset):
+    """The local header an entry really uses, read with its own (Zip64) sizes.
+
+    Crafted archives point their central directory into the middle of other data
+    and lie there about sizes; lenient extractors then fall back to the nearest real
+    header. Returns {header, start, csize, usize, method} or None.
+    """
+    hoff = offset
+    if blob[offset:offset + 4] != b"PK\x03\x04":
+        lo = max(0, offset - HEADER_SEARCH)
+        window = blob[lo:offset + 4]
+        k = window.rfind(b"PK\x03\x04")
+        if k < 0:
+            return None
+        hoff = lo + k
+    hdr = blob[hoff:hoff + 30]
+    if len(hdr) < 30:
+        return None
+    method = struct.unpack_from("<H", hdr, 8)[0]
+    csize, usize = struct.unpack_from("<II", hdr, 18)
+    nlen, xlen = struct.unpack_from("<HH", hdr, 26)
+    extra = blob[hoff + 30 + nlen:hoff + 30 + nlen + xlen]
+    i = 0
+    while i + 4 <= len(extra):
+        hid, hlen = struct.unpack_from("<HH", extra, i)
+        if hid == 1:
+            vals = [struct.unpack_from("<Q", extra, j)[0] for j in range(i + 4, i + 4 + hlen - 7, 8)]
+            if usize == 0xFFFFFFFF and vals:
+                usize = vals.pop(0)
+            if csize == 0xFFFFFFFF and vals:
+                csize = vals.pop(0)
+            break
+        i += 4 + hlen
+    return {"header": hoff, "start": hoff + 30 + nlen + xlen, "csize": csize, "usize": usize, "method": method}
+
+
 def is_archive(head):
     return head.startswith(ARCHIVE_MAGIC)
 
@@ -258,6 +297,7 @@ class Report:
         self.depth = 0
         self.extrapolated = []    # (name, counted, estimate) for streams cut short by a limit
         self.inferred = 0         # members sized from measured siblings, not measured themselves
+        self.misdirected = 0      # entries whose directory offset is not a real file header
 
 
 NESTED = (".zip", ".gz", ".tgz", ".bz2", ".xz", ".jar", ".apk")
@@ -331,19 +371,35 @@ def expand_member(blob, name, method, csize, usize, off, depth, budget, rep, whe
 
     Returns the estimated size of one extraction of this member.
     """
-    rng = local_data_range(blob, off, csize)
-    if rng is None:
+    loc = resolve_local(blob, off)
+    if loc is None:
         return None
-    comp = blob[rng[0]:rng[1]]
-    if len(comp) < min(csize, 1 << 30):
-        return None  # we did not keep these bytes
+    if loc["header"] != off:
+        rep.forged.append(f"{where}{name}: the directory points to byte {off:,}, which is not a file header; "
+                          f"the nearest real header is at byte {loc['header']:,}")
+        rep.misdirected += 1
+    # The local header describes the stream an extractor will really decode; when it
+    # disagrees with the directory, believe whichever is larger and say so.
+    if loc["csize"] not in (0, 0xFFFFFFFF) and loc["csize"] != csize:
+        csize = max(csize, loc["csize"])
+    if loc["usize"] not in (0, 0xFFFFFFFF) and loc["usize"] != usize:
+        rep.lies.append((f"{where}{name} (directory vs. file header)", usize, loc["usize"]))
+        usize = max(usize, loc["usize"])
+    if loc["method"] != method and loc["header"] != off:
+        method = loc["method"]
+    comp = blob[loc["start"]:loc["start"] + csize]
+    if len(comp) < min(csize, 1 << 20):
+        return None  # we did not keep enough of these bytes to say anything
+    partial = len(comp) < csize  # kept only the start: measure it and extrapolate
     try:
         first = stream(comp, method, budget)
     except ValueError:
         rep.unexpanded.append(f"{where}{name}")
         return None
+    if partial and first["complete"]:
+        first["complete"] = False  # the stream goes on past what we kept
     if not first["complete"]:
-        est = extrapolate(first["size"], first["consumed"], len(comp))
+        est = extrapolate(first["size"], first["consumed"], csize)
         rep.unfinished.append((f"{where}{name}", first["size"]))
         if est > first["size"]:
             rep.extrapolated.append((f"{where}{name}", first["size"], est))
@@ -362,10 +418,16 @@ def expand_member(blob, name, method, csize, usize, off, depth, budget, rep, whe
         _groups, sample = plan(inner)
         wanted, captured = [], 0
         for off2, csize2, _m in sample:
-            span = (off2, off2 + 30 + 65536 + csize2)
-            if captured + (span[1] - span[0]) <= CAPTURE_MAX:
-                wanted.append(span)
-                captured += span[1] - span[0]
+            # From a little before the offset (the real header may sit there) to the
+            # end of the data; a huge member is kept only in part, then extrapolated.
+            lo = max(0, off2 - HEADER_SEARCH)
+            room = CAPTURE_MAX - captured
+            if room < 1 << 20:
+                break
+            # Keep at least 4 MB: the directory's compressed size may be a lie too.
+            span = (lo, min(off2 + 30 + 65536 + max(csize2, 4 << 20), lo + room))
+            wanted.append(span)
+            captured += span[1] - span[0]
         pieces = {}
         if wanted and not budget.out():
             pieces = stream(comp, method, budget, capture=tuple(wanted))["kept"]

@@ -303,6 +303,10 @@ It also handles:
 - Siblings that weren't measured: they take the expansion that identical measured
   siblings showed.
 - Directories Python's zip reader refuses: Vigil reads them with its own parser.
+- Decoy directories: an entry pointing into the middle of a header is resolved to the
+  nearest real file header, and that header's own sizes are compared with the
+  directory's. A real sample (`64x4096-Z.zip`, 378 KB) reads as about 281.5 TB in
+  about 1 s.
 
 Tests build bombs of over 1 TB at real scale (300 Zip64 names over one 4 GB deflate
 stream, and the same bomb nested inside another zip) and detect them in about a

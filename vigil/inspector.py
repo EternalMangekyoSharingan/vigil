@@ -722,7 +722,7 @@ def bomb_findings(rep, total, size, report):
                   "one small block of data into many huge files on extraction."))
     for name, declared, actual in rep.lies[:3]:
         out.append(finding("size_lie", 40,
-                           f"{name} claims to be {archives.human(declared)} but produces"
+                           f"{name} claims to be {archives.human(declared).replace('1 bytes', '1 byte')} but produces"
                            f"{' over' if actual > declared else ''} {archives.human(actual)}",
                            "declared size in the zip directory vs. bytes counted while streaming",
                            means="False sizes defeat tools that check the size before extracting."))
@@ -751,7 +751,8 @@ def bomb_findings(rep, total, size, report):
         report["limits"].append(
             f"Expansion was measured by streaming and counting, never stored, and stopped at "
             f"{archives.human(archives.COUNT_LIMIT)} per member or {archives.TIME_LIMIT:.0f} s: "
-            f"the real size is larger than reported.")
+            + ("beyond that, sizes are estimated from the compressed data each stream had used."
+               if rep.extrapolated else "the real size is larger than reported."))
     return out
 
 

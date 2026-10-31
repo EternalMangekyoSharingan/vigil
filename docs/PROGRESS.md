@@ -1044,6 +1044,64 @@ The owner's brief, parts A–F, plus better detection of zip bombs over 1 TB.
   them deprecated). They are runtime-only unless `--permanent` is added, which the
   option says.
 
+## Zip bombs: decoy directories, and a survey of techniques (2026-10-31)
+
+The owner's sample `64x4096-Z.zip` (378 KB, sha256 `003d8875…19df0`) was scored only
+"Suspicious 60". Vigil saw the overlap but estimated nothing. Bytes-only analysis
+shows how it works:
+- It holds one inner zip, `64x4096.zip`, 81 MB once decompressed.
+- That zip's central directory lists 4,096 names. Each points at byte 32, which is
+  the middle of a local header, not a file, and each claims to be 1 byte. The Zip64
+  field is a decoy too.
+- The only real local header, at byte 0, declares a 64 GiB Zip64 member made from
+  80.6 MB of deflate. Counting confirms it passes 4 GiB.
+- Tools that trust the directory see 4 KB. Lenient extractors resolve every name to
+  the real header: 4,096 × 64 GiB = 256 TiB.
+
+**Flaw in Vigil:** it trusted the directory's offset and sizes, never checked that a
+file header sits where the directory points, and fell back to the declared 1 byte.
+
+**Fixes** (`archives.resolve_local`):
+- Each sampled entry's offset must hold a `PK\x03\x04` signature; otherwise Vigil
+  uses the nearest real header before it, as lenient extractors do, and reports
+  "the directory points to byte N, which is not a file header".
+- The local header's own (Zip64) sizes are read and compared with the directory's.
+  The larger counts, and a disagreement is reported as a size lie.
+- Members larger than the 64 MB Vigil keeps are measured from the part kept, then
+  extrapolated using the declared compressed length.
+- At least 4 MB is kept per sampled entry, since the directory's compressed size may
+  also be a lie.
+
+**Result:** Likely malicious (100), **about 281.5 TB** (exactly 4,096 × 64 GiB), in
+1.1 s, without extracting anything. location.zip still reads 8.8 TB. A synthetic copy
+of the technique (512 names over a 2 GB Zip64 member, nested and deflated) is a
+regression test.
+
+### Techniques and coverage
+| Technique | How it works | Vigil |
+| --- | --- | --- |
+| Recursive (42.zip) | zips inside zips, each level multiplying | nested expansion to depth 6; unmeasured identical siblings sized from measured ones |
+| Overlapping entries (Fifield's zbsm/zblg/zbxl) | many names share one deflate kernel | groups by data range, measures once, multiplies |
+| Zip64 overlap (zbxl, 281 TB) | the same, with 64-bit sizes | Zip64 central and local fields parsed, top-level and nested |
+| Size lies | declared size far below the real output | streamed counting, never trusting declared sizes |
+| Forged end record | wrong entry counts or directory size | records found by signature; disagreement reported |
+| Decoy directory (this sample) | directory points into the middle of a header, with false sizes | header signature check, nearest real header, local-vs-central comparison |
+| Directory Python rejects | malformed fields that make parsers throw | Vigil's own record parser as fallback |
+| Single huge stream (gz/bz2/xz) | one stream of zeros | counted to 1 GB, then extrapolated |
+| Zip slip, symlinks | paths escaping the folder, links to system files | flagged per entry |
+| Entry flood | hundreds of thousands of entries | flagged by count |
+
+### Still not covered
+- **Compression methods without a standard-library decoder:** Deflate64 (9), LZMA
+  (14), Zstandard (93), XZ-in-zip (95) and PPMd (98). Vigil flags these by type and
+  declared ratio only, because expanding them needs a new dependency (owner's
+  decision).
+- **Formats Vigil doesn't open:** 7z, RAR, ISO.
+- **Streamed entries.** When the data-descriptor flag is set, the local header holds
+  zeros; Vigil then relies on the directory's sizes and its measurement.
+- **The 12 s time budget.** It ends measurement early on very deep recursive bombs;
+  the remaining branches use sibling inference, and the report says so.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

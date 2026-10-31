@@ -230,5 +230,36 @@ class TerabyteBombTests(unittest.TestCase):
         self.assertGreater(exp["inferred_members"], 0)
 
 
+def decoy_directory_bomb(kernel_mb, names):
+    """SYNTHETIC copy of the '64x4096-Z' technique: one real Zip64 local header (big member),
+    and a central directory whose `names` entries all point into the middle of that header
+    (byte 32), each claiming 1 byte, with junk sizes and a decoy Zip64 field."""
+    kernel = zeros_deflate(kernel_mb)
+    real = kernel_mb * MB
+    extra = struct.pack("<HHQQ", 1, 16, real, len(kernel))
+    lh = struct.pack("<IHHHHHIIIHH", 0x04034B50, 45, 0, 8, 0, 0, 0, 0xFFFFFFFF, 0xFFFFFFFF, 5, len(extra))
+    out = bytearray(lh + b"f_000" + extra + kernel)
+    cd = bytearray()
+    for i in range(names):
+        name = f"f/{i:03x}".encode()
+        dx = struct.pack("<HHQ", 1, 8, 0xFFFFFFFF)
+        cd += struct.pack("<IHHHHHHIIIHHHHHII", 0x02014B50, 45, 45, 0, 8, 0, 0, 0, len(kernel) // 16, 1,
+                          len(name), len(dx), 0, 0, 0, 0, 32) + name + dx
+    eocd = struct.pack("<IHHHHIIH", 0x06054B50, 0, 0, names, names, len(cd), len(out), 0)
+    return bytes(out + cd + eocd)
+
+
+class DecoyDirectoryTests(unittest.TestCase):
+    def test_directory_pointing_into_a_header(self):
+        inner = decoy_directory_bomb(2048, 512)            # 512 names x 2 GB = about 1.1 TB
+        outer = zip_of([("64x4096.zip", inner)])            # nested and deflated, like the real one
+        r, c = ArchiveBombTests.checks(self, outer, "z.zip")
+        self.assertGreater(r["details"]["expansion"]["estimated"], 1e12)
+        self.assertIn("not a file header", c["forged_directory"]["reason"])
+        self.assertIn("directory vs. file header", c["size_lie"]["reason"])
+        self.assertIn("claims to be 1 byte but", c["size_lie"]["reason"])
+        self.assertEqual(r["verdict"], "Likely malicious")
+
+
 if __name__ == "__main__":
     unittest.main()
