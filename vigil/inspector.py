@@ -11,10 +11,12 @@ found. The verdict is never "safe": the best it says is "no suspicious indicator
 found", followed by what this kind of check cannot see.
 """
 
+import bz2
 import hashlib
 import io
 import ipaddress
 import json
+import lzma
 import re
 import struct
 import time
@@ -22,7 +24,7 @@ import urllib.parse
 import zipfile
 import zlib
 
-from . import __version__, ole
+from . import __version__, archives, ole
 from .enrich import FEEDS
 from .scoring import finding
 
@@ -31,6 +33,9 @@ EXPAND_MAX = 64 * 1024 * 1024    # total bytes decompressed per file
 SCAN_MAX = 64 * 1024 * 1024      # bytes searched for strings and IOCs
 IOC_MAX = 300
 SNIPPET = 160
+
+# Expanded sizes that make an archive a bomb (bytes): severe, large, worth a note.
+BOMB_SEVERE, BOMB_LARGE, BOMB_NOTE = 10 * 1000 ** 3, 1000 ** 3, 100 * 1000 ** 2
 
 VERDICTS = ((70, "Likely malicious"), (30, "Suspicious"), (0, "No suspicious indicators found"))
 
@@ -47,7 +52,8 @@ EXT_FAMILY = {
     "png": {"image"}, "jpg": {"image"}, "jpeg": {"image"}, "gif": {"image"},
     "txt": {"text"}, "csv": {"text"}, "log": {"text"}, "md": {"text"},
     "html": {"html", "text"}, "htm": {"html", "text"}, "lnk": {"lnk"}, "iso": {"iso"},
-    "img": {"iso", "binary"}, "gz": {"gzip"}, "tgz": {"gzip"}, "7z": {"7z"}, "rar": {"rar"},
+    "img": {"iso", "binary"}, "gz": {"gzip"}, "tgz": {"gzip"}, "bz2": {"bzip2"}, "xz": {"xz"},
+    "7z": {"7z"}, "rar": {"rar"},
 }
 for _e in ("docx", "docm", "dotx", "dotm", "xlsx", "xlsm", "xltx", "xltm", "xlam", "pptx",
            "pptm", "potx", "potm", "ppsx", "ppsm"):
@@ -60,7 +66,8 @@ TYPE_NAMES = {
     "apk": "Android package", "odf": "OpenDocument file", "rtf": "Rich Text Format",
     "pe": "Windows executable (PE)", "elf": "Linux executable (ELF)",
     "macho": "macOS executable (Mach-O)", "lnk": "Windows shortcut (.lnk)",
-    "iso": "ISO disc image", "gzip": "gzip data", "7z": "7-Zip archive", "rar": "RAR archive",
+    "iso": "ISO disc image", "gzip": "gzip data", "bzip2": "bzip2 data", "xz": "xz data",
+    "7z": "7-Zip archive", "rar": "RAR archive",
     "image": "image", "html": "HTML", "script": "script (#!)", "text": "text",
     "binary": "unrecognised binary data", "empty": "empty file",
 }
@@ -189,7 +196,8 @@ def detect_type(data):
         return "lnk"
     if data[0x8001:0x8006] == b"CD001":
         return "iso"
-    for magic, kind in ((b"\x1f\x8b", "gzip"), (b"7z\xbc\xaf\x27\x1c", "7z"), (b"Rar!\x1a\x07", "rar"),
+    for magic, kind in ((b"\x1f\x8b", "gzip"), (b"BZh", "bzip2"), (b"\xfd7zXZ\x00", "xz"),
+                        (b"7z\xbc\xaf\x27\x1c", "7z"), (b"Rar!\x1a\x07", "rar"),
                         (b"\x89PNG\r\n\x1a\n", "image"), (b"\xff\xd8\xff", "image"),
                         (b"GIF87a", "image"), (b"GIF89a", "image")):
         if data.startswith(magic):
@@ -640,8 +648,112 @@ def _xls_findings(stream, where):
     return findings
 
 
+def bomb_findings(rep, total, size, report):
+    """Findings from archives.check_zip: what extracting this would do."""
+    out = []
+    lower = " at least" if rep.unfinished else ""
+    exp = archives.human(total)
+    report["details"]["expansion"] = {
+        "file_size": size, "estimated": total, "lower_bound": bool(rep.unfinished),
+        "ratio": round(total / max(size, 1)), "depth": rep.depth, "entries": rep.entries,
+        "shared": [{"name": n, "entries": k, "each": e} for n, k, e in rep.shared[:5]],
+        "max_member_ratio": round(rep.max_ratio, 1)}
+    if total >= BOMB_SEVERE or (rep.unfinished and total >= BOMB_LARGE):
+        out.append(finding(
+            "decompression_bomb", 90,
+            f"Decompression bomb: this {archives.human(size)} file would expand to{lower} {exp} "
+            f"({total / max(size, 1):,.0f} times its size)",
+            "measured by expanding the archive as a stream and counting, never keeping the output",
+            means="Extracting it (double-clicking it, letting a file manager preview it, or an "
+                  "antivirus unpacking it) would fill your disk or memory until the program, or "
+                  "the whole desktop, freezes or crashes. Do not extract it; delete it."))
+    elif total >= BOMB_LARGE:
+        out.append(finding("decompression_bomb", 50, f"Would expand to {exp} when extracted "
+                           f"({total / max(size, 1):,.0f} times its size)", "streamed expansion",
+                           means="Extracting it needs that much free disk space and time; far more "
+                                 "than anything this size normally holds."))
+    elif total >= BOMB_NOTE and total / max(size, 1) > 100:
+        out.append(finding("decompression_bomb", 20, f"Expands {total / max(size, 1):,.0f}-fold "
+                           f"(to {exp})", "streamed expansion",
+                           means="Unusually compressible content; check what it is before extracting."))
+    if rep.overlaps:
+        names = rep.shared[0][1] if rep.shared else rep.overlaps + 1
+        out.append(finding(
+            "overlapping_entries", 60,
+            f"{names} file names point at the same compressed data (overlapping entries)",
+            f"zip directory: {rep.overlaps} entries start inside or at another entry's data",
+            means="No archiving tool produces this. It is how 'non-recursive' zip bombs multiply "
+                  "one small block of data into many huge files on extraction."))
+    for name, declared, actual in rep.lies[:3]:
+        out.append(finding("size_lie", 40,
+                           f"{name} claims to be {archives.human(declared)} but produces"
+                           f"{' over' if actual > declared else ''} {archives.human(actual)}",
+                           "declared size in the zip directory vs. bytes counted while streaming",
+                           means="False sizes defeat tools that check the size before extracting."))
+    if rep.forged:
+        out.append(finding("forged_directory", 30, "The archive's directory has been falsified: "
+                           + rep.forged[0], "zip end-of-directory record vs. the records found",
+                           means="Done deliberately, to make tools miscount or skip what is inside."))
+    if rep.max_ratio > archives.MAX_DEFLATE_RATIO:
+        out.append(finding("impossible_ratio", 40, f"A member claims a {rep.max_ratio:,.0f}:1 "
+                           f"compression ratio, beyond what deflate can reach (~1,032:1)",
+                           "zip directory sizes", means="Either the sizes are forged or the data "
+                           "is built to explode when extracted."))
+    if rep.slip:
+        out.append(finding("path_traversal", 50, f"{len(rep.slip)} member name(s) would be written "
+                           f"outside the folder you extract into: {rep.slip[0]}", "member names",
+                           means="'Zip slip': extracting could overwrite files elsewhere, for "
+                                 "example your shell startup files, to run code later."))
+    if rep.symlinks:
+        out.append(finding("symlink_member", 25, f"Contains symbolic links: {rep.symlinks[0]}",
+                           "member file modes", means="A link can make a later member land "
+                           "somewhere else on your system when extracted."))
+    if rep.entries > 10000:
+        out.append(finding("entry_flood", 25, f"{rep.entries:,} entries", "zip directory",
+                           means="Huge entry counts exhaust tools that list or extract archives."))
+    if rep.unfinished:
+        report["limits"].append(
+            f"Expansion was measured by streaming and counting, never stored, and stopped at "
+            f"{archives.human(archives.COUNT_LIMIT)} per member or {archives.TIME_LIMIT:.0f} s: "
+            f"the real size is larger than reported.")
+    return out
+
+
+def analyze_stream(data, name, family, report, iocs, budget, depth):
+    """gzip, bzip2 or xz: measure the expansion, then inspect the content if it is sane."""
+    size, complete = archives.check_stream(data, family)
+    rep = archives.Report()
+    if size > archives.COUNT_LIMIT or (not complete and size > MEMBER_MAX):
+        rep.unfinished.append((name, size))
+    findings = bomb_findings(rep, size, len(data), report)
+    if findings or not complete or size > MEMBER_MAX or depth >= 2:
+        if not findings:
+            report["limits"].append(f"The {TYPE_NAMES[family]} content was measured "
+                                    f"({archives.human(size)}) but not inspected.")
+        return findings
+    d = {"gzip": lambda: zlib.decompressobj(31), "bzip2": bz2.BZ2Decompressor,
+         "xz": lzma.LZMADecompressor}[family]()
+    inner = d.decompress(data, MEMBER_MAX)
+    inner_name = name.rsplit(".", 1)[0] if "." in name else f"{name}.out"
+    sub = inspect_bytes(inner, inner_name, depth=depth + 1, budget=budget)
+    report["details"].setdefault("nested", []).append(
+        {"name": inner_name, "verdict": sub["verdict"], "score": sub["score"], "type": sub["type"]["detected"]})
+    for f in sub["findings"]:
+        f["reason"] = f"Inside ({inner_name}): {f['reason']}"
+        findings.append(f)
+    for item in sub["iocs"]:
+        iocs.add(item["type"], item["value"], f"in {inner_name}: {item['where']}")
+    return findings
+
+
 def analyze_zip(data, name, family, report, iocs, budget, depth):
     findings = []
+    checked = archives.check_zip(data) if depth == 0 else None
+    bomb = False
+    if checked:
+        findings += bomb_findings(*checked, len(data), report)
+        bomb = any(f["check"] in ("decompression_bomb", "overlapping_entries") and f["points"] >= 50
+                   for f in findings)
     try:
         zf = zipfile.ZipFile(io.BytesIO(data))
         infos = zf.infolist()
@@ -679,6 +791,10 @@ def analyze_zip(data, name, family, report, iocs, budget, depth):
                 f"{MEMBER_MAX // 2**20} MB each, or {EXPAND_MAX // 2**20} MB in total) and were not "
                 f"inspected: {', '.join(skipped[:5])}.")
 
+    if bomb:  # never unpack a bomb's members, not even into memory
+        report["limits"].append("Members were not unpacked for inspection because the archive is "
+                                "built to explode when extracted.")
+        return findings
     if family != "ooxml":
         # Each member is inspected in full when it can be read; otherwise its name alone.
         for info in infos:
@@ -876,6 +992,8 @@ def inspect_bytes(data, name, depth=0, budget=None):
             findings += analyze_pdf(data, name, report, iocs, budget)
         elif family in ("zip", "ooxml", "jar", "apk", "odf"):
             findings += analyze_zip(data, name, family, report, iocs, budget, depth)
+        elif family in ("gzip", "bzip2", "xz"):
+            findings += analyze_stream(data, name, family, report, iocs, budget, depth)
         elif family == "ole2":
             fs, _ = _ole_findings(data, "compound file", report, iocs, budget)
             findings += fs
@@ -897,7 +1015,7 @@ def inspect_bytes(data, name, depth=0, budget=None):
     except Exception as exc:  # a parser bug must never take the inspector down
         report["limits"].append(f"Analysis stopped early ({type(exc).__name__}: {exc}); findings "
                                 f"before that point are kept.")
-    if family in ("binary", "gzip", "7z", "rar", "iso"):
+    if family in ("binary", "7z", "rar", "iso"):
         report["limits"].append(f"{TYPE_NAMES[family].capitalize()} is not unpacked or parsed; only "
                                 f"identity, name and string checks ran.")
     if budget.exhausted:

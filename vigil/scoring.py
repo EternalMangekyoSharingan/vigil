@@ -79,8 +79,12 @@ def alert_fingerprint(pair):
     return f"{pair['program']}|{pair['ip']}|{pair['direction']}"
 
 
-def finding(check, points, reason, data):
-    return {"check": check, "points": round(points, 1), "reason": reason, "data": data}
+def finding(check, points, reason, data, means=None):
+    """One explained finding. `means` says, in plain words, what it would do to you."""
+    f = {"check": check, "points": round(points, 1), "reason": reason, "data": data}
+    if means:
+        f["means"] = means
+    return f
 
 
 def clamp(x, lo=0.0, hi=1.0):
