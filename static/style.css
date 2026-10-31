@@ -245,15 +245,12 @@ input[type=checkbox] { accent-color: var(--orange); }
 .view-switch { display: inline-flex; }
 
 .workspace { flex: 1; min-height: 0; display: flex; }
-/* The Network Map keeps a background: a faint hexagon grid with a slow constellation over it. */
-.graph-area {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  background-color: var(--bg-0);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='48.5'%3E%3Cpolygon points='41.9,32 28,40 14.1,32 14.1,16 28,8 41.9,16' fill='none' stroke='%23b290a1' stroke-opacity='.07'/%3E%3C/svg%3E");
-}
+/* Network Map backgrounds (the theme picker): Grid = hexagons with a few other shapes,
+   Night = a drifting starfield on the canvas, Plain = nothing. */
+.graph-area { position: relative; flex: 1; min-width: 0; display: flex; background-color: var(--bg-0); }
+.graph-area.theme-grid { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='112' height='97'%3E%3Cg fill='none' stroke='%23b290a1' stroke-opacity='.075'%3E%3Cpolygon points='41.9,32.0 28.0,40.0 14.1,32.0 14.1,16.0 28.0,8.0 41.9,16.0'/%3E%3Cpolygon points='97.9,32.0 84.0,40.0 70.1,32.0 70.1,16.0 84.0,8.0 97.9,16.0'/%3E%3Cpolygon points='13.9,80.5 0.0,88.5 -13.9,80.5 -13.9,64.5 -0.0,56.5 13.9,64.5'/%3E%3Cpolygon points='69.9,80.5 56.0,88.5 42.1,80.5 42.1,64.5 56.0,56.5 69.9,64.5'/%3E%3Cpolygon points='125.9,80.5 112.0,88.5 98.1,80.5 98.1,64.5 112.0,56.5 125.9,64.5'/%3E%3C/g%3E%3Cg fill='none' stroke='%235dbdb9' stroke-opacity='.11'%3E%3Cpolygon points='56,4 60,11 52,11'/%3E%3Ccircle cx='84' cy='72' r='3.5'/%3E%3Cpath d='M24 56v6M21 59h6'/%3E%3Cpolygon points='108,40 111,44 108,48 105,44'/%3E%3Ccircle cx='28' cy='88' r='1.2' fill='%23b290a1' fill-opacity='.18'/%3E%3C/g%3E%3C/svg%3E"); }
+.graph-area.theme-night { background-color: #0c0a12; }
+.graph-area:not(.theme-night) .netfx { display: none; }
 .netfx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .graph-wrap { position: relative; flex: 1; min-width: 0; overflow: auto; }
 .panel {
@@ -891,3 +888,27 @@ table.conns .sub { color: var(--text-3); font-size: 11.5px; }
 .vt-mini.danger { color: var(--danger-text); }
 .frow.pending .frow-res { color: var(--text-2); }
 .frow.pending .ico { border-color: var(--line-3); border-top-color: var(--orange); animation: spin .9s linear infinite; }
+
+/* identify: host labels, security chips, badges, tab lists */
+#graph .n-kind.n-host { fill: var(--sky); letter-spacing: .02em; text-transform: none; font-weight: 600; font-size: 10.5px; }
+#graph .chip.sec-good rect { stroke: rgba(93, 211, 158, .4); fill: rgba(93, 211, 158, .08); }
+#graph .chip.sec-good text { fill: var(--ok); }
+#graph .chip.sec-info rect { stroke: var(--line-2); }
+#graph .chip.sec-warn rect { stroke: rgba(245, 196, 81, .45); fill: var(--warn-soft); }
+#graph .chip.sec-warn text { fill: var(--warn); }
+#graph .chip.sec-bad rect { stroke: rgba(255, 93, 115, .5); fill: var(--danger-soft); }
+#graph .chip.sec-bad text { fill: var(--danger-text); }
+#graph .chip.tab rect { stroke: rgba(89, 189, 223, .35); fill: rgba(89, 189, 223, .07); }
+#graph .chip.tab text { fill: var(--sky); }
+.crumbs .where { display: grid; gap: 2px; margin-top: 4px; color: var(--text-2); font-size: 12px; overflow-wrap: anywhere; }
+.crumbs .where .mono { color: var(--sky); }
+.badges { display: grid; gap: 0; }
+.badge-row { display: grid; grid-template-columns: 150px 1fr; gap: 10px; align-items: start; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.sbadge { justify-self: start; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 5px; font-weight: 600; font-size: 11.5px; white-space: nowrap; background: var(--bg-3); color: var(--text-2); }
+.sbadge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.sbadge.good { color: var(--ok); background: rgba(93, 211, 158, .1); }
+.sbadge.warn { color: var(--warn); background: var(--warn-soft); }
+.sbadge.bad { color: var(--danger-text); background: var(--danger-soft); }
+ul.tablist { list-style: none; margin: 6px 0; padding: 0; }
+ul.tablist li { display: grid; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+ul.tablist .tab-title { color: var(--text); overflow-wrap: anywhere; }

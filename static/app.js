@@ -37,7 +37,8 @@ function showTab(name) {
 }
 for (const b of nav.querySelectorAll("button")) b.addEventListener("click", () => showTab(b.dataset.tab));
 const netfx = document.getElementById("netfx");
-constellation(netfx, () => active === "network");
+constellation(netfx, () => active === "network" && views.network.theme === "night");
+views.network.onTheme = () => netfx.restart?.();
 window.addEventListener("resize", () => moveIndicator(nav));
 document.fonts?.ready.then(() => moveIndicator(nav));
 

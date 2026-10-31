@@ -83,9 +83,43 @@ JetBrains Mono (OFL, 40 KB).
   with the real time between their starts (`470 ms`, `3 min 12.4 s`).
 - **Motion, kept functional.** Nodes move between layouts instead of jumping, edges
   draw in, and small particles flow along connections that are open right now, in the
-  direction of the traffic. The map sits on a faint hexagon grid with a slow
-  constellation drifting behind it (one canvas, ~30 fps, paused whenever the map is
-  not on screen). With the system's "reduce motion"
+  direction of the traffic.
+- **Themes** (the Theme menu on the map): **Grid** (hexagons with a few other shapes),
+  **Night** (a drifting, twinkling starfield of dots, sparkles, rings, crosses and
+  diamonds with constellation lines; one canvas, ~30 fps, stopped when not visible) and
+  **Plain**. The choice is remembered in this browser.
+- **Which site is this?** Press **Identify** (toolbar, or right-click an address). Vigil:
+  1. reads your open browser tabs from the browser's session file on this PC
+     (LibreWolf, Firefox, Floorp, Waterfox, Zen; for Chromium, Chrome, Brave, Vivaldi
+     and Edge, the last two hours of history). It keeps host names and titles, never
+     full URLs;
+  2. looks up those host names with your normal DNS resolver (the same lookups the
+     browser already made) to see which addresses they point to;
+  3. opens one TLS handshake to each HTTPS address on the map, sending no web request,
+     to read its certificate. Addresses on a threat feed are never contacted.
+
+  Destinations then show their host name above the address, a `tab: …` chip (for
+  example `tab: VirusTotal - File - …` on the address LibreWolf is using for it) and a
+  security chip. A browser's panel gets an **Open tabs** list with the addresses each
+  tab uses.
+- **Connection security** (a destination's Security tab). Every connection gets badges
+  from its port alone, with no network: HTTPS, QUIC (HTTP/3), plain HTTP, plain DNS,
+  DNS over TLS/QUIC, SSH, plaintext FTP/Telnet/POP3/IMAP/IRC, mail over TLS,
+  WireGuard/OpenVPN, NTS, STUN/WebRTC, SMB/RDP exposure. After Identify, the TLS
+  handshake adds:
+  - **Protocol and cipher**: TLS version (1.3/1.2 good, older flagged), cipher
+    strength (AEAD or not) and forward secrecy.
+  - **Certificate trust**: whether the chain is trusted by your system's CAs for that
+    host name, with the exact reason when not (self-signed, expired, wrong name…),
+    expiry countdown, not-yet-valid, name mismatch.
+  - **Certificate details**: validation level (DV/OV/EV, with the organisation), key
+    type and size (RSA under 2048 flagged), weak SHA-1/MD5 signatures, Certificate
+    Transparency proof, OCSP must-staple, HTTP/2 via ALPN.
+  - **HSTS**: whether your browser has recorded the site as HTTPS-only (read from its
+    own records).
+
+  Each badge says what it means, and the certificate (issuer, validity, key,
+  signature, names) is listed below. With the system's "reduce motion"
   setting it all stays still.
 - **Direction.** A connection accepted on one of your listening ports is shown as
   inbound (`in 22`), keyed by the service port, not the client's random port.
@@ -350,9 +384,12 @@ not visible. Missing `/proc/net/tcp6` (IPv6 disabled) is reported, not an error.
   them. Pages are served with a strict Content-Security-Policy.
 - Monitoring is read-only: Vigil only reads `/proc`. It changes no firewall, route, DNS
   or kernel setting and never signals processes.
-- No network calls, except the ones you trigger: feed and database downloads, and the
+- No network calls, except the ones you trigger: feed and database downloads, the
   hash-lookup buttons on a file report (which send the file's SHA-256 and your API
-  key, never the file). Nothing about your traffic leaves the machine. A test checks
+  key, never the file), and **Identify** (DNS lookups of your open tabs' host names
+  and one TLS handshake per HTTPS address, never to a listed address). A test checks
+  that raw connections exist only in `identify.py`, and another renders the map and
+  every destination with Identify's network functions patched to fail. Nothing about your traffic leaves the machine. A test checks
   that `urlopen` appears in exactly one function, another runs a full poll, score and
   lookup with networking patched to fail, and another checks that an upload makes no
   request.
@@ -389,6 +426,7 @@ vigil/enrich.py      threat feeds and country/ASN database (download on request)
 vigil/inspector.py   File Inspector: static triage, verdict, indicators
 vigil/archives.py    archive-bomb measurement: streamed decompression, nothing extracted
 vigil/engines.py     second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups
+vigil/identify.py    browser tabs, host names, TLS handshake, certificate parsing, security badges
 vigil/knowledge.py   offline notes on programs and ports; package ownership; plain-language summaries
 vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
 vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown

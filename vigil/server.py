@@ -1,6 +1,7 @@
 """Local web UI and JSON API, plus the background poller. Listens on 127.0.0.1 only."""
 
 import ipaddress
+import concurrent.futures
 import json
 import os
 import re
@@ -12,7 +13,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import engines, cases, collector, enrich, inspector, knowledge, scoring
+from . import engines, identify, cases, collector, enrich, inspector, knowledge, scoring
 from .store import Store, Tracker
 
 HOST = "127.0.0.1"
@@ -136,14 +137,98 @@ class App:
         for p in g["programs"]:
             k = knowledge.lookup_program(p["info"].get("exe"), p["name"], p["key"])
             p["title"] = k["title"] if k else None
+        ids = self.identities([d["ip"] for d in g["destinations"]])
         for d in g["destinations"]:
             d["label"] = self.enricher.label(d["ip"])
             d["intel"] = sorted({h["feed"] for h in self.enricher.intel(d["ip"])})
+            d["transport"] = _transports(d.get("ports") or [])
+            i = ids.get(d["ip"])
+            if i:  # from the last "Identify": best host name, a tab, the TLS summary
+                d["host"] = (i["hosts"] or [None])[0]
+                d["tab"] = (i["tabs"] or [{}])[0].get("title")
+                d["security"] = {"level": i["level"], "label": i["badges"][0]["label"] if i["badges"] else None}
         return g
+
+    def identities(self, ips):
+        if not ips:
+            return {}
+        rows = self.store.query(f"SELECT ip, data FROM identities WHERE ip IN ({','.join('?' * len(ips))})", tuple(ips))
+        return {r["ip"]: json.loads(r["data"]) for r in rows}
+
+    def api_tabs(self, q):
+        """Open browser tabs (local session files; no network). Host and title only."""
+        return {"tabs": identify.open_tabs()}
+
+    def api_identify(self, q, body, headers):
+        """Who is behind each address, and how secure the connection is. Network: only because
+        the user pressed Identify. Looks up the host names of open tabs with the system
+        resolver, then makes one TLS handshake per HTTPS destination to read its certificate.
+        Never contacts an address a threat feed lists."""
+        req = _json_body(body)
+        scopes = [x for x in (req.get("scopes") or ["internet"]) if x in ("internet", "reserved")]
+        g = self.tracker.graph(window=int(req.get("window") or 900), scopes=scopes)
+        dests = {d["ip"]: d for d in g["destinations"]}
+        wanted = [ip for ip in (req.get("ips") or list(dests)) if ip in dests][:60]
+        tabs = identify.open_tabs()
+        resolved = identify.resolve({t["host"] for t in tabs})
+        by_ip = {}
+        for host, ips in resolved.items():
+            for ip in ips:
+                by_ip.setdefault(ip, set()).add(host)
+        hsts = identify.hsts_hosts()
+        skipped = [ip for ip in wanted if self.enricher.intel(ip)]
+        targets = [ip for ip in wanted if ip not in skipped and "tcp/443" in (dests[ip].get("ports") or [])]
+
+        def probe(ip):
+            sni = sorted(by_ip.get(ip, []), key=len)[0] if by_ip.get(ip) else None
+            return ip, identify.tls_probe(ip, 443, sni=sni)
+        probes = {}
+        with concurrent.futures.ThreadPoolExecutor(8) as ex:
+            for ip, t in ex.map(probe, targets):
+                probes[ip] = t
+        now = time.time()
+        out = []
+        for ip in wanted:
+            if ip in skipped:
+                continue
+            t = probes.get(ip)
+            dns_hosts = sorted(by_ip.get(ip, []))
+            san = ((t or {}).get("cert") or {}).get("san") or []
+            hosts = dns_hosts + [h for h in san if h not in dns_hosts]
+            matched = []
+            for tab in tabs:
+                via = "dns" if tab["host"] in by_ip.get(ip, ()) else \
+                    "certificate" if any(identify.name_matches(tab["host"], p) for p in san) else None
+                if via:
+                    matched.append(dict(tab, via=via))
+            matched.sort(key=lambda x: (x["via"] != "dns", x["kind"] != "tab", -(x["last_accessed"] or 0)))
+            is_hsts = any(h in hsts or any(h.endswith("." + x) for x in hsts) for h in dns_hosts + [m["host"] for m in matched])
+            badges = identify.tls_badges(t, hsts=is_hsts) if t else []
+            data = {"ip": ip, "hosts": hosts, "dns_hosts": dns_hosts, "tabs": matched[:20], "tls": t,
+                    "badges": badges, "level": identify.summary_level(badges) if badges else None,
+                    "checked_at": now}
+            with self.store.lock, self.store.db:
+                self.store.db.execute("INSERT OR REPLACE INTO identities(ip, data, checked_at) VALUES(?,?,?)",
+                                      (ip, json.dumps(data), now))
+            out.append(data)
+        return {"identified": len(out), "probed": len(probes), "tabs": len(tabs),
+                "skipped_listed": skipped, "results": out}
 
     def api_program(self, q):
         d = self.tracker.program_detail(q.get("key", "")) or _not_found()
         d["about"] = knowledge.about_program(d, self.enricher)
+        exe = ((d.get("info") or {}).get("exe") or d["name"]).lower()
+        browsers = {b.lower() for b, _ in identify.FIREFOX_FAMILY} | {b.lower() for b, _ in identify.CHROMIUM_FAMILY}
+        if any(b in exe for b in browsers | {"chrome", "brave", "firefox"}):  # a browser: list its tabs (local)
+            tabs = [t for t in identify.open_tabs() if t["browser"].lower() in exe
+                    or (t["browser"] == "Chrome" and "chrome" in exe)]
+            ids = self.store.query("SELECT ip, data FROM identities")
+            where = {}
+            for r in ids:
+                i = json.loads(r["data"])
+                for t in i["tabs"]:
+                    where.setdefault(t["host"], set()).add(r["ip"])
+            d["tabs"] = [dict(t, ips=sorted(where.get(t["host"], ()))) for t in tabs]
         for c in d.get("connections") or []:
             pi = knowledge.port_info(c["proto"], c["remote_port"] if c["direction"] == "out" else c["local_port"])
             c["port_name"] = pi["service"] if pi else None
@@ -183,6 +268,8 @@ class App:
         d = self.tracker.destination_detail(q.get("ip", "")) or _not_found()
         d["enrichment"] = self.enricher.describe(d["ip"])
         d["about"] = knowledge.about_destination(d, self.enricher)
+        d["transport"] = _transports(sorted({f"{p['proto']}/{p['port']}" for p in d.get("pairs") or []}))
+        d["identity"] = self.identities([d["ip"]]).get(d["ip"])
         return d
 
     def api_intel_status(self, q):
@@ -420,6 +507,8 @@ class App:
             ("GET", "/api/program"): self.api_program,
             ("POST", "/api/program/inspect"): self.api_program_inspect,
             ("GET", "/api/destination"): self.api_destination,
+            ("GET", "/api/tabs"): self.api_tabs,
+            ("POST", "/api/identify"): self.api_identify,
             ("GET", "/api/listeners"): self.api_listeners,
             ("GET", "/api/alerts"): self.api_alerts,
             ("POST", "/api/alerts/update"): self.api_alert_update,
@@ -448,6 +537,17 @@ class App:
             ("POST", "/api/case/ioc/exclude"): self.api_case_ioc_exclude,
             ("GET", "/api/case/export"): self.api_case_export,
         }
+
+
+def _transports(ports):
+    """Passive security badges from ports alone ("tcp/443" -> HTTPS)."""
+    out = []
+    for p in ports:
+        proto, _, num = p.split(" ")[0].partition("/")
+        t = identify.transport(proto, int(num)) if num.isdigit() else None
+        if t and t not in out:
+            out.append(dict(t, port=p))
+    return out
 
 
 class NotFound(Exception):

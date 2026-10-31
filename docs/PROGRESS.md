@@ -805,6 +805,78 @@ ClamAV; the docs now say so.
   returns "pending" before a (deliberately blocked) scan finishes, and the saved
   report has the result afterwards. 159 tests pass on 3.13 and 3.11.
 
+## Themes, globes, "which tab is this address", connection security (2026-10-31)
+
+At the owner's request.
+
+### What was built
+- **Themes** for the Network Map: Grid (hexagons plus triangles, rings, crosses and
+  diamonds in the tile), Night (the starfield moved here, now with sparkles, rings,
+  crosses, diamonds and a twinkle; paused unless Night is on and the map is visible)
+  and Plain. Saved per browser in localStorage.
+- **Globes**: a proper wireframe with four meridians, four parallels, an equator and a
+  prime meridian.
+- **`vigil/identify.py`**:
+  - A pure-Python LZ4 block decoder for Firefox's `recovery.jsonlz4`, giving the open
+    tabs of LibreWolf, Firefox, Floorp, Waterfox and Zen, including Flatpak and Snap
+    paths.
+  - Chromium-family history, read through SQLite's `immutable=1`, so it never locks or
+    writes the browser's database.
+  - HSTS hosts from `SiteSecurityServiceState.txt`.
+  - A port-based transport table.
+  - `resolve` (system resolver, threaded, with a timeout).
+  - `tls_probe`: one handshake that accepts any certificate, to read it, then one that
+    verifies chain and name.
+  - A minimal X.509 DER parser: subject, issuer, validity, key type and size or curve,
+    signature algorithm, SANs, policies (DV/OV/EV), SCT, must-staple, CA.
+  - `tls_badges` with a level and a reason for each badge.
+- **Server**:
+  - `POST /api/identify` (network, button only; listed addresses skipped; at most 60
+    addresses, 8 handshakes in parallel).
+  - `GET /api/tabs`.
+  - An `identities` table.
+  - The graph and destination details carry host, tab, security summary and transport
+    badges. Browser programs list their tabs with matched addresses.
+- **UI**:
+  - An Identify button and a "Identify: tab, certificate, TLS" right-click entry.
+  - On the map, the host name above a destination's address, plus `tab:` and security
+    chips.
+  - Under a destination's name, a "Where is this?" line.
+  - A Security tab (badges with explanations, certificate details) and an Open tabs
+    tab for browsers.
+
+### Verification
+- 172 tests pass on Python 3.13 and 3.11.
+- New tests:
+  - LZ4 (literals, overlapping matches, corrupt offsets).
+  - A synthetic LibreWolf profile: tab host and title only, query strings never kept.
+  - Synthetic Chromium history (only the last two hours).
+  - HSTS parsing.
+  - A real TLS 1.3 handshake on 127.0.0.1 against a synthetic self-signed certificate
+    (tests/fixtures/tls).
+  - The parser over every system CA certificate.
+  - Badge rules for old TLS, weak cipher, expired certificates, RSA 1024, SHA-1, name
+    mismatch, EV, CT and HSTS.
+  - Wildcard matching.
+  - The endpoint with mocks: tab matched by DNS, a listed address never probed.
+  - A guard that raw connections exist only in identify.py.
+  - Graph and details make no network calls.
+- A real Identify ran in the container: two TLS 1.3 handshakes, chains verified,
+  badges shown. The certificates seen were the cloud sandbox's intercepting proxy's
+  (`default.domain`), not the real sites': on the owner's PC the real certificates
+  will appear.
+
+### Known limitations
+- A shared CDN address can serve many sites, so a certificate-name match can point to
+  several tabs. Matches say whether they came from DNS or from the certificate.
+- Some servers only answer TLS when they know the site name (SNI). Without a matching
+  tab, Vigil handshakes without a name and may get a default certificate or a refusal,
+  which is reported as such.
+- Newer Firefox versions may keep HSTS state in a binary file; then the HSTS badge is
+  simply absent.
+- Chromium's open tabs are not read (its session format is undocumented); recent
+  history is used instead.
+
 ## Where the build stops
 
 Steps 1–5 are done. **Step 6 (detonation VM) was not started**, as CLAUDE.md asks: it

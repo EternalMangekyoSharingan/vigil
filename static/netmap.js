@@ -101,12 +101,17 @@ function cube(s, hidden, dim) {
 
 function globe(r, scope) {
   const grad = { internet: "globeNet", lan: "globeLan", loopback: "globeLoop" }[scope] || "globeOther";
-  return svg("g", { class: "shape" },
-    svg("circle", { r, fill: FILL[grad] }),
-    svg("ellipse", { rx: r * 0.42, ry: r, fill: "none", stroke: "rgba(255,255,255,.22)" }),
-    svg("ellipse", { rx: r, ry: r * 0.36, fill: "none", stroke: "rgba(255,255,255,.14)" }),
-    svg("line", { x1: -r, x2: r, y1: 0, y2: 0, stroke: "rgba(255,255,255,.18)" }),
-    svg("circle", { r, fill: "none", stroke: "rgba(255,255,255,.3)", "stroke-width": 1 }));
+  const line = (o) => ({ fill: "none", stroke: `rgba(255,255,255,${o})`, "stroke-width": 0.8 });
+  const g = svg("g", { class: "shape" }, svg("circle", { r, fill: FILL[grad] }));
+  for (const k of [0.92, 0.7, 0.42, 0.14]) g.append(svg("ellipse", { rx: r * k, ry: r, ...line(0.16 + (1 - k) * 0.12) }));  // meridians
+  for (const lat of [-0.72, -0.4, 0.4, 0.72]) {  // parallels: chords at fixed latitudes, bowed for depth
+    const y = r * lat, w = Math.sqrt(r * r - y * y);
+    g.append(svg("path", { d: `M${-w},${y} Q0,${y + r * 0.16} ${w},${y}`, ...line(0.16) }));
+  }
+  g.append(svg("path", { d: `M${-r},0 Q0,${r * 0.2} ${r},0`, ...line(0.3) }));  // equator
+  g.append(svg("line", { x1: 0, x2: 0, y1: -r, y2: r, ...line(0.3) }));          // prime meridian
+  g.append(svg("circle", { r, fill: "none", stroke: "rgba(255,255,255,.34)", "stroke-width": 1 }));
+  return g;
 }
 
 function hexagon(r) {
@@ -163,6 +168,25 @@ export class NetworkMap {
     this.svgEl.append(this.bg, this.gTitles, this.gEdges, this.gLabels, this.gNodes);
 
     this.windowSel.addEventListener("change", () => this.refresh());
+    const idBtn = root.querySelector("#identify");
+    idBtn.addEventListener("click", () => this.identify(null, idBtn));
+    // Background theme for the map (a per-viewer preference, so localStorage is fine).
+    const themeSel = root.querySelector("#theme");
+    const area = root.querySelector("#graph-area");
+    const applyTheme = (t) => {
+      area.classList.remove("theme-grid", "theme-night", "theme-plain");
+      area.classList.add(`theme-${t}`);
+      this.theme = t;
+      this.onTheme?.(t);
+    };
+    let saved = "grid";
+    try { saved = localStorage.getItem("vigil.theme") || "grid"; } catch { /* storage unavailable */ }
+    themeSel.value = ["grid", "night", "plain"].includes(saved) ? saved : "grid";
+    applyTheme(themeSel.value);
+    themeSel.addEventListener("change", () => {
+      applyTheme(themeSel.value);
+      try { localStorage.setItem("vigil.theme", themeSel.value); } catch { /* storage unavailable */ }
+    });
     root.querySelector("#scopes").addEventListener("change", () => this.refresh());
     this.filterInput.addEventListener("input", () => this.render());
     for (const b of this.modeButtons) b.addEventListener("click", () => this.setMode(b.dataset.mode));
@@ -582,7 +606,7 @@ export class NetworkMap {
     const now = this.data.now;
     const baseline = this.baseline() ?? Infinity;
     const chips = [];
-    let kind, title, pill, shape, tooltip, alerting = false;
+    let kind, title, pill, shape, tooltip, alerting = false, kindClass = "";
     if (n.type === "program") {
       alerting = (d.score || 0) >= thr;
       const live = d.live > 0;
@@ -617,17 +641,21 @@ export class NetworkMap {
       alerting = (d.score || 0) >= thr || listed;
       kind = DEST_KIND[d.scope] || "DESTINATION";
       if (alerting) kind = `${listed ? "LISTED" : "ALERT"} · ${kind}`;
+      else if (d.host) { kind = d.host.replace(/^\*\./, ""); kindClass = "n-host"; }
       title = d.ip;
       pill = listed ? "pillDanger" : "pillSky";
       shape = globe(20, d.scope);
       if ((d.score || 0) >= CHIP_MIN_SCORE) chips.push(scoreChip(d.score, thr));
       if (listed) chips.push({ text: "listed", cls: "danger", title: `On threat feed: ${d.intel.join(", ")}` });
       if (d.live) chips.push({ text: `${d.live} live`, cls: "live" });
+      const sec = d.security?.label ? { label: d.security.label, level: d.security.level } : d.transport?.[0];
+      if (sec) chips.push({ text: sec.label, cls: `sec-${sec.level}`, title: sec.why || "From Identify: see the Security tab" });
+      if (d.tab) chips.push({ text: `tab: ${d.tab.length > 22 ? d.tab.slice(0, 21) + "…" : d.tab}`, cls: "tab", title: d.tab });
       if (d.ports?.length) chips.push({ text: d.ports.slice(0, 2).join(" ") + (d.ports.length > 2 ? ` +${d.ports.length - 2}` : "") });
       if (d.programs > 1) chips.push({ text: `${d.programs} prog` });
       if (d.label) chips.push({ text: d.label.length > 30 ? d.label.slice(0, 29) + "…" : d.label });
       if (d.first_seen > baseline && now - d.first_seen < 86400) chips.push({ text: "new", cls: "new" });
-      tooltip = `${d.ip} · ${d.label || SCOPE_TEXT[d.scope] || ""}\nports ${(d.ports || []).join(", ")}\nfirst seen ${fmtClock(d.first_seen)}\nRight-click for more`;
+      tooltip = `${d.ip}${d.host ? ` · ${d.host}` : ""} · ${d.label || SCOPE_TEXT[d.scope] || ""}${d.tab ? `\nBrowser tab: ${d.tab}` : ""}\nports ${(d.ports || []).join(", ")}\nfirst seen ${fmtClock(d.first_seen)}\nRight-click for more`;
       node.oncontext = (e) => this.menuFor("dest", d, e);
       node.onclick = () => this.select({ type: "dest", id: d.ip });
       node.ondblclick = null;
@@ -647,7 +675,7 @@ export class NetworkMap {
     const text = fit(title, 600, 13, PILL_MAX - 24);
     const pw = measure(text, 600, 13) + 24;
     const px = rtl ? anchorX - pw : anchorX;
-    g.append(svg("text", { class: `n-kind${alerting ? " alerting" : ""}`, x: rtl ? anchorX : anchorX + 2, y: -21, "text-anchor": rtl ? "end" : "start", text: kind }));
+    g.append(svg("text", { class: `n-kind${alerting ? " alerting" : ""} ${kindClass}`, x: rtl ? anchorX : anchorX + 2, y: -21, "text-anchor": rtl ? "end" : "start", text: kind }));
     g.append(svg("rect", { class: "pill-bg", x: px, y: -15, width: pw, height: 26, rx: 5, fill: FILL[pill],
       stroke: pill === "pillSky" || pill === "pillGhost" ? "rgba(255,255,255,.14)" : "none" }));
     g.append(svg("text", { class: `pill-text${pill === "pillSky" ? " cyan" : pill === "pillGhost" ? " ghost" : pill === "pillDanger" ? " danger" : ""}`, x: px + 12, y: -2, "dominant-baseline": "central", text }));
@@ -707,6 +735,9 @@ export class NetworkMap {
       el("div", { class: "path" }, el("span", { text: isProg ? "Program" : "Destination" }), el("span", { class: "sep", text: "·" }),
         el("span", { text: `${events.length} events, ${network} network` })),
       el("div", { class: "big", text: isProg ? data.name : data.ip }),
+      !isProg && data.identity ? el("div", { class: "where" },
+        data.identity.hosts?.length ? el("span", { class: "mono", text: data.identity.hosts.slice(0, 2).join(", ") }) : null,
+        data.identity.tabs?.length ? el("span", { text: `${data.identity.tabs[0].kind === "tab" ? "Tab" : "Recently visited"} in ${data.identity.tabs[0].browser}: ${data.identity.tabs[0].title}` }) : null) : null,
       el("div", { class: "counts" },
         top ? el("span", { class: `tag ${scoreClass(top, thr) || ""}`, text: `score ${Math.round(top)}` }) : null,
         isProg && data.info?.exe_deleted ? el("span", { class: "tag warn", text: "executable deleted" }) : null,
@@ -729,6 +760,8 @@ export class NetworkMap {
 
     const tabs = [["events", "Events", events.length]];
     if (isProg) tabs.push(["connections", "Connections", (data.connections || []).filter((c) => c.kind === "connection").length]);
+    if (isProg && data.tabs) tabs.push(["tabs", "Open tabs", data.tabs.length]);
+    if (!isProg) tabs.push(["security", "Security", data.identity?.badges?.length ?? null]);
     tabs.push(["details", "Details", null], ["scores", "Scores", (data.findings || []).length]);
     p.append(el("div", { class: "ptabs" }, tabs.map(([id, label, n]) => el("button", {
       type: "button", class: this.ptab === id ? "on" : "",
@@ -740,6 +773,10 @@ export class NetworkMap {
         (ip, e) => this.menuFor("dest", { ip }, e)));
     } else if (this.ptab === "connections") {
       this.renderConnections(p, data);
+    } else if (this.ptab === "tabs") {
+      this.renderTabs(p, data);
+    } else if (this.ptab === "security") {
+      this.renderSecurity(p, data);
     } else if (this.ptab === "scores") {
       if (!(data.findings || []).length) p.append(el("p", { class: "faint", text: "Nothing about this scored above zero in the last 24 hours." }));
       this.renderFindings(p, data);
@@ -809,6 +846,82 @@ export class NetworkMap {
       })));
   }
 
+  // Which site is behind this address, and how secure is the connection?
+  renderSecurity(p, d) {
+    const id = d.identity;
+    const badge = (b) => el("div", { class: `badge-row` },
+      el("span", { class: `sbadge ${b.level}`, text: b.label }), el("span", { class: "muted", text: b.why }));
+    p.append(el("div", { class: "actions" },
+      el("button", { type: "button", class: "btn primary", text: id ? "Identify again" : "Identify this address",
+        onclick: (e) => this.identify([d.ip], e.target) }),
+      el("span", { class: "faint", text: id ? `checked ${fmtAgo(id.checked_at)}` : "" })));
+    if ((d.enrichment?.intel || []).length) {
+      p.append(el("p", { class: "note danger", text: "This address is on a threat feed, so Vigil will not connect to it to read its certificate." }));
+    }
+    if (id) {
+      p.append(el("h3", { text: "Where is this?" }));
+      const rows = [];
+      if (id.dns_hosts?.length) rows.push(["Your tabs resolve here", id.dns_hosts.join(", "), "mono"]);
+      const san = id.tls?.cert?.san || [];
+      if (san.length) rows.push(["Certificate names", san.slice(0, 8).join(", ") + (san.length > 8 ? ` +${san.length - 8}` : ""), "mono"]);
+      if (id.tls?.cert?.subject?.O) rows.push(["Organisation", id.tls.cert.subject.O]);
+      if (d.enrichment?.geo) rows.push(["Network", `AS${d.enrichment.geo.asn} ${d.enrichment.geo.owner || ""}`]);
+      if (rows.length) p.append(kv(rows));
+      if (id.tabs?.length) {
+        p.append(el("ul", { class: "tablist" }, id.tabs.slice(0, 8).map((t) => el("li", {},
+          el("span", { class: "tab-title", text: t.title }),
+          el("span", { class: "faint", text: `${t.kind === "tab" ? "open tab" : "recently visited"} · ${t.browser} · ${t.host} · matched by ${t.via === "dns" ? "DNS" : "certificate name"}` })))));
+      } else {
+        p.append(el("p", { class: "faint", text: "No open browser tab matches this address." }));
+      }
+    }
+    p.append(el("h3", { text: "Connection security" }));
+    if (id?.badges?.length) p.append(el("div", { class: "badges" }, id.badges.map(badge)));
+    for (const t of d.transport || []) p.append(badge(t));
+    if (!id) {
+      p.append(el("p", { class: "faint", text: "Identify reads your open browser tabs (a local file), looks up their host names with your normal DNS resolver (the same lookups the browser made), and opens one TLS handshake to this address to read its certificate. It sends no web request and nothing about you." }));
+    }
+    const c = id?.tls?.cert;
+    if (c) {
+      p.append(el("h3", { text: "Certificate" }), kv([
+        ["Issued to", [c.subject.CN, c.subject.O].filter(Boolean).join(" · ") || "—"],
+        ["Issued by", [c.issuer.CN, c.issuer.O].filter(Boolean).join(" · ") || "—"],
+        ["Valid", `${fmtClock(c.not_before)} → ${fmtClock(c.not_after)}`],
+        ["Key", `${c.key}${c.key_detail ? ` ${c.key_detail}` : ""}`],
+        ["Signature", c.sig_alg],
+        ["TLS", `${id.tls.version || "?"} · ${id.tls.cipher || "?"}${id.tls.alpn ? ` · ALPN ${id.tls.alpn}` : ""}`],
+        ["Checked as", id.tls.verified_as || "no name (no certificate name check)"],
+      ]));
+    }
+  }
+
+  // A browser's open tabs (read locally) and the addresses Identify matched them to.
+  renderTabs(p, d) {
+    p.append(el("p", { class: "faint", text: "Read from the browser's session file on this PC. Press Identify to match tabs to the addresses on the map." }));
+    if (!d.tabs.length) { p.append(el("p", { class: "faint", text: "No tabs found for this browser." })); return; }
+    p.append(el("ul", { class: "tablist" }, d.tabs.map((t) => el("li", {},
+      el("span", { class: "tab-title", text: t.title }),
+      el("span", { class: "faint" }, `${t.kind === "tab" ? "" : "recently visited · "}${t.host}`,
+        ...t.ips.map((ip) => el("span", {}, " · ", el("span", { class: "ip", text: ip, onclick: () => this.select({ type: "dest", id: ip }) })))),
+    ))));
+  }
+
+  async identify(ips, button) {
+    const label = button?.textContent;
+    if (button) { button.disabled = true; button.textContent = "Identifying…"; }
+    try {
+      const r = await api.send("POST", "/api/identify", ips ? { ips, window: Number(this.windowSel.value) || 900 } : { window: Number(this.windowSel.value) || 900 });
+      toast(`Identified ${r.identified} address${r.identified === 1 ? "" : "es"} · ${r.probed} TLS check${r.probed === 1 ? "" : "s"} · ${r.tabs} browser tab${r.tabs === 1 ? "" : "s"} read`
+        + (r.skipped_listed.length ? ` · ${r.skipped_listed.length} listed address(es) left alone` : ""));
+      this.panelSig = "";
+      await this.refresh();
+    } catch (e) {
+      toast(`Identify: ${e.message}`, "err");
+    } finally {
+      if (button) { button.disabled = false; button.textContent = label; }
+    }
+  }
+
   // Right-click on a node or an address.
   menuFor(kind, d, e) {
     const show = (sel, tab) => this.select(sel, tab);
@@ -830,6 +943,8 @@ export class NetworkMap {
       const sel = { type: "dest", id: d.ip };
       items = [{ heading: d.label ? `${d.ip} · ${d.label}` : d.ip },
         { label: "Who is this? (offline lookup)", run: () => { this.aboutOpen = true; show(sel, "details"); } },
+        { label: "Identify: tab, certificate, TLS", hint: "network", run: () => { show(sel, "security"); this.identify([d.ip]); } },
+        { label: "Connection security", run: () => show(sel, "security") },
         { label: "Events", run: () => show(sel, "events") },
         { label: "Why this score", disabled: !d.score, run: () => show(sel, "scores") },
         "-",

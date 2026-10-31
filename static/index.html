@@ -55,11 +55,19 @@
         <label><input type="checkbox" value="multicast,link-local,reserved">Other</label>
       </fieldset>
       <input type="search" id="filter" placeholder="Filter program, IP or owner" autocomplete="off">
+      <button type="button" class="btn" id="identify" title="Which tab or site is behind each address, and how secure the connection is. Reads your open browser tabs (locally), looks up their host names with your normal DNS resolver, and opens one TLS handshake to each HTTPS address to read its certificate. Never contacts addresses on a threat feed.">Identify</button>
+      <label class="field">Theme
+        <select id="theme">
+          <option value="grid">Grid</option>
+          <option value="night">Night</option>
+          <option value="plain">Plain</option>
+        </select>
+      </label>
       <span class="summary" id="graph-summary"></span>
     </div>
     <div class="workspace">
       <aside class="panel" id="panel"></aside>
-      <div class="graph-area">
+      <div class="graph-area theme-grid" id="graph-area">
         <canvas class="netfx" id="netfx" aria-hidden="true"></canvas>
         <div class="graph-wrap" id="graph-wrap">
           <svg id="graph" role="img" aria-label="Programs and the destinations they connect to"></svg>

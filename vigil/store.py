@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS intel(
 CREATE INDEX IF NOT EXISTS intel_host ON intel(host);
 CREATE INDEX IF NOT EXISTS intel_indicator ON intel(indicator);
 -- File Inspector reports (inspector.py). The report is kept, never the file itself.
+CREATE TABLE IF NOT EXISTS identities(
+  ip TEXT PRIMARY KEY, data TEXT NOT NULL, checked_at REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS inspections(
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL,
   md5 TEXT, sha1 TEXT, type TEXT, verdict TEXT NOT NULL, score REAL NOT NULL, report TEXT NOT NULL,

@@ -60,8 +60,8 @@ professional, not "AI-looking". Flat surfaces with hairline borders, small radii
 no gradients, blurs, glows, coloured side stripes or score rings. The only glow is
 the active top-bar tab marker. Colour only for meaning (actions/selection, live
 traffic, severity). Motion only where it carries information. Exceptions the owner
-asked for: the Network Map keeps its hexagon grid and drifting constellation
-background, and the File Inspector report follows VirusTotal's layout (score box with
+asked for: the Network Map has background themes (Grid: hexagons and shapes; Night:
+a drifting starfield; Plain), and the File Inspector report follows VirusTotal's layout (score box with
 a small ring, summary card, tabs, a two-column grid of analyzer results).
 
 ## How to work (I may be away: don't wait for me)
