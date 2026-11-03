@@ -1898,3 +1898,160 @@ the test above would then have to name explicitly.
   snapshot view, not an audit log.
 - Parent checks use the direct parent only. A browser → `env` → `sh` chain hides the
   browser from the rule.
+
+## Step 6: Vigil Cases (2026-11-03)
+
+### What was built
+`python3 -m vigil.cases` serves a page on 127.0.0.1:8770 with three tabs: Timeline,
+Cases, Import. Terminal: `import [FILE]`, `timeline [--case N]`, `cases`, `new`,
+`add`, `note`, `export [N] --format md|csv|csv-findings|stix`.
+- **`cases/importer.py`** reads `data/<tool>/findings.jsonl` for net, pkg, files,
+  persist and tasks (each file at most 64 MB), or pasted JSON lines. Every line goes
+  through `finding.from_jsonl`: invalid lines are skipped and counted, with line
+  numbers kept in the import log.
+- **`net/export.py`** (new): the Network Map's alerts as suite findings.
+  - It opens `data/vigil.db` with `App(start_monitor=False)`, so nothing is polled and
+    nothing touches the network.
+  - It builds each alert's title, explanation and Fix panel exactly as the Alerts tab
+    does, and adds the public IP and Identify host names as indicators.
+  - It writes `data/net/findings.jsonl` and runs automatically when Cases imports. It
+    is also available as `python3 -m vigil export-findings`.
+  - If the Network Map never ran with that data folder, it creates nothing.
+- **`cases/store.py`**, a SQLite store in `data/cases/cases.db`:
+  - findings keyed `tool:id`, with first and last seen and a count;
+  - cases (title, status, tags, summary), case↔finding links, notes on a case or a
+    finding, a case log, and an import log;
+  - `timeline()` merges findings, notes and case events, newest first, filtered by
+    case, tool or severity.
+- **`cases/export.py`**:
+  - **CSV**: indicators (type, value, first seen, worst severity, tools, findings) and
+    findings, with formula-looking cells neutralised.
+  - **STIX 2.1**: identity, an indicator per unique indicator (`indicator_types`
+    malicious-activity for High, otherwise anomalous-activity), a note per finding (its
+    summary, signals, likely explanation, confidence and source), a note per analyst
+    note, and a grouping (`suspicious-activity`). Ids are stable, derived from content
+    with UUIDv5.
+  - **Markdown**: header, summary, timeline table, every finding with signals, likely
+    explanation, confidence, evidence and its Check/Fix commands in fenced blocks (the
+    fence is longer than any backtick run inside), defanged indicators, notes and
+    limits.
+- **`core/export.py`** (moved out of `net/cases.py`, which now imports it):
+  `stix_pattern` (plus `file:name`), `iso`, `local`, `defang`, `md`, `_cell`,
+  `clean_tags`, and the new `stix_id` and `fence`.
+
+### Tests
+- `tests/cases/test_cases_tool.py`, 11 tests:
+  - Import from four tools' synthetic exports, including a non-JSON line and an
+    invalid finding (2 skipped). Re-import adds nothing; a later sighting updates last
+    seen and the count.
+  - One timeline in time order, with tool and severity filters, notes on a case and on
+    a finding, status changes in the log, attach (twice gives one link) and detach.
+  - Refusals: empty title, bad status, empty or orphan note, unknown finding.
+  - CSV values, and no cell starting with `=`, `+`, `-` or `@`.
+  - STIX structure: every object has the 2.1 spec_version, an id in `type--uuid` form
+    with the right type, millisecond UTC timestamps and its type's required
+    properties; every ref resolves inside the bundle; the patterns are well-formed;
+    and ids are stable across exports.
+  - Markdown: HTML and markup escaped; no clickable `http(s)://` outside code blocks;
+    defanged URLs, IPs and domains; a command containing ``` gets a longer fence.
+  - The Network Map export from a synthetic alert gives a "Syncthing" title, the IP
+    indicator and a Fix panel, then imports as tool "net".
+  - **End to end with the real tools:**
+    - Pkg reviews the `squat` fixture;
+    - Files inspects a traversal zip;
+    - Persist takes a baseline on a fake root, then sees a /tmp unit;
+    - Tasks scans the fake desktop /proc;
+    - then Cases imports all four with no skipped lines, puts every finding in one
+      case, and exports md/stix/csv/csv-findings with the right content types and
+      download headers;
+    - the page is served on 127.0.0.1.
+- **Full suite: 338 tests pass on Python 3.13 and 3.11.**
+- Live end to end in this container, in one scratch data folder:
+  - `vigil.pkg review` on the squat fixture, `vigil.files inspect` on a zip bomb,
+    `vigil.persist scan` and `vigil.tasks scan` on the real container;
+  - then `vigil.cases import` gave 13 findings from 4 tools, and a case with a note
+    exported to Markdown, STIX (identity, notes, grouping) and CSV;
+  - the timeline page rendered with no console errors.
+
+### Decisions made without asking
+- **Cases is a new tool alongside the Network Map's own Cases tab.** That tab is
+  untouched (step 1 promised no behaviour change) and keeps working on Net's data.
+  Vigil Cases is the suite-wide one. Merging them is a later choice for you.
+- **Import is a button and a command, not a background job**, so nothing reads other
+  tools' data unless you ask.
+- **STIX "note" per finding**, because STIX 2.1 has no "finding" object.
+  Observed-data would need every observation broken into cyber-observables, which the
+  findings don't always have. The analyst notes and the grouping carry the case.
+- **MISP JSON and Suricata rules** (also in SPEC.md's export row) were not asked for in
+  this step and are not built.
+
+---
+
+# Summary of the suite build (2026-11-03)
+
+Branch **`claude/vigil-suite`** on `EternalMangekyoSharingan/vigil`. Every step is
+committed and pushed. **338 tests pass on Python 3.13 and 3.11.** No dependencies, no
+sudo, no network calls except the opt-in buttons and commands listed per tool.
+
+## What works
+| Tool | Command | Page | State |
+| --- | --- | --- | --- |
+| Vigil Net | `python3 -m vigil` (or `-m vigil.net`) | 127.0.0.1:8765 | unchanged behaviour, moved to `vigil/net`; new `export-findings` |
+| Vigil Pkg | `python3 -m vigil.pkg` | 127.0.0.1:8766 | every SUITE.md check; installed audit; approve and diff; opt-in AUR metadata |
+| Vigil Files | `python3 -m vigil.files` | 127.0.0.1:8767 | index-only archive checks (zip, tar.*, 7z, rar), disguise, PDF/Office, quarantine and restore, Downloads watcher, opt-in hash lookups |
+| Vigil Persist | `python3 -m vigil.persist` | 127.0.0.1:8768 | every SUITE.md location, baseline and diff, pacman/dpkg ownership and integrity |
+| Vigil Tasks | `python3 -m vigil.tasks` | 127.0.0.1:8769 | process tree with every SUITE.md flag; copy-only stop |
+| Vigil Cases | `python3 -m vigil.cases` | 127.0.0.1:8770 | imports all tools, one timeline, cases and notes, CSV / STIX 2.1 / Markdown |
+
+All of them use the shared core:
+- the finding format, validated on creation;
+- wording rules (titles of 60 characters or less, plain English; attacker-named
+  candidates skipped);
+- Check/Fix/Undo commands, colour-coded, distro-aware, copy only;
+- distro detection and package ownership;
+- the known-services catalogue;
+- per-tool SQLite stores with the JSON-lines export;
+- the 127.0.0.1 web kit and the dark UI kit.
+
+## Unfinished, or needing you
+- **Vigil Lab** (detonation VM): not built, as instructed. It needs your PC, a
+  hypervisor and a VM image.
+- **Open decision, Tasks Stop button:** copy-only for now (see step 5 for the
+  smallest safe version, if you want it).
+- **Not tested on a real Arch system.** The pacman, mtree and sync-db code is tested on
+  synthetic databases built to the documented formats; this container is Ubuntu, where
+  the dpkg paths ran live. The first thing to try on your PC is
+  `python3 -m vigil.pkg installed` and `python3 -m vigil.persist scan`.
+- **7z and RAR listers were written from the format documentation** and tested on
+  archives built to it, not on files from 7-Zip or WinRAR (neither exists here). Try
+  `python3 -m vigil.files inspect some.7z` on real archives. If one says "damaged or
+  crafted" when it isn't, that layout isn't covered yet.
+- Not built from SPEC.md's export row: MISP JSON and Suricata rules.
+- The Network Map's built-in Files, Scan and Cases tabs still exist alongside the new
+  tools; whether to slim the Network Map down to its map is your call.
+
+## Try each tool on your own PC
+```bash
+git clone https://github.com/EternalMangekyoSharingan/vigil
+cd vigil
+git checkout claude/vigil-suite
+python3 -m unittest discover -s tests -t .
+```
+Then, one at a time (each also has a page: run it without arguments and open the port
+shown):
+```bash
+python3 -m vigil                                    # Network Map → http://127.0.0.1:8765/
+python3 -m vigil.pkg review ~/.cache/paru/clone/SOMEPKG   # or ~/.cache/yay/SOMEPKG, or a git clone
+python3 -m vigil.pkg installed                      # foreign packages + pacman -Qkk-style check
+python3 -m vigil.files ls ~/Downloads
+python3 -m vigil.files inspect ~/Downloads/SOMEFILE
+python3 -m vigil.files watch                        # Ctrl+C to stop
+python3 -m vigil.persist scan                       # first run = baseline; run again later for the diff
+python3 -m vigil.tasks tree
+python3 -m vigil.tasks scan
+python3 -m vigil export-findings                    # Network Map alerts → data/net/findings.jsonl
+python3 -m vigil.cases import
+python3 -m vigil.cases timeline
+python3 -m vigil.cases                              # → http://127.0.0.1:8770/
+```
+All data stays in `./data/` (each tool has its own folder; `VIGIL_DATA` moves it).

@@ -20,8 +20,39 @@ for Vigil Cases).
 | **Vigil Files** | Is this file or archive safe to open? | `python3 -m vigil.files` → <http://127.0.0.1:8767/> |
 | **Vigil Persist** | What starts automatically, and what changed since last time? | `python3 -m vigil.persist` → <http://127.0.0.1:8768/> |
 | **Vigil Tasks** | What is running, where did it come from, and should it be? | `python3 -m vigil.tasks` → <http://127.0.0.1:8769/> |
+| **Vigil Cases** | What happened, across all of the above? | `python3 -m vigil.cases` → <http://127.0.0.1:8770/> |
+| Vigil Lab | What would this file actually do? | not built yet: needs your PC and a VM |
 
-<!-- suite-tools: later steps add rows here -->
+## Vigil Cases: what happened, across all of the above?
+
+```bash
+python3 -m vigil.cases                          # the page, on http://127.0.0.1:8770/
+python3 -m vigil.cases import                   # read every tool's latest findings (and Net's alerts)
+python3 -m vigil.cases import other-pc.jsonl    # findings exported on another machine
+python3 -m vigil.cases timeline                 # one timeline, oldest first, with finding keys
+python3 -m vigil.cases new "Odd evening" --tags browser
+python3 -m vigil.cases add 1 tasks:7fa262cf7943240c
+python3 -m vigil.cases note 1 "It was me testing."
+python3 -m vigil.cases export 1 --format md     # or csv (indicators), csv-findings, stix
+python3 -m vigil export-findings                # Net: write its alerts as findings (Cases does this on import)
+```
+
+Every tool writes its latest findings to `data/<tool>/findings.jsonl` in the one shared
+format. Cases imports them:
+- invalid lines are skipped and counted, never half-imported;
+- a finding seen again updates its last-seen time and count instead of duplicating;
+- the Network Map's alerts are exported offline, with the same titles, explanations
+  and Fix panels as its Alerts tab.
+
+The **timeline** mixes findings from all tools, notes and case events, filtered by tool or
+severity. **Cases** hold findings, notes, a summary, tags, a status (open, investigating,
+closed) and a log. Exports:
+- **CSV** of indicators and of findings, with cells that a spreadsheet could run as a
+  formula neutralised;
+- a **STIX 2.1** bundle: identity, one indicator per unique indicator, one note per
+  finding and per analyst note, and a grouping, all with stable ids;
+- a **Markdown report**: timeline, every finding with its evidence and its Check/Fix
+  commands in code blocks, indicators defanged (`hxxp[://]`, `[.]`), notes and limits.
 
 ## Vigil Tasks: what is running, and should it be?
 
@@ -817,6 +848,13 @@ vigil/tasks/         Vigil Tasks
   procs.py           /proc walk: binaries, packages, hashes, units, sockets, tree; the flags
   findings.py        findings and copy-only stop commands
   server.py static/  its page (uses the shared tree view, ui/static/tree.js) and command line
+vigil/cases/         Vigil Cases
+  store.py           imported findings, cases, notes, log; the timeline
+  importer.py        every tool's findings.jsonl, Net's alerts, pasted files
+  export.py          CSV, STIX 2.1, Markdown report
+  server.py static/  its page and command line
+vigil/net/export.py  the Network Map's alerts as suite findings
+vigil/core/export.py STIX patterns and ids, defanging, Markdown and CSV-injection guards
 tests/core/          core tests and suite-wide safety rules
 tests/<tool>/        each tool's tests
 tests/fixtures/      synthetic fixtures (labelled), shared

@@ -1,3 +1,6 @@
+> **Superseded (2026-11-03):** this describes Vigil before the suite split. The current state, layout
+> and next steps are at the end of docs/PROGRESS.md ("The Vigil suite").
+
 # Vigil — session handoff (2026-10-31)
 
 Paste this into a new chat to continue. Repo: `EternalMangekyoSharingan/vigil`,

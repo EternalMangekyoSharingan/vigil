@@ -136,6 +136,16 @@ def cmd_inspect(args):
         print(f"  - {line}")
 
 
+def cmd_export_findings(args):
+    """Write the alerts as suite findings (data/net/findings.jsonl) for Vigil Cases."""
+    from .export import export
+    r = export(args.data)
+    if not r:
+        print("No Network Map evidence store in this data directory yet.")
+        return
+    print(f"Wrote {r[1]} findings to {r[0]}" + (f" ({r[2]} skipped)" if r[2] else ""))
+
+
 def cmd_app(args):
     """Vigil in its own window; it stops when the window closes."""
     from . import desktop
@@ -157,7 +167,7 @@ def cmd_uninstall_desktop(args):
 
 
 COMMANDS = ("serve", "app", "install-desktop", "uninstall-desktop", "snapshot", "update-feeds",
-            "update-geo", "lookup", "inspect")
+            "update-geo", "lookup", "inspect", "export-findings")
 
 
 def main(argv=None):
@@ -207,6 +217,9 @@ def main(argv=None):
     ins.add_argument("--json", action="store_true")
     ins.add_argument("--no-save", action="store_true", help="don't record the report")
     ins.set_defaults(func=cmd_inspect)
+    sub.add_parser("export-findings", parents=[common],
+                   help="write alerts as suite findings for Vigil Cases (data/net/findings.jsonl)"
+                   ).set_defaults(func=cmd_export_findings)
     args = p.parse_args(argv)
     args.func(args)
 
