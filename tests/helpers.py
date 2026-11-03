@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 from unittest import mock
 
-from vigil import collector
+from vigil.net import collector
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

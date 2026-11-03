@@ -1203,3 +1203,133 @@ the work. To get it onto GitHub, either:
   push; or
 - clone from the bundle and push yourself:
   `git clone -b claude/build-steps-1-5 vigil.bundle vigil && cd vigil && git remote set-url origin git@github.com:<you>/vigil.git && git push -u origin claude/build-steps-1-5 main`.
+
+---
+
+# The Vigil suite (docs/SUITE.md), built 2026-11-03
+
+Branch: **`claude/vigil-suite`**, started from `claude/build-steps-1-5` (where the
+Network Map lives; `main` is still the starter). The owner was away and asked for steps
+1–6 of the suite plan, fully autonomously, stopping before Vigil Lab.
+
+Suite-wide decisions (apply to every step below):
+- **One repository, one folder per tool**, as SUITE.md says. Every tool runs alone with
+  `python3 -m vigil.<tool>` and serves its own page on 127.0.0.1 through `core/web.py`.
+- **Data:** each new tool keeps `data/<tool>/<tool>.db` (SQLite) and writes its latest
+  findings to `data/<tool>/findings.jsonl`. Vigil Cases imports those files. The Network
+  Map keeps its existing `data/vigil.db` so nothing about an existing install changes.
+- **Tests stay on `unittest`** (pytest also runs them), as the project already did.
+  Command: `python3 -m unittest discover -s tests -t .`. Checked on Python 3.13 and 3.11.
+- **Commit trailers** use this session's attribution lines.
+
+## Step 1: Core extraction (2026-11-03)
+
+### What was built
+The flat `vigil/` package was split into the SUITE.md layout. Files were moved with
+`git mv`, so their history is kept.
+- **`vigil/core/`**, shared by every tool:
+  - `finding.py` (**new**): the one finding format. `make()` builds and validates it:
+    - title ≤ 60 characters under the wording rules;
+    - one-sentence summary;
+    - severity High/Medium/Low/Info;
+    - signals with strength 0–1;
+    - likely explanation;
+    - confidence with a reason;
+    - Fix panel;
+    - evidence, indicators and collapsed technical details;
+    - `source` {tool, check, data, when}.
+    It refuses a finding that breaks a rule, including a fix with no undo. It also
+    holds the JSON-lines export and import. `scored()` is the old
+    `scoring.finding()` (a raw points item), moved here so the File Inspector no longer
+    imports from the Network Map's scorer.
+  - `wording.py`: the generic half of the old `wording.py`:
+    - the 60-character limit, banned words, `fit_title()`;
+    - `title_problems()` (new: length, banned words, jargon, raw IPv6, trailing full
+      stop) and `one_sentence()` (new);
+    - friendly program and network-owner names;
+    - human numbers (`every`, `span`, `clock`, `kb`).
+    The alert-specific phrasing stayed in `net/wording.py`, which imports these.
+  - `commands.py`: the colour-coded tokeniser (moved unchanged).
+  - `fixes.py`: the distro-generic half of the old `fixes.py`: package-manager
+    templates, risk labels, option rendering, and new small helpers (`option`,
+    `command`, `owner_check`, `panel`) that every tool uses to build Check / Fix / Undo.
+  - `system.py`: `os_release`, `family` and `firewall` (from `fixes.py`), and
+    `package_owner` (from `knowledge.py`). `package_owner` gained an optional `root=`,
+    so tests can point it at a fake pacman/dpkg database (default "/", same behaviour).
+  - `catalogue.py`: the known-services catalogue (was `services.py`), with
+    `core/data/known_services.json`.
+  - `store.py` (**new**): the per-tool evidence store: runs, findings, baselines and
+    settings in SQLite, plus the atomic `findings.jsonl` export (mode 0600).
+  - `web.py` (**new**, extracted from `server.py`): the HTTP handler used by every
+    tool. It keeps every safety property: 127.0.0.1 only, the Host check against DNS
+    rebinding, writes needing `X-Vigil: 1` and a same origin, strict CSP, and the
+    static-name pattern. Static files are looked up in the tool's folder first, then
+    the shared UI kit.
+  - `netfetch.py`: `http()`/`fetch()` moved out of `enrich.py`. It is now the single
+    function in the whole suite that can open a URL. `enrich.fetch` and `enrich.http`
+    are re-exported, so the Network Map code is unchanged.
+  - `runner.py` and `pkgdb.py`: moved unchanged.
+- **`vigil/ui/static/`**: the UI kit:
+  - `style.css`, fonts, `ui.js`, `fx.js`, `menu.js` and the icon, all moved;
+  - `findings.js` (new). It takes `commandLine`, `option` and `legend` out of
+    `alerts.js` (unchanged code) and adds, for the new tools, a generic finding card,
+    a Fix panel, strength bars, a one-open-at-a-time finding list and top-bar tab
+    switching.
+- **`vigil/net/`**: the Network Map and every tab it had: collector, store, scoring,
+  enrich, identify, knowledge, wording, fixes, scans, cleanup, cases, desktop, server,
+  `__main__`, and its page in `net/static/`. `python3 -m vigil` delegates to
+  `vigil.net`, so every old command still works.
+- **`vigil/files/`**: inspector, archives, ole and engines. They are the File
+  Inspector engine, used by Net's Files tab now and by Vigil Files in step 3.
+
+### Tests
+- The existing tests moved to `tests/net/` and `tests/files/`. Only their import paths
+  changed, plus four tests that read module files by path, each adjusted to the new
+  locations without loosening it:
+  - **"Fix modules cannot run commands"** checks the same modules at their new paths,
+    plus `core/fixes.py`, `core/wording.py` and `core/finding.py`.
+  - **"Only one function opens a URL"** previously scanned only the flat `vigil/*.py`.
+    It now scans the whole package recursively and expects `core/netfetch.py`.
+  - **"Raw sockets only in identify.py"** now scans the whole package too.
+  - **"Catalogue ships in the package"** now expects `vigil/core/data`.
+  - `test_engines` patches `engines.netfetch.http` instead of `engines.enrich.http`
+    (the same function, moved).
+- **New `tests/core/test_core.py`** (16 tests): the finding format and every rule it
+  enforces; JSON-lines round trip and bad lines; the wording rules; distro families
+  from the Arch, Fedora, openSUSE, Ubuntu and unknown os-release fixtures; per-distro
+  owner commands; `package_owner` against a fake pacman root; the store and its export;
+  and the web kit (loopback bind, tool page then shared kit, traversal refused, the
+  write header, the Host check).
+- **New `tests/core/test_safety.py`** (6 suite-wide rules, applied to every tool
+  automatically):
+  - no fix module (every `*/fixes.py` plus the listed builders) mentions subprocess,
+    `os.system`, popen, exec, spawn or pty;
+  - only a named, justified list of modules may start a process;
+  - only `core/netfetch.py` calls `urlopen`;
+  - only `core/web.py` listens, and HOST is 127.0.0.1;
+  - modules of pkg/files/persist/tasks/cases never use exec/eval/pickle/ctypes/
+    extractall;
+  - nothing builds a `makepkg` or `bash`/`sh`/`source` argv.
+- **Result: 238 tests, all passing, on Python 3.13 and 3.11** (216 before + 22 new).
+- Live in this container:
+  - `python3 -m vigil snapshot` read 32 real sockets;
+  - `python3 -m vigil.net serve` served the page;
+  - in Chromium, the Network Map and Scan tabs rendered with **no console or page
+    errors**, which shows the moved `findings.js` and the shared kit load through the
+    new static lookup.
+
+### Decisions made without asking
+- **The Network Map's built-in Files, Scan, Cleanup and Cases tabs stay inside Vigil
+  Net** for now. Moving them out would change what `python3 -m vigil` shows, and step
+  1 had to change no behaviour. The new tools are separate; overlaps are noted under
+  each step.
+- **`vigil/files/inspector.py` still imports `FEEDS` from `vigil/net/enrich.py`**: a
+  read-only constant of feed titles, used when linking intel. It is a cross-tool import
+  of a constant only; Vigil Files runs alone regardless.
+- **`services.py` was renamed `catalogue.py`**, to match SUITE.md's "known-services
+  catalogue". Net imports it as `services`, so the code reads the same.
+- **"Graph component" in the UI kit:** the Network Map's graph (`netmap.js`) is very
+  specific to it, so it stays in `net/static/`. Vigil Tasks gets its own small tree
+  renderer in step 5.
+- `core/web.py` quietly ignores `ConnectionResetError` from closed keep-alive
+  connections instead of printing a traceback (cosmetic).

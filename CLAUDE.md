@@ -17,7 +17,7 @@ You may be running in a cloud container (Claude Code on the web), not on my PC.
 ## Stack
 - Python 3.11+ standard library only for the backend (http.server/asyncio, sqlite3, json).
   Ask me before adding any dependency.
-- Frontend: plain HTML + CSS + JavaScript in static/, no build step, no npm, no CDN links.
+- Frontend: plain HTML + CSS + JavaScript (shared kit in vigil/ui/static/, each tool's page in vigil/<tool>/static/), no build step, no npm, no CDN links.
   Hand-written SVG or canvas graphs.
 - Must run on any Linux distro. No distro-specific code unless unavoidable, and then
   behind one small function with a fallback.

@@ -1,16 +1,32 @@
 # Vigil
 
-A personal blue-team lab for one Linux PC: a live **Network Map** (who is this PC
-talking to, and which program) and a **File Inspector** (what would this file do),
-tied together by **cases** that export to the formats other tools read. The plan is in
-[docs/SPEC.md](docs/SPEC.md); what has been built, with test results, decisions and
-known limits, is in [docs/PROGRESS.md](docs/PROGRESS.md).
+A personal blue-team lab for one Linux PC, as a **suite of small tools** that each
+answer one question and run on their own, built on one shared core so findings,
+explanations and fix commands look and work the same everywhere. The suite plan is in
+[docs/SUITE.md](docs/SUITE.md), the original feature spec in [docs/SPEC.md](docs/SPEC.md),
+and what has been built, with test results, decisions and known limits, in
+[docs/PROGRESS.md](docs/PROGRESS.md).
 
-Status: build steps 1–5 are done (Network Map core, network scoring, enrichment, File
-Inspector static triage, cases and exports). Step 6, the detonation VM, has not been
-started: it needs root and a virtual machine set up on your PC, so it waits for you.
+## The tools
 
-## Run it
+Every tool: Python 3.11+ standard library only, no root, its own page on 127.0.0.1,
+the same dark UI kit, and the same finding format (exported to `data/<tool>/findings.jsonl`
+for Vigil Cases).
+
+| Tool | Question | Run it |
+| --- | --- | --- |
+| **Vigil Net** | Who is this PC talking to, and which program? | `python3 -m vigil.net` (same as `python3 -m vigil`) |
+
+<!-- suite-tools: later steps add rows here -->
+
+## Vigil Net (the Network Map)
+
+The original Vigil app, moved to `vigil/net/` with no behaviour change: the Network Map
+plus its Alerts, Files, Scan, Cleanup, Cases, Intel and Settings tabs. Everything below
+this point, down to "Tests", describes it. `python3 -m vigil` still starts it, with the
+same commands and options.
+
+### Run it
 
 Needs Python 3.11 or newer on Linux. Nothing to install; no root needed.
 
@@ -343,7 +359,7 @@ When Vigil can't name the program, it says exactly why: too short-lived for the 
 interval, or owned by root. It then offers to look every 0.5 s for 10 minutes, or
 explains the optional admin mode, which is off by default.
 
-**Known services** (`vigil/data/known_services.json`) recognise common background
+**Known services** (`vigil/core/data/known_services.json`) recognise common background
 traffic:
 - NetworkManager's connectivity check
 - Syncthing discovery and relays
@@ -546,7 +562,8 @@ not visible. Missing `/proc/net/tcp6` (IPv6 disabled) is reported, not an error.
 The tests use only the standard library's `unittest`; pytest also runs them.
 
 ```bash
-python3 -m unittest discover -s tests -t .
+python3 -m unittest discover -s tests -t .      # every tool
+python3 -m unittest discover -s tests/net -t .  # one tool
 ```
 
 `tests/fixtures/` holds a **synthetic** miniature `/proc` (labelled as such; see its
@@ -561,27 +578,41 @@ netlink byte counts are exact.
 ## Layout
 
 ```
-vigil/collector.py   read-only /proc parser: sockets, processes, what is hidden
-vigil/store.py       SQLite evidence store; tracker turning polls into history
-vigil/scoring.py     explainable scores, beacon detection, allowlist, alerts
-vigil/enrich.py      threat feeds and country/ASN database (download on request)
-vigil/inspector.py   File Inspector: static triage, verdict, indicators
-vigil/archives.py    archive-bomb measurement: streamed decompression, nothing extracted
-vigil/engines.py     second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups
-vigil/identify.py    browser tabs, host names, TLS handshake, certificate parsing, security badges
-vigil/scans.py       system scan: persistence, exposure, integrity, ClamAV/YARA folders, Arch advisories
-vigil/cleanup.py     cleanup survey: caches, package leftovers, logs, old files (read-only)
-vigil/pkgdb.py       pacman's local database and version ordering, read directly
-vigil/runner.py      sudo mode: runs only Vigil-generated commands, via pkexec, no shell
-vigil/knowledge.py   offline notes on programs and ports; package ownership; plain-language summaries
-vigil/ole.py         OLE2 compound files and VBA macro decompression (read only)
-vigil/cases.py       cases, evidence snapshots, indicators; CSV, STIX 2.1, Markdown
-vigil/desktop.py     desktop window (WebKitGTK / Chromium app mode), menu entry, data lock
-vigil/server.py      127.0.0.1 web server, JSON API, background poller
-vigil/__main__.py    command line
-static/              the UI: plain HTML, CSS and JavaScript, hand-written SVG graph
-static/fx.js         small motion helpers: tweens, toasts, tab marker
-static/menu.js       right-click menu
-static/fonts/        Inter and JetBrains Mono (variable woff2) with their OFL licences
-tests/               unittest suite and synthetic fixtures
+vigil/core/          shared by every tool
+  finding.py         the one finding format, validated; JSON-lines export
+  wording.py         title rules (60 characters, plain English), friendly names, human numbers
+  commands.py        colour-coded command tokeniser (display only)
+  fixes.py           Check / Fix / Undo options, distro-aware, copy only
+  system.py          distro detection (os-release), package owner lookup, firewall detection
+  catalogue.py       known benign services (data/known_services.json)
+  store.py           per-tool SQLite evidence store + findings.jsonl
+  web.py             the 127.0.0.1-only web server every tool uses
+  netfetch.py        the single function in the suite that can open a URL (on request only)
+  runner.py          sudo mode (Network Map only): runs only Vigil-generated commands, via pkexec
+  pkgdb.py           pacman's local database and version ordering, read directly
+vigil/ui/static/     shared UI kit: style.css, fonts, ui.js, fx.js, menu.js, findings.js
+                     (finding card, Fix panel, colour-coded commands), icon
+vigil/net/           Vigil Net: the Network Map and its tabs
+  collector.py       read-only /proc parser: sockets, processes, what is hidden
+  store.py           its SQLite evidence store (data/vigil.db); tracker turning polls into history
+  scoring.py         explainable scores, beacon detection, allowlist, alerts
+  enrich.py          threat feeds and country/ASN database (download on request)
+  identify.py        browser tabs, host names, TLS handshake, certificate parsing, security badges
+  wording.py         alert titles, subtitles and explanations
+  fixes.py           alert Fix panels: one-address firewall blocks, service fixes
+  scans.py           system scan: persistence, exposure, integrity, ClamAV/YARA folders, Arch advisories
+  cleanup.py         cleanup survey: caches, package leftovers, logs, old files (read-only)
+  knowledge.py       offline notes on programs and ports; plain-language summaries
+  cases.py           the Network Map's own cases: CSV, STIX 2.1, Markdown
+  desktop.py         desktop window (WebKitGTK / Chromium app mode), menu entry, data lock
+  server.py          JSON API, background poller
+  static/            its page: index.html, netmap.js (hand-written SVG graph), tab views
+vigil/files/         File Inspector engine (used by Net's Files tab and Vigil Files)
+  inspector.py       static triage, verdict, indicators
+  archives.py        archive-bomb measurement: streamed decompression, nothing extracted
+  ole.py             OLE2 compound files and VBA macro decompression (read only)
+  engines.py         second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups
+tests/core/          core tests and suite-wide safety rules
+tests/net/ tests/files/   each tool's tests
+tests/fixtures/      synthetic fixtures (labelled), shared
 ```
