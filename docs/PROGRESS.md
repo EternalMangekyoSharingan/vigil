@@ -1647,3 +1647,134 @@ Quarantine, Watch Downloads, Settings. Terminal commands: `inspect`, `ls`, `watc
 - Deflate64, LZMA, zstd and PPMd zip members are still measured by declared sizes only
   (no standard-library decoder), as before.
 - The watcher sees only the folder's top level, not subfolders.
+
+## Step 4: Vigil Persist (2026-11-03)
+
+### What was built
+`python3 -m vigil.persist` serves a page on 127.0.0.1:8768 with three tabs: Findings,
+Everything (grouped like Autoruns), Changes. Terminal commands: `scan [--all]
+[--json]`, `accept`.
+- **`persist/locations.py`**: 21 source groups (the list is in the README), covering
+  every location in SUITE.md plus a few extra hooks:
+  - systemd generators, anacron, environment.d, doas;
+  - `~/.ssh/rc` and config, sshd_config;
+  - modprobe.d;
+  - rc.local and init.d, NetworkManager dispatcher, pacman and apt hooks,
+    update-motd.d;
+  - the **loaded** kernel modules from /proc/modules.
+
+  Each entry records its live path, sha256, size, mode, uid, mtime and link target. It
+  is read up to 256 kB for content checks (the hash covers all of it). Unreadable files
+  are kept, marked hidden.
+
+  `flags()` gives each content check a severity, strength, line number and a plain
+  title template:
+  - temp, hidden or Downloads executables in Exec, RUN, cron lines and links;
+  - download-and-run, base64 decode, /dev/tcp, nc -e, python -c with sockets;
+  - LD_PRELOAD and LD_AUDIT;
+  - sudo NOPASSWD: ALL (not %wheel), `!authenticate`, env_keep with LD_PRELOAD;
+  - pam_exec, pam_permit as sufficient, PAM modules outside /usr/lib or /lib;
+  - modprobe `install` with a real command (not true, false or modprobe);
+  - udev RUN with a shell, curl or tmp;
+  - SSH ProxyCommand/LocalCommand doing odd things; sshd PermitRootLogin yes and
+    friends; forced-command keys;
+  - a non-empty ld.so.preload;
+  - O, E or F module taint;
+  - world-writable or user-owned system files (links skipped: their mode means
+    nothing).
+- **`core/pkgdb.PackageFiles`**: one lazily built index of who owns which path, and
+  what the package recorded:
+  - pacman: `local/*/files` and the gzip mtree (SHA-256), with %BACKUP% marking config
+    files;
+  - dpkg: `info/*.list`, `info/*.md5sums` and the Conffiles section of
+    `/var/lib/dpkg/status`;
+  - RPM: detected and reported. Its database is binary, so ownership and integrity
+    would need rpm to run. The Fix panel offers `rpm -qf` / `rpm -V`, and the limits
+    say so.
+- **`persist/scan.py`**:
+  - A package-owned file that no longer matches is High in preload, PAM, sudoers,
+    systemd or modules, otherwise Medium; a config file is Low.
+  - **Labelled, not alarmed:** content flags on a file its package shipped unchanged
+    drop to Low and name the package.
+  - Catalogue matches name the program (for example Syncthing's autostart entry), and
+    a new entry for a known program is Low.
+  - **Diff:**
+    - New is Medium; Info if a package installed it under /usr and it is intact; Low
+      for a known service or a newly loaded module.
+    - Changed is Medium; Low for your own shell files; High for preload, sudoers, PAM
+      and authorized_keys; Info if its package updated it.
+    - Gone is listed in Changes.
+  - Fixes (copy-only, distro-aware):
+    - Check: `cat`, `sed -n 'Np'`, owner check, `pacman -Qkk` / `dpkg --verify` /
+      `rpm -V`, `systemctl [--user] status`, `modinfo`.
+    - Fix: `systemctl [--user] disable --now` (undo `enable --now`), moving the file
+      aside (undo: move it back), reinstalling the package (undo steps), `modprobe -r`
+      (undo `modprobe`).
+- **Server**: the first scan saves the baseline automatically. Accept is an explicit
+  confirm. Runs and `findings.jsonl` are written to `data/persist/`.
+
+### Tests
+- `tests/persist/test_persist.py`, 15 tests on a SYNTHETIC fake root and home. It
+  builds pacman and dpkg databases (desc, files, gzip mtree; list, md5sums, status
+  Conffiles), an RPM marker and a fake /proc/modules:
+  - A clean system raises nothing above Low. A package unit is "example: ok", and
+    Syncthing is labelled from the catalogue.
+  - After a clean baseline, every trick is added and must give the expected title and
+    severity:
+    - a user unit from /tmp (High), with `systemctl --user disable --now` and its undo;
+    - cron curl|sh;
+    - an autostart entry from a hidden folder;
+    - `.bashrc` LD_PRELOAD (High, evidence line 2), with the .bashrc change itself Low;
+    - ld.so.preload;
+    - pam_permit, pam_exec and a PAM module in /tmp;
+    - sudoers NOPASSWD and `!authenticate`;
+    - a new key in `authorized_keys` (High);
+    - a modprobe install command, while `install floppy /bin/false` stays quiet;
+    - udev RUN shell;
+    - a world-writable profile.d file;
+    - a user-owned cron file;
+    - a new tainted module, with a `modinfo` check.
+  - Removed and changed entries.
+  - pacman integrity: a changed unit is High with `pacman -Qkk example` and
+    `sudo pacman -S example`; an edited backup file is Low.
+  - An unchanged vendor udev rule with a shell is Low and names its package.
+  - dpkg md5sums and conffiles, with `dpkg --verify`.
+  - Fedora and openSUSE report the RPM limit and offer `rpm -qf`.
+  - Every finding passes the format rules.
+  - A full scan with writes and process starts patched to fail leaves every byte
+    unchanged.
+  - Root-only files are listed as hidden (simulated when the tests run as root).
+  - Server: baseline on first scan, diff, accept, export, and the page served on
+    127.0.0.1.
+- **Full suite: 316 tests pass on Python 3.13 and 3.11.**
+- Live in this Ubuntu container, 266 real entries over dpkg. Findings:
+  - Medium: the container's real `claude ALL=(ALL) NOPASSWD: ALL` rule;
+  - Low: Ubuntu's own motd-news wget script, labelled as shipped by its package and
+    unchanged;
+  - Low: two edited conffiles, `/etc/bash.bashrc` and `/etc/sudoers`.
+
+  The page rendered with no console errors. The first live run had 42 false "anyone
+  can change it" alerts on symlinks (a link's mode is always 777). Fixed, and the rule
+  now skips links.
+
+### Decisions made without asking
+- **The first scan is the baseline automatically.** There is nothing to compare it
+  with, so an extra "take baseline" step would add nothing. Moving the baseline later
+  is always an explicit Accept.
+- **Package-shipped and unchanged means Low**, never hidden. The finding stays, with
+  the package named, so a vendor's odd choice is still visible.
+- **Shell rc edits by you are Low.** People edit their own .bashrc all the time. The
+  content checks still flag dangerous lines in it at full severity.
+- **No root needed.** Root-only files are reported as hidden rather than asking for
+  sudo. Their size and existence are still compared with the baseline.
+
+### Known limitations
+- Not run on a real Arch system: pacman support is tested on synthetic databases built
+  to the documented formats (this container is Ubuntu, where dpkg support ran live).
+- Content checks read each file's first 256 kB.
+- The checks are patterns. A determined attacker can hide a command in ways these
+  don't match, which is why the baseline diff (any change at all) matters as much as
+  the patterns.
+- Systemd drop-ins (`*.d/*.conf` two levels down) under /etc are read. The
+  package-owned /usr/lib units are limited to .service and .timer, to keep the first
+  scan fast.

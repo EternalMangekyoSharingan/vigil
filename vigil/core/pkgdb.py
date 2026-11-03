@@ -231,3 +231,143 @@ def vercmp(a, b):
     if c == 0 and ra is not None and rb is not None:
         c = _rpmvercmp(ra, rb)
     return c
+
+
+# ---- which package owns a path, and what the package says it should contain --------------
+
+class PackageFiles:
+    """Ownership and expected contents of installed files, read from the package database.
+
+    pacman: local/<pkg>/files (ownership) and local/<pkg>/mtree (SHA-256, mode, size).
+    dpkg:   info/<pkg>.list (ownership), info/<pkg>.md5sums (MD5), and the Conffiles
+            section of /var/lib/dpkg/status (config files the admin may edit).
+    rpm:    its database is binary; ownership and integrity are left to `rpm -qf` /
+            `rpm -Vf`, which the user can run (Vigil never runs them here).
+    Everything is loaded lazily, once.
+    """
+
+    def __init__(self, root="/"):
+        self.root = root
+        self._owners = None
+        self._mtrees = {}
+        self._md5 = {}
+        self._conffiles = None
+        self.kind = ("pacman" if os.path.isdir(os.path.join(root, "var/lib/pacman/local")) else
+                     "dpkg" if os.path.isdir(os.path.join(root, "var/lib/dpkg/info")) else
+                     "rpm" if os.path.isdir(os.path.join(root, "var/lib/rpm")) or
+                     os.path.isdir(os.path.join(root, "usr/lib/sysimage/rpm")) else None)
+
+    def _load(self):
+        if self._owners is not None:
+            return
+        self._owners = {}
+        if self.kind == "pacman":
+            for files in glob.glob(os.path.join(self.root, "var/lib/pacman/local/*/files")):
+                d = os.path.dirname(files)
+                try:
+                    with open(files, encoding="utf-8", errors="replace") as fh:
+                        for line in fh:
+                            line = line.rstrip("\n")
+                            if line and not line.startswith("%") and not line.endswith("/"):
+                                self._owners["/" + line] = d
+                except OSError:
+                    continue
+        elif self.kind == "dpkg":
+            for lst in glob.glob(os.path.join(self.root, "var/lib/dpkg/info/*.list")):
+                pkg = os.path.basename(lst)[:-5]
+                try:
+                    with open(lst, encoding="utf-8", errors="replace") as fh:
+                        for line in fh:
+                            p = line.rstrip("\n")
+                            if p and p != "/.":
+                                self._owners.setdefault(p, pkg)
+                except OSError:
+                    continue
+
+    def owner(self, path):
+        """Package name owning `path` (absolute, as seen on the live system), or None."""
+        self._load()
+        v = self._owners.get(path)
+        if v is None:
+            return None
+        if self.kind == "pacman":
+            name_ver = os.path.basename(v)
+            return name_ver.rsplit("-", 2)[0]
+        return v.split(":")[0]
+
+    def expected(self, path):
+        """{"algo", "digest", "mode", "size", "conffile"} the package recorded, or None."""
+        self._load()
+        v = self._owners.get(path)
+        if v is None:
+            return None
+        if self.kind == "pacman":
+            if v not in self._mtrees:
+                self._mtrees[v] = mtree(v) or {}
+            a = self._mtrees[v].get(path.lstrip("/"))
+            if not a:
+                return None
+            backup = set()
+            try:
+                with open(os.path.join(v, "desc"), encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
+                m = re.search(r"%BACKUP%\n(.*?)(?:\n\n|\Z)", text, re.S)
+                if m:
+                    backup = {b.split("\t")[0] for b in m.group(1).splitlines()}
+            except OSError:
+                pass
+            return {"algo": "sha256", "digest": a.get("sha256digest"), "mode": a.get("mode"),
+                    "size": int(a["size"]) if "size" in a else None, "conffile": path.lstrip("/") in backup,
+                    "type": a.get("type", "file")}
+        if self.kind == "dpkg":
+            conf = self.conffiles()
+            if path in conf:
+                return {"algo": "md5", "digest": conf[path], "mode": None, "size": None, "conffile": True, "type": "file"}
+            if v not in self._md5:
+                sums = {}
+                try:
+                    with open(os.path.join(self.root, f"var/lib/dpkg/info/{v}.md5sums"), encoding="utf-8",
+                              errors="replace") as fh:
+                        for line in fh:
+                            digest, _, rel = line.rstrip("\n").partition("  ")
+                            sums["/" + rel] = digest
+                except OSError:
+                    pass
+                self._md5[v] = sums
+            d = self._md5[v].get(path)
+            return {"algo": "md5", "digest": d, "mode": None, "size": None, "conffile": False, "type": "file"} if d else None
+        return None
+
+    def conffiles(self):
+        if self._conffiles is None:
+            self._conffiles = {}
+            try:
+                with open(os.path.join(self.root, "var/lib/dpkg/status"), encoding="utf-8", errors="replace") as fh:
+                    inside = False
+                    for line in fh:
+                        if line.startswith("Conffiles:"):
+                            inside = True
+                            continue
+                        if inside and line.startswith(" "):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                self._conffiles[parts[0]] = parts[1]
+                            continue
+                        inside = False
+            except OSError:
+                pass
+        return self._conffiles
+
+    def verify(self, path, data=None):
+        """"ok", "changed", "unknown" (no record) or "unreadable", for one file."""
+        exp = self.expected(path)
+        if not exp or not exp.get("digest"):
+            return "unknown"
+        if data is None:
+            try:
+                with open(os.path.join(self.root, path.lstrip("/")), "rb") as fh:
+                    data = fh.read()
+            except OSError:
+                return "unreadable"
+        h = hashlib.sha256(data) if exp["algo"] == "sha256" else hashlib.md5(data)
+        return "ok" if h.hexdigest() == exp["digest"] else "changed"

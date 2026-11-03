@@ -18,8 +18,57 @@ for Vigil Cases).
 | **Vigil Net** | Who is this PC talking to, and which program? | `python3 -m vigil.net` (same as `python3 -m vigil`) |
 | **Vigil Pkg** | Is this AUR package safe to build and install? | `python3 -m vigil.pkg` → <http://127.0.0.1:8766/> |
 | **Vigil Files** | Is this file or archive safe to open? | `python3 -m vigil.files` → <http://127.0.0.1:8767/> |
+| **Vigil Persist** | What starts automatically, and what changed since last time? | `python3 -m vigil.persist` → <http://127.0.0.1:8768/> |
 
 <!-- suite-tools: later steps add rows here -->
+
+## Vigil Persist: what starts by itself, and what changed?
+
+```bash
+python3 -m vigil.persist            # the page, on http://127.0.0.1:8768/ (scans when it opens)
+python3 -m vigil.persist scan       # scan in the terminal; the first scan becomes the baseline
+python3 -m vigil.persist scan --all # ...and list every autostart entry
+python3 -m vigil.persist accept     # make what is there now the new baseline
+```
+
+A Linux "Autoruns". It reads, and never changes:
+- systemd units and timers: yours, the system's and the packages'; generators too;
+- cron: crontab, cron.d, cron.hourly to cron.monthly, the spool;
+- XDG autostart, yours and the system's;
+- shell start-up files: bash, zsh and fish, profile.d, environment.d, X start-up;
+- `/etc/ld.so.preload` and the linker paths;
+- PAM;
+- sudoers, sudoers.d and doas;
+- SSH: `authorized_keys`, `~/.ssh/rc` and config, sshd_config;
+- kernel modules: modules-load.d and modprobe.d `install` lines, plus the **loaded**
+  modules from /proc/modules with their taint marks;
+- udev rules;
+- rc.local and init.d, NetworkManager dispatcher scripts, pacman hooks and apt.conf.d,
+  update-motd.d.
+
+The first scan is the **baseline**. Later scans show what is **new**, **changed** (content,
+permissions or link target) and **gone**, and **Accept as baseline** moves the baseline on.
+Each file is checked against the package that installed it: on Arch, pacman's mtree
+(SHA-256) gives the same answer as `pacman -Qkk`; on Debian and Ubuntu, dpkg's md5sums,
+with conffiles treated as editable config. On RPM distros it says why that can't be done
+without running rpm, and offers `rpm -Vf`. Content checks flag:
+- programs started from temp, hidden or Downloads folders;
+- download-and-run commands;
+- `LD_PRELOAD`;
+- NOPASSWD-for-everything and `!authenticate` sudo rules;
+- `pam_permit`/`pam_exec` and login modules from odd places;
+- modprobe `install` commands, and udev `RUN+=` shells;
+- world-writable or user-owned system start-up files;
+- unsigned or out-of-tree kernel modules.
+
+A file a package shipped unchanged is **labelled, not alarmed**: its findings drop to Low and
+name the package. Known programs (the known-services catalogue) are named, so "Syncthing's
+own autostart entry" reads as such. Files only root can read are listed as hidden, and
+changes to them are still noticed. Fixes are copy-only:
+- `systemctl [--user] disable --now`, with `enable --now` to undo;
+- moving a file aside, with moving it back to undo;
+- reinstalling the package (`pacman -S`, `apt install --reinstall`, `dnf reinstall`,
+  `zypper install -f`).
 
 ## Vigil Files: is this file or archive safe to open?
 
@@ -685,7 +734,7 @@ vigil/core/          shared by every tool
   web.py             the 127.0.0.1-only web server every tool uses
   netfetch.py        the single function in the suite that can open a URL (on request only)
   runner.py          sudo mode (Network Map only): runs only Vigil-generated commands, via pkexec
-  pkgdb.py           pacman's local and sync databases, version ordering, mtree file check (read only)
+  pkgdb.py           pacman and dpkg databases read directly: ownership, mtree / md5sums integrity, vercmp
 vigil/ui/static/     shared UI kit: style.css, fonts, ui.js, fx.js, menu.js, findings.js
                      (finding card, Fix panel, colour-coded commands), icon
 vigil/net/           Vigil Net: the Network Map and its tabs
@@ -720,6 +769,10 @@ vigil/pkg/           Vigil Pkg
   review.py          safe folder reading, approved versions, opt-in AUR metadata
   installed.py       foreign packages, pacman -Qkk-style file check
   server.py static/  its page
+vigil/persist/       Vigil Persist
+  locations.py       every autostart location and the content checks for each
+  scan.py            baseline and diff, package ownership and integrity, findings
+  server.py static/  its page and command line
 tests/core/          core tests and suite-wide safety rules
 tests/<tool>/        each tool's tests
 tests/fixtures/      synthetic fixtures (labelled), shared

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vigil Persist</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script type="module" src="/static/persist.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <polygon points="16,4 26.4,10 16,16 5.6,10" fill="#9fe3df"/>
+      <polygon points="5.6,10 16,16 16,28 5.6,22" fill="#3f9a95"/>
+      <polygon points="26.4,10 16,16 16,28 26.4,22" fill="#5dbdb9"/>
+      <circle cx="16" cy="16" r="2.2" fill="#ff9f43"/>
+    </svg>
+    Vigil <span class="tool-name">Persist</span> <small>what starts by itself</small>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-tab="findings" class="active">Findings</button>
+    <button type="button" data-tab="all">Everything</button>
+    <button type="button" data-tab="changes">Changes</button>
+  </nav>
+  <div class="status" id="status"></div>
+</header>
+<main>
+  <section class="tab active" id="tab-findings">
+    <div class="split">
+      <div class="main">
+        <div class="form-row">
+          <button type="button" class="btn primary" id="scan">Scan now</button>
+          <button type="button" class="btn" id="accept" title="Make what is there now the baseline that later scans are compared with">Accept as baseline</button>
+          <span class="faint" id="summary"></span>
+        </div>
+        <div id="findings"></div>
+      </div>
+      <aside class="side">
+        <h2>What Persist reads</h2>
+        <p class="muted">systemd units and timers (system and yours), cron, XDG autostart, shell start-up files, /etc/ld.so.preload, PAM, sudoers, SSH keys and settings, kernel modules (configured and loaded), udev rules, and boot, network and package-manager hooks.</p>
+        <p class="muted">The first scan becomes the <b>baseline</b>. Later scans show what is new, changed or gone. Files that came from a package are checked against that package's own checksums where your distro's database can be read (pacman, dpkg).</p>
+        <h3>Limits</h3>
+        <ul class="muted" id="limits"></ul>
+      </aside>
+    </div>
+  </section>
+  <section class="tab" id="tab-all">
+    <div class="split"><div class="main"><div id="all"></div></div></div>
+  </section>
+  <section class="tab" id="tab-changes">
+    <div class="split"><div class="main"><div id="changes"></div></div></div>
+  </section>
+</main>
+</body>
+</html>
