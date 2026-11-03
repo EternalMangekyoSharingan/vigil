@@ -1,0 +1,15 @@
+# SYNTHETIC test fixture for Vigil Pkg: the PKGBUILD and .SRCINFO disagree.
+# Maintainer: Heidi Example <heidi at example dot org>
+pkgname=srcinfo-demo
+pkgver=2.2
+pkgrel=1
+pkgdesc="Disagreeing metadata (test fixture)"
+arch=('any')
+url="https://srcinfo.example.org"
+license=('MIT')
+source=("https://srcinfo.example.org/real-$pkgver.tar.gz")
+sha256sums=('0e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6071')
+
+package() {
+  install -Dm644 README "$pkgdir/usr/share/doc/srcinfo-demo/README"
+}

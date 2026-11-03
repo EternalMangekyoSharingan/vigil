@@ -1012,3 +1012,44 @@ details.tech summary { cursor: pointer; color: var(--text-2); font-weight: 500; 
 .tool { display: flex; align-items: center; gap: 7px; font-size: 12.5px; }
 .lk-head .sico { align-self: center; }
 .risk.deletes { color: var(--orange); background: var(--orange-soft); }
+
+/* ---- suite tools (Pkg, Files, Persist, Tasks, Cases): shared pieces ---- */
+.tool-name { color: var(--orange); font-weight: 600; }
+.form-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.form-row input[type=text] { flex: 1; min-width: 260px; font-family: var(--mono); font-size: 12px; }
+textarea.paste { width: 100%; min-height: 180px; font-family: var(--mono); font-size: 12px; box-sizing: border-box; }
+.verdict { display: flex; gap: 16px; align-items: center; padding: 14px 16px; margin: 12px 0;
+  border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--bg-1); flex-wrap: wrap; }
+.verdict .word { font: 600 18px var(--display); letter-spacing: -.015em; }
+.verdict.danger { border-color: rgba(255, 93, 115, .45); }
+.verdict.danger .word { color: var(--danger-text); }
+.verdict.warn { border-color: rgba(245, 196, 81, .4); }
+.verdict.warn .word { color: var(--warn); }
+.verdict.ok .word { color: var(--ok); }
+.verdict .meta { color: var(--text-2); font-size: 12.5px; }
+.verdict .counts { display: flex; gap: 6px; margin-left: auto; }
+ul.evidence { list-style: none; padding: 0; margin: 0; }
+ul.evidence li { padding: 4px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.codeview { font-family: var(--mono); font-size: 12px; background: var(--bg-0); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow: auto; max-height: 520px; margin: 8px 0 16px; }
+.codeview .ln { display: grid; grid-template-columns: 44px 1fr; white-space: pre; }
+.codeview .ln .no { color: var(--text-3); text-align: right; padding-right: 10px; user-select: none; }
+.codeview .ln.hit { background: var(--warn-soft); }
+.codeview .ln.hit.danger { background: var(--danger-soft); }
+.codeview .ln.new .no { color: var(--orange); }
+pre.diff { font-family: var(--mono); font-size: 12px; background: var(--bg-0); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 8px 12px; overflow: auto; max-height: 420px; }
+pre.diff .add { color: var(--ok); }
+pre.diff .del { color: var(--danger-text); }
+.tree { font-family: var(--mono); font-size: 12px; }
+.tree .node { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.tree .node:hover { background: rgba(255, 255, 255, .02); }
+.tree .node.sel { background: var(--orange-soft); }
+.tree .twig { color: var(--text-3); white-space: pre; }
+.tree .flag { font-family: var(--sans); font-size: 11px; }
+.timeline { list-style: none; padding: 0; margin: 0; border-left: 1px solid var(--line-2); }
+.timeline li { position: relative; padding: 8px 0 8px 16px; border-bottom: 1px solid var(--line); }
+.timeline li::before { content: ""; position: absolute; left: -4px; top: 14px; width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+.timeline li.High::before { background: var(--danger); }
+.timeline li.Medium::before { background: var(--warn); }
+.timeline li .when { color: var(--text-3); font-size: 11.5px; font-family: var(--mono); }

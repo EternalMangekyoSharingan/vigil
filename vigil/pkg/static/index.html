@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vigil Pkg</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script type="module" src="/static/pkg.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <polygon points="16,4 26.4,10 16,16 5.6,10" fill="#9fe3df"/>
+      <polygon points="5.6,10 16,16 16,28 5.6,22" fill="#3f9a95"/>
+      <polygon points="26.4,10 16,16 16,28 26.4,22" fill="#5dbdb9"/>
+      <circle cx="16" cy="16" r="2.2" fill="#ff9f43"/>
+    </svg>
+    Vigil <span class="tool-name">Pkg</span> <small>AUR package review</small>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-tab="review" class="active">Review</button>
+    <button type="button" data-tab="installed">Installed</button>
+    <button type="button" data-tab="approved">Approved</button>
+  </nav>
+  <div class="status" id="status"></div>
+</header>
+<main>
+  <section class="tab active" id="tab-review">
+    <div class="split">
+      <div class="main">
+        <h2>Review a PKGBUILD before you build it</h2>
+        <p class="muted">Point Vigil at the folder your AUR helper shows for review, or at a <code>git clone</code> of the AUR repository. Vigil reads the files as text. It never runs makepkg or any part of the PKGBUILD.</p>
+        <div class="form-row">
+          <input type="text" id="folder" placeholder="/home/you/.cache/paru/clone/some-package" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn primary" id="go">Review</button>
+        </div>
+        <details><summary class="faint">Or paste a PKGBUILD</summary>
+          <textarea class="paste" id="paste" spellcheck="false" placeholder="pkgname=…"></textarea>
+          <div class="form-row"><button type="button" class="btn" id="go-paste">Review pasted text</button></div>
+        </details>
+        <div id="result"></div>
+      </div>
+      <aside class="side" id="side">
+        <h2>What Vigil checks</h2>
+        <ul class="muted">
+          <li>Look-alike names (popular name plus "fix", "patched"…; one-letter typos; known malicious names)</li>
+          <li>Where sources come from: bare IPs, pastebins, link shorteners, file-sharing sites, plain http, another site than the project's</li>
+          <li>SKIP or missing checksums on release files and -bin downloads</li>
+          <li>Downloads inside prepare(), build() and package()</li>
+          <li>Run-what-you-download: piping into a shell, eval, base64 decoding, long encoded text, chmod +x then run</li>
+          <li>.install scripts: downloads, services switched on, users and admin rights, cron, setuid, files outside the package</li>
+          <li>Writes outside $pkgdir, sudo, changes to your shell or startup files</li>
+          <li>History: what changed since the version you approved, new maintainer, .SRCINFO mismatch; optional AUR details</li>
+        </ul>
+        <h2>Verdicts</h2>
+        <p class="muted"><b>Don't install</b>: at least one strong sign of trouble. <b>Review these lines</b>: something worth reading yourself. <b>Looks normal</b>: nothing matched; never a promise that it is safe.</p>
+      </aside>
+    </div>
+  </section>
+  <section class="tab" id="tab-installed">
+    <div class="split">
+      <div class="main">
+        <h2>Foreign packages already installed</h2>
+        <p class="muted">Packages no repository offers (what <code>pacman -Qm</code> lists), checked against known-malicious and look-alike names, and their files compared with what pacman installed (like <code>pacman -Qkk</code>), by reading the package database.</p>
+        <div class="form-row"><button type="button" class="btn primary" id="audit">Audit installed packages</button></div>
+        <div id="installed"></div>
+      </div>
+    </div>
+  </section>
+  <section class="tab" id="tab-approved">
+    <div class="split">
+      <div class="main">
+        <h2>Versions you approved</h2>
+        <p class="muted">After you approve a version, the next review of that package shows what changed and marks new lines.</p>
+        <div id="approved"></div>
+        <h2>Recent reviews</h2>
+        <div id="runs"></div>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

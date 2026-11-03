@@ -16,8 +16,57 @@ for Vigil Cases).
 | Tool | Question | Run it |
 | --- | --- | --- |
 | **Vigil Net** | Who is this PC talking to, and which program? | `python3 -m vigil.net` (same as `python3 -m vigil`) |
+| **Vigil Pkg** | Is this AUR package safe to build and install? | `python3 -m vigil.pkg` → <http://127.0.0.1:8766/> |
 
 <!-- suite-tools: later steps add rows here -->
+
+## Vigil Pkg: review an AUR package before you build it
+
+```bash
+python3 -m vigil.pkg                                   # the page, on http://127.0.0.1:8766/
+python3 -m vigil.pkg review ~/.cache/paru/clone/foo    # the same review in the terminal
+python3 -m vigil.pkg review ./foo --approve            # ...and remember this version as approved
+python3 -m vigil.pkg review ./foo --aur                # also fetch AUR details (network: sends the name)
+python3 -m vigil.pkg installed                         # audit foreign packages already installed
+python3 -m vigil.pkg trusted                           # versions you approved
+```
+
+Point it at a PKGBUILD folder: your AUR helper's review folder (paru: `~/.cache/paru/clone/<pkg>`,
+yay: `~/.cache/yay/<pkg>`) or a `git clone https://aur.archlinux.org/<pkg>.git`. Vigil reads
+the files as **text**: it never runs `makepkg`, never sources the PKGBUILD and never
+downloads the sources. The verdict is **Don't install**, **Review these lines** or **Looks
+normal**, never "safe". Every finding names the exact file and line, says why it matters,
+and offers copy-only Check / Fix / Undo commands. The terminal review exits with 2, 1 or 0
+for those three verdicts, so it can sit in a script.
+
+What it checks:
+- **Look-alike names**: a popular name plus fix, patched, cracked, premium…; one-letter typos;
+  names of packages removed for malware (librewolf-fix-bin, firefox-patch-bin,
+  zen-browser-patched-bin; the 2018 acroread/balz/minergate).
+- **Sources**: bare IP addresses, pastebins, link shorteners, file-sharing sites, plain
+  `http://`, and sites that differ from the project's `url=`.
+- **Checksums**: `SKIP` or missing checksums for downloaded release files and `-bin`
+  programs (git sources are fine); MD5/SHA-1 only.
+- **Network inside build steps**: curl, wget, git clone, pip install, raw sockets in
+  `prepare()`/`build()`/`package()`; npm/go/cargo fetches as Low.
+- **Run what you download**: piping into a shell, `bash <(curl …)`, eval, `base64 -d`
+  (into a shell), long encoded text, chmod +x then run, `/dev/tcp`.
+- **Code that runs on reading**: commands outside functions, `$(…)` at the top level.
+- **.install scripts** (they run as root): downloads, services switched on, accounts and
+  admin groups, passwords, cron, setuid, firewall or SELinux off, files outside the package.
+- **Writes outside `$pkgdir`**, `sudo`, shell start-up files, `systemctl --user`, autostart.
+- **Other files**: links (never followed), compiled programs in the repository, pacman
+  hooks and `.desktop` files that download or decode.
+- **History**: press **Approve** (or `--approve`) and the next review shows a diff, marks new
+  lines, and flags a new maintainer; a `.SRCINFO` that disagrees with the PKGBUILD.
+  **Check AUR details** (opt-in, sends only the package name to aur.archlinux.org) adds:
+  orphaned, under a month old, changed hands (recently), maintainer's account looks new,
+  no votes.
+- **Installed**: foreign packages (like `pacman -Qm`, from the sync databases, or the
+  packager field when they can't be read), known-malicious and look-alike names among them,
+  and files changed since install (like `pacman -Qkk`: missing, type, link, mode, size,
+  SHA-256 from each package's mtree; config files marked as backup are skipped). On other
+  distros it says so and shows that distro's own read-only check (`rpm -Va`, `dpkg --verify`).
 
 ## Vigil Net (the Network Map)
 
@@ -589,7 +638,7 @@ vigil/core/          shared by every tool
   web.py             the 127.0.0.1-only web server every tool uses
   netfetch.py        the single function in the suite that can open a URL (on request only)
   runner.py          sudo mode (Network Map only): runs only Vigil-generated commands, via pkexec
-  pkgdb.py           pacman's local database and version ordering, read directly
+  pkgdb.py           pacman's local and sync databases, version ordering, mtree file check (read only)
 vigil/ui/static/     shared UI kit: style.css, fonts, ui.js, fx.js, menu.js, findings.js
                      (finding card, Fix panel, colour-coded commands), icon
 vigil/net/           Vigil Net: the Network Map and its tabs
@@ -612,7 +661,14 @@ vigil/files/         File Inspector engine (used by Net's Files tab and Vigil Fi
   archives.py        archive-bomb measurement: streamed decompression, nothing extracted
   ole.py             OLE2 compound files and VBA macro decompression (read only)
   engines.py         second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups
+vigil/pkg/           Vigil Pkg
+  parse.py           PKGBUILD / .install / .SRCINFO reader: bash syntax as text, never run
+  checks.py          every review check, the verdict
+  names.py           look-alike and known-malicious package names
+  review.py          safe folder reading, approved versions, opt-in AUR metadata
+  installed.py       foreign packages, pacman -Qkk-style file check
+  server.py static/  its page
 tests/core/          core tests and suite-wide safety rules
-tests/net/ tests/files/   each tool's tests
+tests/<tool>/        each tool's tests
 tests/fixtures/      synthetic fixtures (labelled), shared
 ```

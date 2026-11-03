@@ -1,0 +1,37 @@
+# SYNTHETIC test fixture for Vigil Pkg: a normal -git package.
+# Maintainer: Bob Example <bob at example dot org>
+pkgname=python-vigiltool-git
+_pkgname=vigiltool
+pkgver=r120.abc1234
+pkgrel=1
+pkgdesc="Example Python tool, from git (test fixture)"
+arch=('any')
+url="https://codeberg.org/example/vigiltool"
+license=('GPL3')
+makedepends=('git' 'python-build' 'python-installer' 'python-wheel')
+source=("git+https://codeberg.org/example/vigiltool.git"
+        "git+https://codeberg.org/example/vigiltool-data.git")
+sha256sums=('SKIP' 'SKIP')
+
+pkgver() {
+  cd "$_pkgname"
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  cd "$_pkgname"
+  git submodule init
+  git config submodule.data.url "$srcdir/vigiltool-data"
+  git -c protocol.file.allow=always submodule update
+}
+
+build() {
+  cd "$_pkgname"
+  python -m build --wheel --no-isolation
+}
+
+package() {
+  cd "$_pkgname"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+  pip install --no-deps --root="$pkgdir" dist/vigiltool-0-py3-none-any.whl
+}

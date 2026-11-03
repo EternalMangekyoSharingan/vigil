@@ -1333,3 +1333,176 @@ The flat `vigil/` package was split into the SUITE.md layout. Files were moved w
   renderer in step 5.
 - `core/web.py` quietly ignores `ConnectionResetError` from closed keep-alive
   connections instead of printing a traceback (cosmetic).
+
+## Step 2: Vigil Pkg (2026-11-03)
+
+### What was built
+`python3 -m vigil.pkg` serves a page on 127.0.0.1:8766 (tabs Review, Installed,
+Approved). The same work is available from the terminal: `review DIR [--approve]
+[--aur] [--json]`, `installed`, `trusted`.
+
+- **`pkg/parse.py`** reads PKGBUILD, .install and .SRCINFO as bash text. It handles:
+  - comments, line continuations, multi-line arrays, quotes, here-documents;
+  - functions (`name() {` and `function name {`), with braces inside quotes;
+  - assignments versus env-prefixed commands (`CFLAGS=… make`);
+  - top-level commands, and per-item source line numbers.
+
+  Variables are expanded only from plain assignments. `$(...)` and backticks are
+  never evaluated, only flagged. A test proves `$(touch …)` creates nothing.
+- **`pkg/checks.py`** runs every check in SUITE.md. Each produces a core finding with
+  the exact file:line and the line's text as evidence, URL indicators where relevant,
+  and a Fix panel:
+  - Check: `sed -n 'Np' FILE` (shows the line).
+  - Fix, for High findings: "Don't build it", which is `rm -r FOLDER` with the undo
+    `git clone https://aur.archlinux.org/<pkg>.git FOLDER`.
+  - Fix, for High and Medium findings: AUR report steps.
+
+  The checks:
+  1. **Names**: a popular name plus a bait word, with a strength per word ("fix" 0.9,
+     "pro" 0.5…); one-edit typos (Damerau distance); the known-malicious list (the
+     2025 trio and the 2018 trio).
+  2. **Sources**:
+     - High: pastebin (26 hosts), link shortener (19).
+     - Medium: bare IP, personal file host (28).
+     - http:// is Medium without a checksum, Low with one.
+     - A site other than `url=` is Low, and only when neither side is a known forge or
+       mirror.
+  3. **Checksums**: SKIP or missing for a URL source (not VCS) is Medium, with more
+     strength for a `-bin` or prebuilt file type. MD5/SHA-1/CRC-only is Low.
+  4. **Network in build functions**:
+     - Medium: curl, wget, aria2c…, git clone/fetch/pull, pip install, nc/socat.
+     - Not flagged: local wheels and `--no-deps` installs, and submodules fed with
+       `protocol.file.allow`.
+     - Low: npm/yarn/pnpm/bun install, `go get x@v`, `cargo install`, `gem`,
+       `composer`.
+  5. **Run what you download**:
+     - High: download piped into a shell or interpreter; `sh <(curl)`, `sh -c "$(curl)"`,
+       `source <(curl)`; `/dev/tcp`; decode piped into a shell.
+     - Medium: decode (base64 -d, openssl -d, xxd -r, `\x` escapes), eval, a download
+       saved to /tmp, chmod +x of a file then running it in the same function, and
+       base64-like text of 120+ characters (checksum lines and hex excluded).
+  6. **Top-level code**:
+     - A command outside functions is Medium (High if it uses the network).
+     - `$(…)` in a top-level assignment is Low (High with network or base64).
+  7. **.install**: every line runs as root.
+     - High: download, privilege (usermod into wheel/sudo, passwd, chpasswd), cron,
+       setuid, security off (setenforce 0, ufw disable, iptables -F…), `systemctl --user`.
+     - Medium: enable/start a service; writes outside the package.
+     - Low: unexpected functions. Top-level commands are flagged too.
+     - useradd is Low, and Info when it creates a system account (`-r`).
+  8. **Writes**: targets of `>`/`>>`, and of install/cp/mv/ln/rsync, mkdir, touch, rm,
+     chmod, chown, tee, `sed -i`. Anything not under `$pkgdir`/`$srcdir`/`$startdir` is
+     Medium. Home folders, shell rc files, autostart, systemd user units, sudoers,
+     ld.so.preload, PAM, cron and SSH keys are High. sudo/doas/pkexec anywhere is High.
+     `systemctl --user enable` in a build is High.
+  9. **Other files**:
+     - Read as scripts: .sh, .hook, .service, .desktop.
+     - A pacman hook whose Exec downloads, or a .desktop Exec that downloads or
+       decodes, is High.
+     - Links are reported, never followed.
+     - Compiled programs (ELF or PE) in the repository are Medium.
+  10. **History**:
+      - Approve stores the folder's text in the Pkg store. The next review shows a
+        unified diff, tags findings on new lines "new" (with a signal), and flags a new
+        `# Maintainer:`.
+      - No approved version gives one Info finding, "First time you've reviewed this
+        package".
+      - A .SRCINFO whose sources or pkgver differ from the PKGBUILD is Medium.
+  11. **AUR metadata** (opt-in, through `core/netfetch`; sends only the name). Two RPC
+      v5 calls (`info`, then `search by=maintainer`) give:
+      - orphaned (Low);
+      - under 30 days old (Medium);
+      - submitter ≠ maintainer (Medium if changed in the last 14 days);
+      - maintainer's oldest package under 30 days old (Medium, as a stand-in for
+        account age);
+      - no votes and no popularity (Low).
+
+  The verdict is **Don't install** (any High), **Review these lines** (any Medium) or
+  **Looks normal**. Overlapping checks on the same line keep only the strongest, so
+  `curl … | bash` reads as one finding.
+- **`pkg/review.py`** reads the folder:
+  - regular files only, ≤ 1 MB each, ≤ 300 files;
+  - `.git`, `src` and `pkg` skipped;
+  - binary assets listed but not read;
+  - nothing written.
+
+  It also holds the approved versions (`Trusted`), `aur_info()`, and saves runs to
+  `data/pkg/pkg.db` and `data/pkg/findings.jsonl`.
+- **`pkg/installed.py`** and **`core/pkgdb.py`** (shared with Persist):
+  - `sync_names()` lists member names of `/var/lib/pacman/sync/*.db` without
+    extracting.
+  - `foreign()` is like `pacman -Qm`. Without readable sync databases it falls back to
+    "packager isn't @archlinux.org" and says so.
+  - `mtree()` and `verify()` do `pacman -Qkk` by reading each package's gzip mtree:
+    missing, type, link, mode, size and SHA-256 (files ≤ 64 MB), skipping %BACKUP%
+    files as pacman does.
+  - Findings: an installed known-malicious name is High, with `sudo pacman -Rns` and
+    undo steps; a look-alike name is Medium; changed files are Medium when they are
+    programs, libraries, systemd, PAM or autostart files, otherwise Low.
+  - Not Arch: an explanation plus that distro's read-only check (`rpm -Va` on
+    Fedora/openSUSE, `dpkg --verify` on Debian/Ubuntu).
+- **Shared UI kit additions** (`ui/static/findings.js`, `style.css`): verdict box,
+  code view with highlighted lines, diff view, and CSS for trees and timelines (used in
+  later steps).
+
+### Tests
+- `tests/pkg/test_pkg.py`, 32 tests, on 9 labelled synthetic PKGBUILD folders
+  (`tests/fixtures/pkg`, README included):
+  - benign, benign-vcs, squat (`librewolf-fix-bin` with a SKIP -bin download),
+    sources, builder, installer, outside, toplevel, srcinfo;
+  - plus a fake pacman root built in the test: a local db with desc and gzip mtree, a
+    gzip sync db tar, a changed program, an edited backup config and a deleted file.
+- Each malicious fixture's checks must fire on the **exact line**, and the evidence
+  text must equal that line.
+- The benign folders must give "Looks normal" with only the Info first-review finding.
+- Every finding must pass `finding.problems()`, have a title that fits in 60
+  characters without being cut, and have a `sed -n` check for line findings and an undo
+  for every fix with commands.
+- A review of three hostile folders runs with `subprocess.run`, `Popen`, `os.system`
+  and `os.execv` patched to raise, and `open()` patched to refuse writes inside the
+  folder. Every file's bytes and mtime must be unchanged afterwards.
+- The AUR call is made only by `/api/aur`, never by `/api/review` (fake fetcher).
+- The suite-wide safety tests (step 1) now also cover `pkg/`:
+  - `pkg/*` cannot import subprocess, exec/eval, pickle or extractall;
+  - no module builds a `makepkg` or `bash`/`sh` argv;
+  - `vigil/pkg/fixes.py` would be checked automatically if added.
+- **Full suite: 270 tests pass on Python 3.13 and 3.11.**
+- Live:
+  - `python3 -m vigil.pkg review` on a scratch hostile folder printed "DON'T INSTALL"
+    with lines;
+  - the page in Chromium rendered the verdict, findings, Fix panel and colour-coded
+    `sed` command with no console errors;
+  - `installed` on this Ubuntu container printed the no-pacman note with
+    `dpkg --verify`.
+
+### Decisions made without asking
+- **Severity of the name check:** bait words weighted 0.85 or more (fix, patch,
+  patched, cracked, keygen, hack, unlocked) are High; weaker ones (pro, all, full, plus)
+  are Medium. Typos are Medium, with Low confidence.
+- **The pacman -Qkk equivalent reads the mtree directly** instead of running
+  `pacman -Qkk`, so nothing is executed. The page and findings still show
+  `pacman -Qkk NAME` as a copyable Check.
+- **Installed audit scope:** only foreign packages are file-checked. Official packages
+  are covered by Persist (step 4) where it matters, and checking everything is slow.
+- **Fix for a High review finding is "delete the folder"** (with a re-clone undo),
+  because nothing has been built yet. Reporting to the AUR is steps only, never
+  automated.
+- **"Account age"** is approximated by the maintainer's oldest package, since the AUR
+  doesn't publish account creation dates. The finding says so.
+- **Pasted PKGBUILD text** (no folder) is reviewed the same way, minus the
+  folder-based fixes.
+
+### Known limitations
+- The parser is a reviewer's parser, not bash. It can miss tricks such as variables
+  built from pieces (`c=cu; ${c}rl`), aliases or functions defined in sourced files.
+  Indirection like that tends to trip "eval", "encoded" or "decode" anyway, but not
+  always. The limits text on every report says so.
+- Writes are found for the common commands and redirections, not every possible way
+  of writing a file.
+- **Not tested on a real Arch system or a real AUR clone:** this container is Ubuntu,
+  so the sync/local database formats are exercised with synthetic fixtures built to the
+  documented formats. zstd-compressed sync databases can't be read with Python < 3.14;
+  the audit then falls back to the packager heuristic and says so.
+- Patches (`*.patch`) are listed and shown but only scanned with the
+  run-what-you-download rules if named `.sh`/`.hook`/…; a patch adds code to the
+  upstream source, which Vigil does not have.

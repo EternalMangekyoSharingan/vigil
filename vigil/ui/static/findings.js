@@ -172,3 +172,39 @@ export function initTabs(nav, onShow = null) {
 }
 
 export { api };
+
+// ---- shared views: verdict, file with highlighted lines, unified diff, severity counts --------
+
+export function verdictBox(word, cls, meta, counts = null) {
+  const box = el("div", { class: `verdict ${cls}` }, el("span", { class: "word", text: word }),
+    el("span", { class: "meta", text: meta }));
+  if (counts) {
+    box.append(el("span", { class: "counts" }, ["High", "Medium", "Low"].filter((s) => counts[s]).map((s) =>
+      el("span", { class: `tag ${SEV_CLASS[s]}`, text: `${counts[s]} ${s}` }))));
+  }
+  return box;
+}
+
+// hits: {lineNo: "High"|"Medium"|...}; fresh: Set of line numbers new since approval
+export function codeView(text, hits = {}, fresh = null) {
+  const box = el("div", { class: "codeview" });
+  text.split("\n").forEach((line, i) => {
+    const n = i + 1;
+    const sev = hits[n];
+    box.append(el("div", { class: `ln${sev ? ` hit ${SEV_CLASS[sev]}` : ""}${fresh?.has(n) ? " new" : ""}`, id: null,
+      title: sev ? `${sev} finding on this line` : null },
+    el("span", { class: "no", text: String(n) }), el("span", { text: line || " " })));
+  });
+  return box;
+}
+
+export function diffView(unified) {
+  const pre = el("pre", { class: "diff" });
+  for (const line of unified.split("\n")) {
+    const cls = line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : null;
+    pre.append(el("span", { class: cls, text: `${line}\n` }));
+  }
+  return pre;
+}
+
+export const VERDICT_CLASS = (worst) => (worst === "High" ? "danger" : worst === "Medium" ? "warn" : "ok");

@@ -1,0 +1,18 @@
+# SYNTHETIC test fixture for Vigil Pkg: code that runs when the PKGBUILD is merely read.
+# Maintainer: Grace Example <grace at example dot org>
+pkgname=toplevel-demo
+pkgver=1.2
+pkgrel=1
+pkgdesc="Runs code on read (test fixture)"
+arch=('any')
+url="https://toplevel.example.org"
+license=('MIT')
+_build_date=$(date +%Y%m%d)
+_token=$(curl -s https://198.51.100.40/token)
+source=("https://toplevel.example.org/toplevel-demo-$pkgver.tar.gz")
+sha256sums=('1f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f607182')
+touch /tmp/vigil-test-should-never-exist
+
+package() {
+  install -Dm644 README "$pkgdir/usr/share/doc/toplevel-demo/README"
+}

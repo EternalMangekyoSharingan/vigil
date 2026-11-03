@@ -1,0 +1,25 @@
+# SYNTHETIC test fixture for Vigil Pkg: one source of every doubtful kind. Inert text.
+# Maintainer: Carol Example <carol at example dot org>
+pkgname=sourcey
+pkgver=2.0
+pkgrel=1
+pkgdesc="Downloads from odd places (test fixture)"
+arch=('x86_64')
+url="https://sourcey.example.org"
+license=('MIT')
+source=("sourcey-$pkgver.tar.gz::https://198.51.100.23/files/sourcey-$pkgver.tar.gz"
+        "fix.sh::https://pastebin.com/raw/Vg1lT3st"
+        "https://bit.ly/3vigilx"
+        "https://www.dropbox.com/s/abc123/sourcey-data.zip?dl=1"
+        "http://downloads.sourcey.example.org/sourcey-extra-$pkgver.tar.gz"
+        "https://cdn.othersite.example.com/sourcey-$pkgver-assets.tar.gz")
+sha256sums=('9f2c3a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d'
+            '8e1b2a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d'
+            '7d0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e'
+            '6c9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d'
+            'SKIP'
+            '5b8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c')
+
+package() {
+  install -Dm755 sourcey "$pkgdir/usr/bin/sourcey"
+}

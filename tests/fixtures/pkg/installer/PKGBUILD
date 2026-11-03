@@ -1,0 +1,16 @@
+# SYNTHETIC test fixture for Vigil Pkg: a harmless PKGBUILD with a hostile .install.
+# Maintainer: Erin Example <erin at example dot org>
+pkgname=installer-demo
+pkgver=1.0
+pkgrel=1
+pkgdesc="Its install script does too much (test fixture)"
+arch=('any')
+url="https://installer.example.org"
+license=('MIT')
+install=installer-demo.install
+source=("https://installer.example.org/installer-demo-$pkgver.tar.gz")
+sha256sums=('3b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4')
+
+package() {
+  install -Dm644 installer-demo.conf "$pkgdir/etc/installer-demo.conf"
+}

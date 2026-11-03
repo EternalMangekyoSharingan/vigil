@@ -1,0 +1,17 @@
+# SYNTHETIC test fixture for Vigil Pkg: copies the July 2025 AUR malware pattern
+# (a popular browser name plus "fix", a prebuilt download with SKIP). Inert text.
+# Maintainer: throwaway <x at example dot com>
+pkgname=librewolf-fix-bin
+pkgver=128.0.3
+pkgrel=1
+pkgdesc="LibreWolf with fixes (test fixture)"
+arch=('x86_64')
+url="https://librewolf.net/"
+license=('MPL2')
+source=("https://github.com/example-fixes/librewolf-fix/releases/download/v$pkgver/librewolf-$pkgver.tar.xz")
+sha256sums=('SKIP')
+
+package() {
+  mkdir -p "$pkgdir/opt/librewolf"
+  cp -r librewolf/* "$pkgdir/opt/librewolf/"
+}

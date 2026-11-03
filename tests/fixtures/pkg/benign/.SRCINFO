@@ -1,0 +1,12 @@
+pkgbase = hello-vigil
+	pkgdesc = A small example program (test fixture)
+	pkgver = 1.4.2
+	pkgrel = 1
+	url = https://github.com/example/hello-vigil
+	arch = x86_64
+	source = hello-vigil-1.4.2.tar.gz::https://github.com/example/hello-vigil/archive/refs/tags/v1.4.2.tar.gz
+	source = hello-vigil.desktop
+	sha256sums = 0d4f8c2b7f1e9a6b3c5d8e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d
+	sha256sums = a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90
+
+pkgname = hello-vigil

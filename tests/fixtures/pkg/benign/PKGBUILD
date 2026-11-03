@@ -1,0 +1,30 @@
+# SYNTHETIC test fixture for Vigil Pkg: a tidy, ordinary PKGBUILD.
+# Maintainer: Alice Example <alice at example dot org>
+pkgname=hello-vigil
+pkgver=1.4.2
+pkgrel=1
+pkgdesc="A small example program (test fixture)"
+arch=('x86_64')
+url="https://github.com/example/hello-vigil"
+license=('MIT')
+depends=('glibc')
+makedepends=('cmake')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/example/hello-vigil/archive/refs/tags/v$pkgver.tar.gz"
+        "hello-vigil.desktop")
+sha256sums=('0d4f8c2b7f1e9a6b3c5d8e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d'
+            'a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90')
+
+build() {
+  cmake -B build -S "$pkgname-$pkgver" -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 hello-vigil.desktop "$pkgdir/usr/share/applications/hello-vigil.desktop"
+  install -Dm644 "$pkgname-$pkgver/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

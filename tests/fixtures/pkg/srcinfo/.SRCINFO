@@ -1,0 +1,7 @@
+pkgbase = srcinfo-demo
+	pkgver = 2.2
+	pkgrel = 1
+	source = https://srcinfo.example.org/innocent-2.2.tar.gz
+	sha256sums = 0e3f4a5b6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6071
+
+pkgname = srcinfo-demo
