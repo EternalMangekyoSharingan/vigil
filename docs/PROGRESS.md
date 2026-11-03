@@ -1506,3 +1506,144 @@ Approved). The same work is available from the terminal: `review DIR [--approve]
 - Patches (`*.patch`) are listed and shown but only scanned with the
   run-what-you-download rules if named `.sh`/`.hook`/…; a patch adds code to the
   upstream source, which Vigil does not have.
+
+## Step 3: Vigil Files (2026-11-03)
+
+### What was built
+`python3 -m vigil.files` serves a page on 127.0.0.1:8767 with four tabs: Explore,
+Quarantine, Watch Downloads, Settings. Terminal commands: `inspect`, `ls`, `watch`,
+`quarantine`, `quarantined`, `restore`.
+- **`files/listing.py`** lists archives from their index, with nothing extracted:
+  - **zip**: the central directory, the Unix mode from `external_attr`, link targets
+    (the stored link's few data bytes, read in memory), and each entry's data range
+    from its local header, used to find **overlapping entries**.
+  - **tar / tar.gz / .bz2 / .xz / .zst**: tarfile in stream mode over a decompressing
+    reader with a hard cap (1 GB of output, 10 s). The reader never asks the
+    decompressor for more than 1 MB at a time, so a bomb stops at the cap. zstd works
+    when the Python has `compression.zstd` (3.14+); otherwise it is reported.
+  - **7z**: written from the format spec. It reads the signature header, the plain
+    header, or a **compressed header** (LZMA1 or LZMA2, decoded with the standard
+    `lzma` module in raw mode, capped at 64 MB), plus names, sizes, empty-stream
+    and empty-file flags, and Unix modes from the attributes. An AES-encrypted header
+    is reported as "names are encrypted".
+  - **RAR5** (vint block headers, file flags, Unix modes, file-system redirection
+    records for links) and **RAR4** (block headers, large-size flags, Unix attributes).
+    Encrypted headers are reported.
+  - Crafted or damaged indexes stop the listing with a note; they never crash it.
+- **`files/triage.py`**: `inspect_path()` reads at most 512 MB for content checks (the
+  hash covers the whole file) and gathers three sources:
+  1. **Index checks**, each with a severity and a plain title:
+     - High: ratio ≥ 1000×; total ≥ 100 GiB; ≥ 100k entries; overlapping entries;
+       `../` paths; absolute paths; links or hard links out of the archive; device
+       files; setuid/setgid.
+     - Medium: ratio ≥ 100× (total ≥ 1 MB); total ≥ 10 GiB; ≥ 10k entries; depth ≥ 40;
+       duplicate names; named pipes; encrypted names.
+     - Low: links inside the archive; programs and scripts.
+  2. **The File Inspector engine** (from the original Vigil). Its 40-odd checks get
+     plain titles, severity from points (≥50 High, ≥25 Medium, ≥10 Low), and its
+     "means" text as the likely explanation. Where it and the index see the same trick
+     (traversal, overlap, link escape, entry flood, ratio), only the stronger finding is
+     kept.
+  3. **Disguise extras**: a program or runnable file in Downloads (Medium);
+     `.desktop` files whose Exec downloads, decodes or runs a shell, or uses /tmp,
+     ~/.cache or Downloads (High); a launcher whose Name= looks like a document (High);
+     any launcher that arrives in Downloads (Medium).
+
+  Every finding gets a Fix panel:
+  - Check: `file --`, `sha256sum --`, `bsdtar -tvf` for archives, and the owner check
+    for files under /usr, /opt or /etc.
+  - Fix (High and Medium): **Quarantine** (the page button, with Restore as its undo),
+    and `gio trash --` with "restore it from the Trash" as its undo.
+
+  The verdict is "Likely malicious", "Suspicious" or "No suspicious indicators found",
+  never "safe". `preview()` returns plain text only (≤ 64 kB), never a rendering.
+- **`files/quarantine.py`**:
+  - It moves the file to `data/files/quarantine/<id>/item` (folder 0700, file mode
+    000) and writes `record.json` with the original path, mode, size, mtime, uid,
+    SHA-256, time and reason.
+  - `put` refuses links, non-files, and a file whose hash no longer matches the report
+    it was quarantined from.
+  - `restore` checks the hash, never overwrites (it can restore somewhere else),
+    restores mode and mtime, and removes the record.
+  - `delete` is the user's explicit "delete for good".
+  - `mount_options()` reads /proc/self/mountinfo, so the page can say whether the
+    quarantine folder is on a noexec mount.
+- **`files/watch.py`** polls the folder's top level every 3 s:
+  - files present at start are ignored;
+  - a file counts once its size and mtime were unchanged for two looks;
+  - `.part`, `.crdownload` and dotfiles are skipped;
+  - a changed file is checked again;
+  - a failing check becomes an error event and watching goes on.
+- **Server**: browse, inspect (saves a run and `findings.jsonl`), preview, quarantine,
+  restore, delete, watch on/off and events, keys, lookup. The Downloads folder comes
+  from `~/.config/user-dirs.dirs` (XDG_DOWNLOAD_DIR), else `~/Downloads`, else home.
+
+### Tests
+- `tests/files/test_vfiles.py`, 31 tests. `tests/files/builders.py` writes 7z (plain,
+  LZMA header, encrypted header), RAR5 (with links and an encrypted variant) and RAR4
+  (with an encrypted variant) indexes byte by byte. Every archive is built in the
+  test:
+  - a 64 MB-of-zeros zip bomb (ratio > 1000×);
+  - 50 zip entries over one deflate stream (49 overlaps);
+  - 10,050 entries; 45-deep paths;
+  - `../../.bashrc`, `/etc/cron.d/x`, link to /etc/shadow, an internal link, a
+    setuid ELF and a char device in one zip;
+  - duplicate names;
+  - tar, gz, bz2 and xz with a symlink out, a hardlink to /etc/shadow, char and block
+    devices, a fifo and setuid;
+  - a 300 MB tar.gz bomb streamed from a zero reader, with the stream cap patched to
+    50 MB to prove listing stops at the cap;
+  - zstd without a decoder;
+  - crafted 7z, rar and zip indexes that must not crash.
+
+  Also: a PE with a double extension; a right-to-left override name; an ELF with +x in
+  Downloads; malicious and plain `.desktop` launchers; PDF auto-JavaScript and
+  Launch/embedded; a docm auto-macro dropper; a remote template, and a benign docx that
+  must come back clean; preview limits; links not followed; quarantine round trip
+  (mode 000, folder 0700, restored mode and mtime) and every refusal; delete; noexec
+  detection from a fake mountinfo; the watcher's two-look rule, `.part` skip, re-check
+  on change and error survival; and the server end to end:
+  - browse flags, the Fedora fix panel and the JSON-lines export;
+  - quarantine and restore;
+  - a lookup refused without a key, then sending exactly `{query, hash}` with one;
+  - watch on, a hostile launcher arriving, then watch off;
+  - the page served on 127.0.0.1.
+- **Never extracts or runs:** five hostile archives and documents are inspected with
+  `open()` refusing every write, subprocess/`os.system` raising, and
+  `ZipFile.extractall`/`TarFile.extractall` raising. The folder must be byte-identical
+  afterwards, and no `../` target may exist.
+- **Full suite: 301 tests pass on Python 3.13 and 3.11.**
+- Live in Chromium: the explorer listed a scratch folder with real types and flags, and
+  the bomb.zip report showed "Likely malicious" with the traversal finding, evidence,
+  likely explanation, confidence and Fix panel. No console errors after the
+  missing-Downloads fallback fix.
+
+### Decisions made without asking
+- **No desktop notifications from Python.** notify-send would mean running a process,
+  and a D-Bus client would need ctypes or a dependency. The page uses the browser's
+  Notification API instead (permission asked when you start watching), and the
+  terminal `watch` prints each arrival. With the page closed and no terminal watcher,
+  there is no notice.
+- **Polling instead of inotify**, for the same reason: inotify needs ctypes, which the
+  inspection modules are tested never to load.
+- **Quarantine location:** `data/files/quarantine` under Vigil's data folder, not a
+  system path, so it needs no root. "noexec" is reported honestly rather than claimed.
+- **"Delete" in the Fix panel is `gio trash`** (recoverable), so the fix has an undo.
+  Permanent deletion exists only for files already in quarantine, behind a confirm.
+- **Hash-lookup keys** are stored in the Files evidence store (`data/files/files.db`,
+  directory 0700) or read from `VIGIL_VT_KEY` / `VIGIL_ABUSECH_KEY`.
+- **The Network Map's Files tab is unchanged**; Vigil Files is the standalone tool on
+  the same engine.
+
+### Known limitations
+- **The 7z and RAR readers were written from the format documentation and tested
+  against archives built to that documentation**, not against files made by 7-Zip or
+  WinRAR. This container has neither tool, and the tests must not download anything.
+  Unusual layouts (solid multi-folder 7z with BCJ filter chains in the header,
+  multi-volume rar, RAR 1.5–2.x) may stop with a "damaged or crafted" note rather than
+  a listing.
+- For 7z, a symlink's target is stored in its data, which Vigil doesn't decompress. 7z
+  links are reported as "links", without knowing whether they escape.
+- Deflate64, LZMA, zstd and PPMd zip members are still measured by declared sizes only
+  (no standard-library decoder), as before.
+- The watcher sees only the folder's top level, not subfolders.

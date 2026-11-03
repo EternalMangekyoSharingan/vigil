@@ -17,8 +17,55 @@ for Vigil Cases).
 | --- | --- | --- |
 | **Vigil Net** | Who is this PC talking to, and which program? | `python3 -m vigil.net` (same as `python3 -m vigil`) |
 | **Vigil Pkg** | Is this AUR package safe to build and install? | `python3 -m vigil.pkg` → <http://127.0.0.1:8766/> |
+| **Vigil Files** | Is this file or archive safe to open? | `python3 -m vigil.files` → <http://127.0.0.1:8767/> |
 
 <!-- suite-tools: later steps add rows here -->
+
+## Vigil Files: is this file or archive safe to open?
+
+```bash
+python3 -m vigil.files                         # the page, on http://127.0.0.1:8767/ (opens on Downloads)
+python3 -m vigil.files inspect ~/Downloads/x   # triage one file in the terminal (exit 2/1/0)
+python3 -m vigil.files ls ~/Downloads          # each file's real type and any warning
+python3 -m vigil.files watch                   # check new files in Downloads as they arrive
+python3 -m vigil.files quarantine FILE         # move it into quarantine (asks first)
+python3 -m vigil.files quarantined             # list quarantined files
+python3 -m vigil.files restore ID              # put one back, with its permissions and time
+```
+
+A safe explorer: it shows what each file **is** (from its first bytes) and never opens a
+file with its default app, never extracts an archive and never runs anything.
+- **Archives, from their index only**: zip, tar, tar.gz/.bz2/.xz (and .zst on Python 3.14+),
+  7z (plain or LZMA-compressed header) and rar (RAR4, RAR5). It checks:
+  - compression ratio (normal files compress about 2–10×; 100× is Medium, 1000× High);
+  - total declared size, entry count and folder depth;
+  - **overlapping entries** (data ranges shared between zip entries);
+  - `../` and absolute paths, links that point out of the archive, hard links;
+  - device files, named pipes, setuid/setgid bits, duplicate names;
+  - password-protected (encrypted) names.
+
+  Compressed tars are read through a decompressing stream with a **hard cap**
+  (1 GB, 10 s), so a lying or bombed archive can't make it run away. The File Inspector
+  engine also measures zip bombs by streamed counting (nested, Zip64, decoy directories).
+- **Disguised files**:
+  - double extensions (`invoice.pdf.exe`) and right-to-left override characters;
+  - a type that doesn't match the extension;
+  - a program or runnable file sitting in Downloads;
+  - `.desktop` launchers that download, decode or run a shell, or pose as a document.
+- **Documents**: PDF and Office triage from the spec (auto-actions, JavaScript, Launch,
+  embedded files, macros, remote templates, DDE, and the URLs and IPs inside).
+- **Quarantine** (you confirm each one): the file moves to `data/files/quarantine/<id>/`, with
+  every permission removed, plus a record of its hash, original path, mode and time.
+  **Restore** puts it back exactly, and refuses to overwrite anything. The page says whether
+  that folder is on a `noexec` mount; making it one needs an admin, so Vigil relies on the
+  removed permissions instead.
+- **Safe preview**: plain text only, at most 64 kB, shown as text. Images, documents and
+  programs are never rendered.
+- **Watch Downloads**: a file is checked once it has stopped growing (`.part` and
+  `.crdownload` are skipped). The page lists each one and, if you allow it, shows a desktop
+  notification through the browser for anything Medium or High.
+- **Hash lookups** (optional, Settings): VirusTotal or MalwareBazaar, only when you press the
+  button. Only the SHA-256 is sent.
 
 ## Vigil Pkg: review an AUR package before you build it
 
@@ -656,8 +703,13 @@ vigil/net/           Vigil Net: the Network Map and its tabs
   desktop.py         desktop window (WebKitGTK / Chromium app mode), menu entry, data lock
   server.py          JSON API, background poller
   static/            its page: index.html, netmap.js (hand-written SVG graph), tab views
-vigil/files/         File Inspector engine (used by Net's Files tab and Vigil Files)
-  inspector.py       static triage, verdict, indicators
+vigil/files/         Vigil Files, and the File Inspector engine Net's Files tab also uses
+  triage.py          one file's full triage in the suite's finding format; safe preview
+  listing.py         archive index listing: zip, tar(.gz/.bz2/.xz/.zst), 7z, rar; nothing extracted
+  quarantine.py      quarantine and restore
+  watch.py           Downloads watcher (polling)
+  server.py static/  its page and command line
+  inspector.py       static triage engine, verdict, indicators
   archives.py        archive-bomb measurement: streamed decompression, nothing extracted
   ole.py             OLE2 compound files and VBA macro decompression (read only)
   engines.py         second opinions: ClamAV on stdin; VirusTotal / MalwareBazaar hash lookups

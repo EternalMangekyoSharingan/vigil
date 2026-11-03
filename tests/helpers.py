@@ -91,3 +91,25 @@ def snap(t, sockets, processes=()):
             "viewer": {"uid": 1000, "user": "alice", "root": False}, "pids_visible": len(procs),
             "unreadable_by_uid": {}, "hidden_counts": hidden, "missing_tables": [],
             "hidepid": None}
+
+
+def page_check(test, make_server, app, wants):
+    """Serve `app` on an ephemeral 127.0.0.1 port and check each (path, expected bytes)."""
+    import http.client
+    import threading
+    httpd = make_server(app, 0)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        test.assertEqual(httpd.server_address[0], "127.0.0.1")
+        port = httpd.server_address[1]
+        for path, want in wants:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            c.request("GET", path, headers={"Host": f"127.0.0.1:{port}"})
+            r = c.getresponse()
+            body = r.read()
+            c.close()
+            test.assertEqual(r.status, 200, path)
+            test.assertIn(want, body, path)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()

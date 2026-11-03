@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vigil Files</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script type="module" src="/static/files-app.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <polygon points="16,4 26.4,10 16,16 5.6,10" fill="#9fe3df"/>
+      <polygon points="5.6,10 16,16 16,28 5.6,22" fill="#3f9a95"/>
+      <polygon points="26.4,10 16,16 16,28 26.4,22" fill="#5dbdb9"/>
+      <circle cx="16" cy="16" r="2.2" fill="#ff9f43"/>
+    </svg>
+    Vigil <span class="tool-name">Files</span> <small>is it safe to open?</small>
+  </div>
+  <nav class="tabs" id="tabs">
+    <button type="button" data-tab="explore" class="active">Explore</button>
+    <button type="button" data-tab="quarantine">Quarantine</button>
+    <button type="button" data-tab="watch">Watch Downloads</button>
+    <button type="button" data-tab="settings">Settings</button>
+  </nav>
+  <div class="status" id="status"></div>
+</header>
+<main>
+  <section class="tab active" id="tab-explore">
+    <div class="split">
+      <div class="main">
+        <div class="form-row">
+          <input type="text" id="folder" autocomplete="off" spellcheck="false" placeholder="Folder">
+          <button type="button" class="btn" id="up" title="Parent folder">Up</button>
+          <button type="button" class="btn" id="list">List</button>
+        </div>
+        <p class="faint">Vigil shows what each file really is from its first bytes. Clicking a file inspects it; nothing is ever opened with an app, extracted or run.</p>
+        <div id="entries"></div>
+      </div>
+      <aside class="side" id="report"><p class="muted">Pick a file to see what it is.</p></aside>
+    </div>
+  </section>
+  <section class="tab" id="tab-quarantine">
+    <div class="split"><div class="main">
+      <h2>Quarantined files</h2>
+      <p class="muted" id="q-note"></p>
+      <div id="q-list"></div>
+    </div></div>
+  </section>
+  <section class="tab" id="tab-watch">
+    <div class="split"><div class="main">
+      <h2>Watch Downloads</h2>
+      <p class="muted">New files are checked as they finish arriving. Keep this page open to see them; allow notifications to get a desktop notice when one needs a look.</p>
+      <div class="form-row">
+        <input type="text" id="watch-folder" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn primary" id="watch-toggle">Start watching</button>
+      </div>
+      <ol class="timeline" id="watch-events"></ol>
+    </div></div>
+  </section>
+  <section class="tab" id="tab-settings">
+    <div class="split"><div class="main">
+      <h2>Hash lookups (optional, off until you add a key)</h2>
+      <p class="muted">A lookup sends only the file's SHA-256 fingerprint, never the file, and only when you press the button on a report.</p>
+      <div class="form-row"><label class="field">VirusTotal API key <input type="password" id="key-vt" autocomplete="off"></label><button type="button" class="btn" id="save-vt">Save</button></div>
+      <div class="form-row"><label class="field">abuse.ch Auth-Key (MalwareBazaar) <input type="password" id="key-mb" autocomplete="off"></label><button type="button" class="btn" id="save-mb">Save</button></div>
+      <p class="faint" id="keys-state"></p>
+    </div></div>
+  </section>
+</main>
+</body>
+</html>
