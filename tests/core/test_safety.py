@@ -14,7 +14,12 @@ PKG = Path(__file__).resolve().parent.parent.parent / "vigil"
 RUNS = re.compile(r"\b(subprocess|os\.system|os\.popen|popen|os\.exec\w*|os\.spawn\w*|pty|shutil\.which|"
                   r"asyncio\.create_subprocess\w*)\b")
 LOADS = re.compile(r"\b(exec\(|eval\(|importlib|pickle|marshal|ctypes|os\.startfile|webbrowser|runpy|"
-                   r"xdg-open|tarfile\.extractall|\.extractall\(|zipfile\.ZipFile\([^)]*\)\.extract\()")
+                   r"tarfile\.extractall|\.extractall\(|zipfile\.ZipFile\([^)]*\)\.extract\()")
+# Opening a file with its default app: xdg-open & co. used as a command (an argv entry or
+# a shell string). Naming them in a pattern (Tasks recognises them as harmless children)
+# opens nothing; starting them would also need subprocess, which the next rule forbids.
+OPENS = re.compile(r"""["'](xdg-open|gio\s+open|kde-open\d*|exo-open)["']\s*[,\]]|"""
+                   r"""(run|Popen|call|check_output|system)\([^)]*(xdg-open|gio open|kde-open|exo-open)""")
 
 # Modules that build commands for the user to copy. Every tool's fixes.py is included
 # automatically, so a new tool is covered the day it is added.
@@ -73,6 +78,12 @@ class SafetyRules(unittest.TestCase):
         for p in inspecting:
             with self.subTest(str(p.relative_to(PKG))):
                 self.assertIsNone(LOADS.search(code_of(p)), p.name)
+                self.assertIsNone(OPENS.search(code_of(p)), p.name)
+
+    def test_the_open_with_app_rule_catches_real_launches(self):
+        self.assertTrue(OPENS.search('subprocess.run(["xdg-open", path])'))
+        self.assertTrue(OPENS.search("os.system('xdg-open ' + path)"))
+        self.assertIsNone(OPENS.search('HARMLESS = re.compile(r"(xdg-open|gio)")'))
 
     def test_nothing_runs_makepkg_or_sources_a_pkgbuild(self):
         for p in modules():

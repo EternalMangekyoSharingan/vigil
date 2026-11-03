@@ -1778,3 +1778,123 @@ Everything (grouped like Autoruns), Changes. Terminal commands: `scan [--all]
 - Systemd drop-ins (`*.d/*.conf` two levels down) under /etc are read. The
   package-owned /usr/lib units are limited to .service and .timer, to keep the first
   scan fast.
+
+## Step 5: Vigil Tasks (2026-11-03)
+
+### What was built
+`python3 -m vigil.tasks` serves a page on 127.0.0.1:8769 with two tabs: Process tree
+(live, refreshed every 5 s, with filter and kernel-thread toggle) and Flagged. The
+side panel tells one process's story: ancestry, program, package, hash, command,
+start, service, linker variables, network and findings. Terminal: `tree`, `scan`.
+- **`tasks/procs.py`** walks /proc once, using the Network Map's collector for
+  parsing (status, cmdline, exe, the comm-safe stat start time) and for sockets per
+  pid. It adds:
+  - owning package (`core/pkgdb.PackageFiles`);
+  - SHA-256 of the binary via `/proc/<pid>/exe`, cached per (device, inode, size,
+    mtime) and capped at 256 MB;
+  - the systemd unit and user/system scope from `/proc/<pid>/cgroup` (cgroup v2, or
+    v1 name=systemd);
+  - thread count and state;
+  - the parent/child tree;
+  - from `environ`, **only** LD_PRELOAD, LD_AUDIT and LD_LIBRARY_PATH. A test puts a
+    `SECRET_TOKEN=hunter2` in a fake environment and checks it appears nowhere in the
+    snapshot or findings.
+- **Flags**, as listed in the README. The design point: a deleted binary whose path
+  exists again and belongs to a package is "updated while running" (Low), because that
+  is what every package upgrade does to running programs. A deleted binary that is
+  really gone is High.
+- **`tasks/findings.py`** makes core findings:
+  - The title names the process when its name passes the wording rules ("firefox
+    started bash"); otherwise a generic one.
+  - The evidence includes the ancestry chain ("systemd → systemd → firefox → bash").
+  - Signals add network connections and "not from any package".
+  - Indicators: the binary's SHA-256 for High findings.
+  - The Fix panel is copy-only:
+    - Check: `ps -o … -p PID`, `ls -l /proc/PID/exe`, `sha256sum /proc/PID/exe`, the
+      owner check, `systemctl [--user] status UNIT`.
+    - Fix: pause (`kill -STOP`, undo `kill -CONT`), stop its service (undo `start`),
+      end it (`kill`, with how to start it again).
+    - `sudo` is added for other users' processes.
+- **`ui/static/tree.js`**: a shared tree view (twig lines, collapse, chips, one
+  selected row) for the UI kit. Tasks is its first user.
+- **Core fix found here:** `core/wording.fit_title` now skips any candidate that
+  breaks a title rule. A process called `memfd:payload` made the title contain the
+  jargon word "payload", and finding validation then refused the whole finding, which
+  would have crashed the page. Names are attacker-controlled, so every tool ends its
+  candidates with a generic, name-free title. There is a new core test.
+- **Safety rule made precise (not weakened):**
+  - The suite rule "inspection modules never open files with their default app"
+    matched the bare text `xdg-open`. Tasks contains that word only in the pattern
+    that recognises a harmless `xdg-open` child.
+  - The rule now matches xdg-open/gio/kde-open/exo-open used as a command (an argv
+    entry or a call). A test proves it still catches `subprocess.run(["xdg-open", p])`
+    and `os.system('xdg-open ' + p)`.
+  - The separate rule that these modules cannot import subprocess or call
+    `os.system` is unchanged, so launching anything is still impossible from them.
+
+### Tests
+- `tests/tasks/test_tasks.py`, 9 tests on a SYNTHETIC /proc built per test (status,
+  comm, cmdline, stat, exe and socket fd links, environ, cgroup, net/tcp, btime) plus
+  a fake pacman database. The fake desktop has:
+  - Firefox → bash running `curl | sh`;
+  - evince → `sh -c xdg-open` (Low);
+  - a /tmp agent listening on 0.0.0.0;
+  - a deleted /opt binary;
+  - syncthing updated while running, with its user unit;
+  - LD_PRELOAD from ~/.cache;
+  - a `[kworker/u8:2]` impostor;
+  - `ncat -e /bin/sh`;
+  - nginx → dash;
+  - a ~/.cache helper;
+  - a memfd loader;
+  - kernel threads.
+
+  Each must give exactly the expected flag and severity, and the quiet processes
+  (systemd, firefox itself, evince, nginx) must give none. Also tested:
+  - tree shape, packages, units, sockets (443), hash and start time;
+  - the shared /proc fixture (deleted /tmp agent);
+  - titles and the ancestry chain;
+  - every finding passing the format rules;
+  - the copy-only commands with their undos and sudo for other users;
+  - the page and API;
+  - a live snapshot of the test's own process;
+  - **no signal ever sent**: `os.kill`, `killpg`, `pthread_kill`, subprocess `run` and
+    `Popen` are patched to fail during a tree and a scan, and the source is checked
+    for kill/terminate calls.
+- **Full suite: 327 tests pass on Python 3.13 and 3.11.**
+- Live in this container: 86 real processes. One real High finding: the sandbox's own
+  `memfd:sbx-telemetry-collector` runs from memory only, which is true. It is labelled
+  honestly, and in this container it is infrastructure, not malware. The tree and side
+  panel rendered in Chromium with no console errors.
+
+### Decisions made without asking
+- **Stopping a process is copy-a-command only, as asked.** There is no Stop button, and
+  no module in Tasks can signal a process; a test checks that.
+- **Pause before kill.** The first Fix option is the reversible `kill -STOP` /
+  `kill -CONT`, so a user can freeze something suspicious and look at it without
+  losing it. Ending it comes last.
+- **Environment privacy:** only the three linker variables are kept, because
+  environments routinely hold tokens and passwords.
+- **Tree, not graph:** an indented tree with twig lines (like Process Explorer). The
+  Network Map's isometric graph stays the place for connections.
+
+### OPEN DECISION FOR THE OWNER: a Stop button in Tasks
+SUITE.md suggests a middle ground: a **Stop button only for your own processes, with a
+confirm step**, while everything else stays copy-a-command. You asked for copy-only for
+now, so that is what is built. If you want the button later, the smallest safe version:
+- the server recomputes the process from /proc at the moment of the press;
+- it refuses unless the uid is yours and the pid/start time match the row you saw (no
+  pid reuse);
+- it sends SIGTERM only;
+- it logs to the Tasks store.
+
+That would be the one exception to "no module in Tasks can signal a process", which
+the test above would then have to name explicitly.
+
+### Known limitations
+- As a normal user, other users' processes show without binary, hash, environment or
+  sockets. The page says so instead of asking for root.
+- Very short-lived processes (seconds) can be missed between refreshes; Tasks is a
+  snapshot view, not an audit log.
+- Parent checks use the direct parent only. A browser → `env` → `sh` chain hides the
+  browser from the rule.

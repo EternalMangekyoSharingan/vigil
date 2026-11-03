@@ -85,6 +85,12 @@ class WordingTests(unittest.TestCase):
         self.assertEqual(len(t), 60)
         self.assertTrue(t.endswith("…"))
 
+    def test_attacker_named_candidates_are_skipped(self):
+        # A process or file can be called anything; its name must never break a title rule.
+        self.assertEqual(wording.fit_title(["memfd:payload runs from memory", "A program runs from memory only"]),
+                         "A program runs from memory only")
+        self.assertEqual(wording.fit_title(["100% ready.service started", "A service started"]), "A service started")
+
     def test_title_problems(self):
         self.assertEqual(wording.title_problems("beacon.py checks in with this PC every ~10 s"), [])
         self.assertIn("ends with a full stop", wording.title_problems("Something happened."))

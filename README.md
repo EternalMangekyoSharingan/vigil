@@ -19,8 +19,47 @@ for Vigil Cases).
 | **Vigil Pkg** | Is this AUR package safe to build and install? | `python3 -m vigil.pkg` → <http://127.0.0.1:8766/> |
 | **Vigil Files** | Is this file or archive safe to open? | `python3 -m vigil.files` → <http://127.0.0.1:8767/> |
 | **Vigil Persist** | What starts automatically, and what changed since last time? | `python3 -m vigil.persist` → <http://127.0.0.1:8768/> |
+| **Vigil Tasks** | What is running, where did it come from, and should it be? | `python3 -m vigil.tasks` → <http://127.0.0.1:8769/> |
 
 <!-- suite-tools: later steps add rows here -->
+
+## Vigil Tasks: what is running, and should it be?
+
+```bash
+python3 -m vigil.tasks          # the page, on http://127.0.0.1:8769/ (refreshes every 5 s)
+python3 -m vigil.tasks tree     # the process tree in the terminal, with flags
+python3 -m vigil.tasks scan     # flagged processes only; also saved for Vigil Cases
+```
+
+An EDR-style process tree from `/proc`, read-only. For every process it shows:
+- the binary path and its owning package (pacman or dpkg database);
+- the SHA-256 of the running binary, read through `/proc/<pid>/exe`, which works even if
+  the file was deleted;
+- parent chain, command line, user and start time;
+- its systemd unit (from its cgroup);
+- open sockets, from the Network Map's collector.
+
+Flags:
+- **binary deleted while running** (High). If the file came back with a package update it
+  is "updated while running", Low.
+- **runs from memory only** (memfd), High.
+- **runs from /tmp, /var/tmp or /dev/shm** (High), **~/.cache** (Medium), Downloads or a
+  hidden folder (Medium).
+- **LD_PRELOAD / LD_AUDIT** in its environment (High). Only these linker variables are
+  read; the rest of a process's environment (tokens, passwords) is never kept or shown.
+- **odd parents**: a browser, mail app, document viewer, office or chat app starting a
+  shell, interpreter or network tool (High; `xdg-open` and friends are Low); a web server
+  or database starting a shell (High).
+- a user program wearing a kernel-thread name (`[kworker…]`), a network tool wired to a
+  shell, and a program in a temp or cache folder listening on all interfaces.
+
+**Vigil never stops or signals a process.** Each finding's Fix panel offers commands to copy:
+- *Pause it (reversible)*: `kill -STOP PID`, undo `kill -CONT PID`;
+- *Stop its service*: `systemctl [--user] stop UNIT`, undo `start`;
+- *End it*: `kill PID`, with how to start it again.
+
+Processes of other users get `sudo` versions. As a normal user, other users' processes show
+without their binary, hash or environment, and the page says so.
 
 ## Vigil Persist: what starts by itself, and what changed?
 
@@ -736,7 +775,8 @@ vigil/core/          shared by every tool
   runner.py          sudo mode (Network Map only): runs only Vigil-generated commands, via pkexec
   pkgdb.py           pacman and dpkg databases read directly: ownership, mtree / md5sums integrity, vercmp
 vigil/ui/static/     shared UI kit: style.css, fonts, ui.js, fx.js, menu.js, findings.js
-                     (finding card, Fix panel, colour-coded commands), icon
+                     (finding card, Fix panel, colour-coded commands, verdict, code and diff
+                     views), tree.js (tree view), icon
 vigil/net/           Vigil Net: the Network Map and its tabs
   collector.py       read-only /proc parser: sockets, processes, what is hidden
   store.py           its SQLite evidence store (data/vigil.db); tracker turning polls into history
@@ -773,6 +813,10 @@ vigil/persist/       Vigil Persist
   locations.py       every autostart location and the content checks for each
   scan.py            baseline and diff, package ownership and integrity, findings
   server.py static/  its page and command line
+vigil/tasks/         Vigil Tasks
+  procs.py           /proc walk: binaries, packages, hashes, units, sockets, tree; the flags
+  findings.py        findings and copy-only stop commands
+  server.py static/  its page (uses the shared tree view, ui/static/tree.js) and command line
 tests/core/          core tests and suite-wide safety rules
 tests/<tool>/        each tool's tests
 tests/fixtures/      synthetic fixtures (labelled), shared

@@ -41,8 +41,16 @@ SENTENCE_WORDS = 20      # longest sentence in an explanation line
 
 
 def fit_title(candidates, limit=TITLE_MAX):
-    """The first candidate that fits in `limit` characters; else the last one, cut with '…'."""
+    """The first candidate that fits in `limit` characters and breaks no title rule; else
+    the first that fits; else the last one, cut with '…'.
+
+    Candidates often carry names an attacker controls (a process called "payload", a
+    file called "50%"), so a rule-breaking candidate is skipped rather than shown, and
+    callers end their list with a generic candidate that has no name in it."""
     candidates = [c for c in candidates if c]
+    for c in candidates:
+        if len(c) <= limit and not title_problems(c):
+            return c
     for c in candidates:
         if len(c) <= limit:
             return c
