@@ -26,7 +26,7 @@ def brief(findings, stories=(), injection=()):
     fs = fmt.sort(findings)
     serious = [f for f in fs if f["severity"] in ("High", "Medium")]
     quiet = [f for f in fs if f["severity"] in ("Low", "Info")]
-    parts = {"headline": "", "happened": [], "sure": [], "first": [], "ignore": [], "tamper": []}
+    parts = {"headline": "", "happened": [], "sure": [], "first": [], "then": [], "ignore": [], "tamper": []}
     if not fs:
         parts["headline"] = "There is nothing to analyse yet: import findings from the tools first."
         return parts
@@ -66,6 +66,10 @@ def brief(findings, stories=(), injection=()):
                     seen.add(c["text"])
                     parts["first"].append({"command": c["text"], "tokens": c.get("tokens") or [], "why": o["title"],
                                            "for": f["title"]})
+    for f in serious:          # fix advice with no command to copy ("assume it was copied: change ...")
+        for o in (f.get("fixes") or {}).get("fix") or []:
+            if not o.get("commands") and o.get("steps") and len(parts["then"]) < 4:
+                parts["then"].append({"title": o["title"], "steps": o["steps"][:4], "for": f["title"]})
     for f in quiet[:8]:
         parts["ignore"].append(f"{f['title']} ({f['severity']}, {TOOL.get(f['tool'], f['tool'])})")
     for i in injection:
@@ -88,6 +92,12 @@ def as_text(parts):
         out += ["How sure:"] + [f"- {s}" for s in parts["sure"]] + [""]
     if parts["first"]:
         out += ["Check first (read-only, copy and run yourself):"] + [f"- {x['command']}   # {x['why']}" for x in parts["first"]] + [""]
+    if parts.get("then"):
+        out.append("Then:")
+        for t in parts["then"]:
+            out.append(f"- {t['title']} ({t['for']}):")
+            out += [f"    {x}" for x in t["steps"]]
+        out.append("")
     if parts["ignore"]:
         out += ["Probably fine to leave:"] + [f"- {s}" for s in parts["ignore"]]
     return "\n".join(out).strip() + "\n"

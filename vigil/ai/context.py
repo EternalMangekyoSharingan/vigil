@@ -139,6 +139,13 @@ def bundle(findings, stories=(), case=None, redact=True, home=None, user=None, h
                             "attack": [f"{a['id']} {a['name']}" for a in s["attack"]]} for s in stories],
             "findings": [slim(f) for f in findings]}
     data = _walk(data, clean)
+    for i, f in enumerate(findings):            # fields that are not sent are still scanned: a command line
+        for t in f.get("technical") or []:       # that talks to an AI is a tamper sign either way
+            v = t.get("value")
+            m = INJECTION.search(v) if isinstance(v, str) else None
+            if m:
+                injection.append({"where": f"findings[{i}].technical.{t.get('label')} (not sent)",
+                                  "text": r(v[max(0, m.start() - 40): m.end() + 40])})
     commands = sorted({c for f in data["findings"] for c in f["vigil_commands"]})
     boundary = f"vigil-evidence-{secrets.token_hex(6)}"
     text = f"<{boundary}>\n{json.dumps(data, indent=1, ensure_ascii=False)}\n</{boundary}>"
