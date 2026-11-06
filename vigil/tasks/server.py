@@ -45,13 +45,16 @@ class App:
             n["flags"] = per_pid.get(pid, [])
             n["net"] = sum(1 for s in p["sockets"] if s["kind"] == "connection")
             n["listen"] = sum(1 for s in p["sockets"] if s["kind"] == "listen")
+            n["secrets"] = len(p.get("secrets") or [])
+            n["odd_secrets"] = len(P.secrets.unexpected(p))
             nodes[pid] = n
         return {"nodes": nodes, "roots": snap["roots"], "findings": fs, "taken_at": snap["taken_at"],
                 "viewer_uid": snap["viewer_uid"], "package_db": snap["package_db"],
-                "unreadable_exe": snap["unreadable_exe"],
+                "unreadable_exe": snap["unreadable_exe"], "unreadable_fds": snap.get("unreadable_fds", 0),
                 "note": None if snap["viewer_uid"] == 0 else
                 "Vigil runs as you, so other users' processes (root's system services) show without their program "
-                "file, hash or environment. Their names, parents and command lines are still visible."}
+                "file, hash, environment or open files. Their names, parents and command lines are still visible. "
+                "Your own secrets can only be read by programs running as you or root, and yours are all checked."}
 
     def api_process(self, q):
         snap, fs, per_pid = self.take()
@@ -59,7 +62,10 @@ class App:
         p = snap["processes"].get(pid)
         if not p:
             raise LookupError(f"process {pid} is not running")
-        return dict({k: p.get(k) for k in FIELDS}, sockets=p["sockets"], ld=p["ld"],
+        odd = P.secrets.unexpected(p)
+        held = [dict(x, expected=x not in odd) for x in p.get("secrets") or []]
+        return dict({k: p.get(k) for k in FIELDS}, sockets=p["sockets"], ld=p["ld"], secrets=held,
+                    fd_readable=p.get("fd_readable", True),
                     ancestry=P.ancestry(snap["processes"], pid), flags=per_pid.get(pid, []),
                     findings=[f for f in fs if f["evidence"][0]["value"] == f"pid {pid}"])
 

@@ -60,6 +60,8 @@ function draw() {
       if (n.net) out.push(el("span", { class: "tag live", title: "network connections", text: `${n.net} conn` }));
       if (n.listen) out.push(el("span", { class: "tag", title: "listening sockets", text: `${n.listen} listen` }));
       if (n.exe_deleted) out.push(el("span", { class: "tag warn", text: "deleted" }));
+      if (n.secrets) out.push(el("span", { class: `tag ${n.odd_secrets ? "danger" : ""}`, text: `${n.secrets} secret${n.secrets > 1 ? "s" : ""}`,
+        title: n.odd_secrets ? "Has secrets open that are not its own (passwords, cookies, keys)" : "Has its own secrets open (normal for this program)" }));
       const w = worst(n);
       if (n.flags.length && w !== "Info") out.push(el("span", { class: `tag ${SEV_CLASS[w]}`, title: n.flags.map((f) => f.text).join("\n"), text: w }));
       return out;
@@ -90,6 +92,13 @@ async function detail(pid) {
     box.append(p.sockets.length ? el("table", { class: "list" }, p.sockets.map((s) => el("tr", {},
       el("td", { text: `${s.proto} ${s.kind}` }), el("td", { class: "mono", text: `${s.local_ip}:${s.local_port}` }),
       el("td", { class: "mono", text: s.kind === "connection" ? `→ ${s.remote_ip}:${s.remote_port}` : "" })))) : el("p", { class: "faint", text: "No sockets." }));
+    if (p.secrets.length || !p.fd_readable) {
+      box.append(el("h3", { text: `Secrets it has open (${p.secrets.length})` }));
+      if (!p.fd_readable) box.append(el("p", { class: "faint", text: "Its open files are not visible to you (it runs as another user)." }));
+      box.append(el("ul", { class: "evidence" }, p.secrets.map((x) => el("li", {},
+        el("span", { class: `tag ${x.expected ? "" : "danger"}`, text: x.expected ? "its own" : "not its own" }), " ",
+        el("strong", { text: x.label }), " ", el("code", { text: x.path })))));
+    }
     box.append(el("h3", { text: "Findings" }));
     const list = el("div");
     box.append(list);
@@ -116,10 +125,25 @@ async function refresh() {
   if (!document.querySelector("#flagged .finding.open")) findingList($("flagged"), data.findings, { empty: "No process matched Vigil's checks." });
 }
 
+// #pid=1234 (from Home, Cases or the Network Map): open that process in the tree.
+function focusPid(pid) {
+  if (!data?.nodes[pid]) { toast(`Process ${pid} is not running any more`, "err"); return; }
+  for (let p = data.nodes[pid].ppid; data.nodes[p]; p = data.nodes[p].ppid) collapsed.delete(p);
+  document.querySelector("[data-tab=tree]").click();
+  $("filter").value = "";
+  selected = pid; draw(); detail(pid);
+  requestAnimationFrame(() => document.querySelector("#tree .node.sel")?.scrollIntoView({ block: "center" }));
+}
+function deepLink() {
+  const m = location.hash.match(/^#pid=(\d+)$/);
+  if (m) focusPid(Number(m[1]));
+}
+window.addEventListener("hashchange", deepLink);
+
 initTabs($("tabs"));
 $("filter").addEventListener("input", draw);
 $("sort").addEventListener("change", drawTop);
 $("kernel").addEventListener("change", () => { collapsed.delete(2); draw(); });
 $("save").addEventListener("click", async () => { const r = await api.send("POST", "/api/scan", {}); toast(`Saved ${r.findings.length} findings for Vigil Cases`); });
 setInterval(() => { if ($("live").checked && !document.hidden) refresh(); }, 5000);
-refresh();
+refresh().then(deepLink);

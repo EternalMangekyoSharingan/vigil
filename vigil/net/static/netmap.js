@@ -9,6 +9,7 @@ import { api, el, svg, clear, fmtClock, fmtAgo, kv, eventList,
   scoreClass, pairTitle, findingList, allowlistForm, addToCase } from "./ui.js";
 import { tween, reducedMotion, countTo, toast } from "./fx.js";
 import { showMenu, copy } from "./menu.js";
+import { toolUrl } from "./suite.js";
 
 const CONTENT = 270;          // width of a node's label/pill/chips block
 const ROW = 92;               // vertical step between nodes in the map view
@@ -938,7 +939,8 @@ export class NetworkMap {
         "-",
         { label: "Show only this program", run: () => { this.filterInput.value = d.name; this.render(); } },
         { label: "Copy executable path", disabled: !d.info?.exe, run: () => copy(d.info.exe) },
-        { label: "Copy process ID", disabled: !d.info?.pid, run: () => copy(d.info.pid) }];
+        { label: "Copy process ID", disabled: !d.info?.pid, run: () => copy(d.info.pid) },
+        { label: "Open in Tasks", hint: "process tree", disabled: !d.info?.pid, run: () => window.open(toolUrl("tasks", `/#pid=${d.info.pid}`), "_blank", "noopener") }];
     } else if (kind === "dest") {
       const sel = { type: "dest", id: d.ip };
       items = [{ heading: d.label ? `${d.ip} · ${d.label}` : d.ip },
@@ -953,7 +955,8 @@ export class NetworkMap {
     } else {
       items = [{ heading: `${d.name} · pid ${d.pid}` },
         { label: `Started ${fmtMs(d.started)}`, disabled: true },
-        { label: "Copy process ID", run: () => copy(d.pid) }];
+        { label: "Copy process ID", run: () => copy(d.pid) },
+        { label: "Open in Tasks", hint: "process tree", run: () => window.open(toolUrl("tasks", `/#pid=${d.pid}`), "_blank", "noopener") }];
     }
     showMenu(e.clientX, e.clientY, items);
   }
@@ -985,6 +988,10 @@ export class NetworkMap {
       ["First seen", `${fmtClock(d.first_seen)} by Vigil`],
       ["First outbound", d.first_outbound ? fmtClock(d.first_outbound) : null],
     ]));
+    if (!d.hidden && info.pid) {
+      p.append(el("div", { class: "actions" }, el("a", { class: "btn", href: toolUrl("tasks", `/#pid=${info.pid}`), target: "_blank",
+        rel: "noopener", title: "Its place in the process tree, its open files and secrets, and Tasks' checks", text: "Open in Tasks" })));
+    }
     p.append(el("h3", { text: "Destinations" }));
     if (!d.pairs.length) p.append(el("p", { text: "None recorded." }));
     else {

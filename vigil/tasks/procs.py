@@ -19,6 +19,7 @@ import time
 
 from ..core.pkgdb import PackageFiles
 from ..net import collector
+from . import secrets
 
 HASH_MAX = 256 * 1024 * 1024
 LD_VARS = (b"LD_PRELOAD=", b"LD_AUDIT=", b"LD_LIBRARY_PATH=")
@@ -166,7 +167,7 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
     hasher = hasher or Hasher()
     btime = collector._boot_time(proc_root)
     socks, _ = sockets_by_pid(proc_root)
-    procs, unreadable = {}, 0
+    procs, unreadable, fd_hidden = {}, 0, 0
     for name in collector._listdir(proc_root):
         if not name.isdigit():
             continue
@@ -180,6 +181,8 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
         path = (exe or "").removesuffix(" (deleted)")
         threads, state = _threads_state(proc_root, pid)
         ticks, rss = _usage(proc_root, pid)
+        held, readable = secrets.held(proc_root, pid) if exe else ([], True)
+        fd_hidden += not readable
         info.update({
             "kernel": exe is None and (info["ppid"] == 2 or pid == 2) and not info["cmdline"],
             "path": path or None,
@@ -189,7 +192,7 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
             "sha256": hasher(proc_root, pid) if exe else None,
             "ld": _environ_ld(proc_root, pid), "unit": _unit(proc_root, pid),
             "sockets": socks.get(pid, []), "threads": threads, "state": state, "ticks": ticks, "rss": rss,
-            "cpu": None,
+            "cpu": None, "secrets": held, "fd_readable": readable,
             "children": [],
         })
         info.pop("ancestry", None)
@@ -203,7 +206,8 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
         p["package_db"] = pkg.kind
     roots = sorted(pid for pid, p in procs.items() if p["ppid"] not in procs)
     return {"taken_at": now, "proc_root": proc_root, "processes": procs, "roots": roots,
-            "viewer_uid": os.getuid(), "unreadable_exe": unreadable, "package_db": pkg.kind}
+            "viewer_uid": os.getuid(), "unreadable_exe": unreadable, "package_db": pkg.kind,
+            "unreadable_fds": fd_hidden}
 
 
 # ---- flags ----------------------------------------------------------------------------------
@@ -260,6 +264,16 @@ def flags(p, procs, home=None):
         out.append(("fake_kernel_name", "High", 0.9, f"calls itself {p['cmdline'][0]} like a kernel thread, but runs {path}"))
     if base in NETTOOLS and re.search(r"\s-e\s|\bexec:|/bin/(ba)?sh", cmd):
         out.append(("reverse_shell", "High", 1.0, f"looks like a reverse shell: {cmd[:120]}"))
+    odd = secrets.unexpected(p)
+    if odd:
+        names = {_base(path), p["comm"], *(os.path.basename(a) for a in p["cmdline"][:1])}
+        risky = path.startswith(TEMP) or "/.cache/" in path or "/Downloads/" in path or path.startswith("/memfd:") \
+            or bool(re.search(r"/\.[^/]+/", path)) or bool(names & (SHELLS | INTERPRETERS | NETTOOLS)) \
+            or any(n.rstrip("0123456789.") in INTERPRETERS for n in names) \
+            or (p.get("package") is None and bool(p.get("package_db")))
+        more = f" and {len(odd) - 1} more" if len(odd) > 1 else ""
+        out.append(("credential_access", "High" if risky else "Medium", 0.9 if risky else 0.6,
+                    f"has {odd[0]['label']} open ({odd[0]['path']}){more}, which is not its own"))
     listening = [s for s in p["sockets"] if s["kind"] == "listen" and s["local_ip"] in ("0.0.0.0", "::")]
     if listening and (path.startswith(TEMP) or "/.cache/" in path or "/Downloads/" in path):
         out.append(("listens_from_odd_place", "High", 0.8,

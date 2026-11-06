@@ -1,5 +1,6 @@
 // Vigil Cases page: one timeline across every tool, cases with notes, imports and exports.
 import "./suite.js";
+import { toolUrl } from "./suite.js";
 import { api, el, svg, clear, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
 import { findingCard, initTabs, SEV_CLASS, commandLine, decisionBox, DECISIONS } from "./findings.js";
@@ -75,6 +76,9 @@ async function finding(key) {
   const f = await api.get(`/api/finding?key=${encodeURIComponent(key)}`);
   const box = clear($("detail"));
   box.append(findingCard(f.body, { open: true }));
+  const pid = f.tool === "tasks" && /^pid (\d+)$/.exec(f.body.evidence?.[0]?.value || "");
+  if (pid) box.append(el("div", { class: "actions" }, el("a", { class: "btn", href: toolUrl("tasks", `/#pid=${pid[1]}`), target: "_blank", rel: "noopener",
+    title: "If it is still running: its place in the tree, open files and network", text: `Open process ${pid[1]} in Tasks` })));
   const sel = el("select", {}, el("option", { value: "", text: "Add to a case…" }), cases.map((c) => el("option", { value: c.id, text: `#${c.id} ${c.title}` })));
   sel.addEventListener("change", async () => {
     if (!sel.value) return;

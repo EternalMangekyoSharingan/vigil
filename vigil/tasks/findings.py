@@ -29,6 +29,8 @@ TITLES = {
     "reverse_shell": ["{name} looks like a reverse shell", "A program looks like a reverse shell"],
     "listens_from_odd_place": ["{name} listens for connections from an odd place", "A program listens from an odd place"],
     "masquerade_name": ["{name} pretends to be a system program", "A program pretends to be a system program"],
+    "credential_access": ["{name} has your {secret} open", "{name} has one of your secrets open",
+                          "A program has one of your secrets open"],
 }
 WHY = {
     "memory_only": "Programs normally run from a file; running only from memory is how fileless malware avoids leaving traces.",
@@ -43,8 +45,26 @@ WHY = {
     "fake_kernel_name": "Kernel threads have no program file; a user program with a kernel-thread name is hiding.",
     "reverse_shell": "A network tool wired to a shell hands control of this PC to someone elsewhere.",
     "listens_from_odd_place": "A program accepting connections from the whole network should be installed software.",
+    "credential_access": "Stealing saved passwords, cookies, keys and wallets is what infostealers do, and they do it by "
+                         "opening these files. The program that owns a store, a backup tool or your editor holding it is "
+                         "normal; this program is none of those as far as Vigil can tell.",
     "masquerade_name": "Malware borrows system program names so a glance at a process list looks normal; the July 2026 "
                        "AUR malware ran its Tor client as \"dbus-daemon\".",
+}
+
+
+ROTATE = {
+    "ssh_key": "SSH key: make a new one (ssh-keygen -t ed25519), put its .pub on your servers and remove the old "
+               "public key from their ~/.ssh/authorized_keys.",
+    "gpg_key": "GnuPG key: revoke it (gpg --gen-revoke) and publish the revocation, then make a new key.",
+    "browser_passwords": "Saved passwords: change them, starting with email and banking, and turn on two-factor sign-in.",
+    "browser_cookies": "Cookies: sign out of every session (most sites offer \"sign out everywhere\"), then sign in again.",
+    "browser_keys": "Browser key: it unlocks saved passwords and cookies, so treat both as copied.",
+    "password_db": "Password database: change its master password, then the most important passwords inside it.",
+    "keyring": "Desktop keyring: change the passwords stored in it (Wi-Fi, accounts) and its own password.",
+    "chat_token": "Chat login: change your password, which signs out every session, and turn on two-factor sign-in.",
+    "wallet": "Wallet: from a clean device, move the funds to a new wallet with a new seed phrase.",
+    "cloud_creds": "Cloud and developer credentials: revoke and re-create the keys and tokens in each provider's console.",
 }
 
 
@@ -77,10 +97,20 @@ def fixes(p, osr, viewer_uid):
                          "settings" if own else "admin", [f"{s}kill {pid}"],
                          undo_steps=[f"Start it again if you need it: {' '.join(p['cmdline'])[:200] or p['name']}"],
                          lose="Whatever it was doing."))
+    odd = P.secrets.unexpected(p)
+    if odd:
+        check.insert(0, fx.option("Every file it has open", "Lists its open files; look for the secrets named above.",
+                                  "safe", [f"{s}ls -l /proc/{pid}/fd"]))
+        fix.append(fx.option("Assume what it opened was copied",
+                             "Pausing or ending the program does not take back what it already read. Replace what it held:",
+                             "settings", steps=[ROTATE[k] for k in dict.fromkeys(x["kind"] for x in odd)],
+                             undo_steps=["Nothing to undo: new keys and passwords simply replace the old ones."]))
     return fx.panel(osr, check=check, fix=fix)
 
 
-def _attack(check, text):
+def _attack(check, text, p=None):
+    if check == "credential_access":
+        return P.secrets.attack(P.secrets.unexpected(p or {}))
     if check == "odd_parent":
         return ["T1505.003", "T1059.004"] if any(w in text for w in ("web server", "PHP", "database", "Redis")) \
             else ["T1203", "T1059.004"]
@@ -98,7 +128,10 @@ def build(snap, osr, home=None, now=None):
             parent = procs.get(p["ppid"])
             child = P._base(p["exe"] or "") or p["comm"]
             svc = catalogue.match(process=child)
-            names = dict(name=p["name"], parent=parent["name"] if parent else "Its parent", child=child)
+            odd = P.secrets.unexpected(p) if check == "credential_access" else []
+            names = dict(name=p["name"], parent=parent["name"] if parent else "Its parent", child=child,
+                         secret=odd[0]["label"].split(" (")[0].removeprefix("an ").removeprefix("a ").removeprefix("the ")
+                         if odd else "")
             title = fit_title([t.format(**names) for t in TITLES[check]])
             chain = " → ".join(x["name"] for x in reversed(P.ancestry(procs, pid)))
             signals = [(text, strength, check)]
@@ -117,7 +150,8 @@ def build(snap, osr, home=None, now=None):
                 fixes=fixes(p, osr, snap["viewer_uid"]),
                 evidence=[{"kind": "process", "value": f"pid {pid}", "note": chain},
                           {"kind": "path", "value": p["path"] or "(none)"}]
-                + ([{"kind": "sha256", "value": p["sha256"]}] if p.get("sha256") else []),
+                + ([{"kind": "sha256", "value": p["sha256"]}] if p.get("sha256") else [])
+                + [{"kind": "secret", "value": s["path"], "note": s["label"]} for s in odd[:8]],
                 iocs=[{"type": "sha256", "value": p["sha256"]}] if p.get("sha256") and sev == "High" else [],
                 technical=[{"label": "command line", "value": " ".join(p["cmdline"])[:500]},
                            {"label": "parent", "value": f"{parent['pid']} {parent['name']}" if parent else "-"},
@@ -125,5 +159,5 @@ def build(snap, osr, home=None, now=None):
                             if p.get("started") else "-"},
                            {"label": "systemd unit", "value": (p.get("unit") or {}).get("unit") or "-"},
                            {"label": "package", "value": p["package"] or "none"}],
-                data=f"/proc/{pid}", when=now, attack=_attack(check, text)))
+                data=f"/proc/{pid}", when=now, attack=_attack(check, text, p)))
     return fmt.sort(out), per_pid
