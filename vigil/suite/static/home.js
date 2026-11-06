@@ -26,7 +26,7 @@ function posture(o) {
   const tile = (v, l, cls = "") => el("div", { class: `tile ${cls}` }, el("div", { class: "v", text: String(v) }), el("div", { class: "l", text: l }));
   clear($("posture")).append(
     tile(p.High, "High", p.High ? "danger" : ""), tile(p.Medium, "Medium", p.Medium ? "warn" : ""), tile(p.Low, "Low"),
-    tile(`${o.tools.filter((t) => t.last).length}/${o.tools.length}`, "tools have run"),
+    tile(`${o.tools.filter((t) => t.last).length}/${o.tools.length}`, "tools with results"),
     tile(o.last_activity ? fmtAgo(o.last_activity, o.now) : "never", "last check"));
 }
 

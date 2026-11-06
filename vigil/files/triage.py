@@ -267,7 +267,26 @@ class Triage:
     def inspector(self, rep):
         iocs = [{"type": {"ip": "ipv4"}.get(i["type"], i["type"]), "value": i["value"]} for i in rep.get("iocs", [])
                 if i["type"] in ("ip", "ipv4", "ipv6", "domain", "url", "email", "md5", "sha1", "sha256")]
+        # The same minor note about many archive members reads as one finding, not fifteen.
+        groups = {}
         for f in rep["findings"]:
+            if severity_of(f["points"]) in ("Low", "Info"):
+                groups.setdefault((f["check"], f["points"]), []).append(f)
+        merged = set()
+        for (check, points), fs in groups.items():
+            if len(fs) < 3:
+                continue
+            merged.update(id(f) for f in fs)
+            where = [f["data"] for f in fs]
+            self.add(f"inspector_{check}", TITLES.get(check) or fs[0]["reason"].split(" (")[0],
+                     f"{len(fs)} parts of this file have the same note, for example: {fs[0]['reason'].rstrip('.')}.",
+                     severity_of(points), min(1.0, points / 60), f"{len(fs)} × {fs[0]['reason'][:120]}",
+                     confidence="Low", reason="Found in the file's bytes by the File Inspector.",
+                     technical=[{"label": "where", "value": " | ".join(w[:80] for w in where[:12])}],
+                     subject=f"{self.path}:{check}:grouped", archive=rep["type"]["detected"] in inspector.ARCHIVE_FAMILIES)
+        for f in rep["findings"]:
+            if id(f) in merged:
+                continue
             sev = severity_of(f["points"])
             title = TITLES.get(f["check"]) or f["reason"].split(" (")[0]
             if f["check"] == "file_type" and f["points"] < 15:

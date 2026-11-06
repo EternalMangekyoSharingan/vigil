@@ -4,12 +4,14 @@ import { svg, clear } from "./ui.js";
 
 function worst(row, w) {
   const s = row.reduce((a, r) => a + r.area, 0);
+  if (!s || !w) return Infinity;
   const max = Math.max(...row.map((r) => r.area));
   const min = Math.min(...row.map((r) => r.area));
   return Math.max((w * w * max) / (s * s), (s * s) / (w * w * min));
 }
 
 export function squarify(items, x, y, w, h) {
+  if (!(w > 0 && h > 0)) return [];
   const total = items.reduce((a, i) => a + i.value, 0) || 1;
   const nodes = items.filter((i) => i.value > 0).map((i) => ({ ...i, area: (i.value / total) * w * h }))
     .sort((a, b) => b.area - a.area);

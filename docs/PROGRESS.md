@@ -2055,3 +2055,175 @@ python3 -m vigil.cases timeline
 python3 -m vigil.cases                              # → http://127.0.0.1:8770/
 ```
 All data stays in `./data/` (each tool has its own folder; `VIGIL_DATA` moves it).
+
+---
+
+# Suite upgrade: Home, storylines, ATT&CK, the AI layer, per-tool upgrades (2026-11-06)
+
+The owner asked for more out of every app ("visually appealing, fast, useful and so good
+that you don't need documentation"), research, avoiding earlier mistakes, and the start of
+an AI blue-teaming platform with notes. Everything is on `claude/vigil-suite`.
+
+## Research done first
+- **MITRE ATT&CK** sub-techniques for each Linux persistence location: systemd T1543.002,
+  timers T1053.006, cron T1053.003, XDG T1547.013, udev T1546.017, shell rc T1546.004,
+  ld.so.preload T1574.006, PAM T1556.003, sudoers T1548.003, SSH keys T1098.004, modules
+  T1547.006, RC scripts T1037.004, installer scripts T1546.016.
+- **The AUR in 2026:**
+  - a June 2026 mass wave;
+  - a July 29 – Aug 1 2026 wave of adopted or taken-over real packages (openconnect-sso,
+    icloudpd, boringssl-git, pgadmin4-server, …), persisting via systemd and cron, with
+    Tor disguised as `dbus-daemon`;
+  - Arch froze adoption, then all pushes.
+
+  These became Pkg's incident windows and hijacked list, Tasks' masquerade check, and
+  Persist's known-bad unit name.
+- **AI in the SOC:** log-substrate prompt injection (attacker-written fields steer LLM
+  triage); the bigger risk is an AI *acting*; defences are data/instruction separation,
+  allowlisted tools and human gating. These drive the whole AI design.
+- One fetch (bleepingcomputer.com) was blocked by this session's network policy; the same
+  facts came from search summaries of SC Media and Gridinsoft, cited in
+  docs/AI_PLATFORM.md.
+
+## What was built
+1. **Vigil Home and the launcher** (`vigil/suite`, `core/suite.py`, `ui/static/suite.js`).
+   - `python3 -m vigil.suite` starts every tool in one process, each on its fixed port
+     (8760 Home, 8765 Net, 8766 Pkg, 8767 Files, 8768 Persist, 8769 Tasks, 8770 Cases). A
+     busy port means the tool is already running alone, and is linked instead.
+   - Home has:
+     - a plain verdict ("7 things need a look" / "Nothing stands out" / "Not checked yet");
+     - posture tiles;
+     - **Check this PC**: a background job that runs every tool's read-only check in turn
+       and survives a failing step;
+     - "Needs a look" (High/Medium across tools, with ATT&CK chips, linking into the Cases
+       timeline);
+     - storylines;
+     - a card per tool with its last run and a hint when it never ran.
+   - `--checkup` does the same in the terminal.
+   - Every tool page gets a **Tools** menu (press `g`) and a shortcuts overlay (`?`); `/`
+     focuses the page's search.
+2. **ATT&CK on every finding** (`core/attack.py`):
+   - 50 techniques, mapped per check for Pkg, Files and Tasks, per location for Persist,
+     per signal for Net;
+   - auto-filled by `finding.make`, which validates ids;
+   - shown as chips everywhere and as "Looks like (MITRE ATT&CK)" in finding cards;
+   - exported as STIX attack-pattern objects, and as ids in the Markdown report (no live
+     links: the report stays click-safe).
+3. **Storylines and pivots** (`cases/correlate.py`).
+   - Entities per finding: paths (from evidence, command lines and signal text), hashes,
+     public IPs/domains (including URL hosts), packages and units.
+   - Union-find joins findings that share one. A group spanning two or more tools becomes a
+     storyline, with steps in time order, what linked each step, the ATT&CK chain by tactic,
+     and severity escalation (three or more tools, or persistence plus execution/C2).
+   - Noise guards keep interpreters, shells, /etc/passwd and LAN addresses from linking
+     unrelated things.
+   - Cases has a Storylines tab, "Make a case from this", entity pivot buttons on every
+     finding, and `#finding=` / `#story=` deep links from Home.
+4. **The AI layer** (`vigil/ai`, Cases → Analyst). The design is in docs/AI_PLATFORM.md.
+   - `context.bundle()`:
+     - slims findings (no raw panels or file bytes);
+     - redacts home, user, host, RFC 1918/CGNAT/link-local/ULA addresses and secrets
+       (AWS, GitHub, sk-, Slack, JWT, password=, Authorization, private keys);
+     - fences everything in a random `<vigil-evidence-…>` boundary;
+     - **reports instruction-like text as tampering**.
+   - `analyst.brief()`: an offline triage brief (headline, what happened, how sure, check
+     first with Vigil's own commands, what can wait, tamper warnings).
+   - `providers.ask_claude()`:
+     - optional official SDK, model `claude-opus-5-5`, effort high;
+     - `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`), so a classifier
+       decline on defensive content is retried;
+     - refusals and errors become plain messages;
+     - no tools.
+   - The Cases API adds brief, preview, settings (off by default, redaction on) and ask
+     (refused while off).
+   - `command_provenance()` lists commands in an answer that Vigil didn't generate.
+   - An `ai_log` table records what was sent, how big, and when.
+5. **Pkg:**
+   - an **Inbox** of PKGBUILDs found in paru/yay/pikaur/trizen/pamac caches, reviewed when
+     new or changed (cached by mtime), with approval state (new / approved / changed since
+     approved);
+   - a `pacman.log` parser and incident windows (High when a hijack-listed package was
+     updated inside its window);
+   - a `known_hijacked` review check.
+6. **Files:**
+   - **drag-and-drop**: upload into `data/files/inbox/<sha256>/` with a sanitised name,
+     opened `O_NOFOLLOW`, mode 0600, then inspected;
+   - **Check every file here**: a background folder sweep with progress, worst first;
+   - a squarified **treemap** of archive contents (`ui/static/treemap.js`), grouped by top
+     folder and coloured by kind, with tricks outlined;
+   - repeated Low notes about many archive members merged into one finding;
+   - a wider report panel and a narrow-screen layout.
+7. **Tasks:**
+   - CPU (ticks between refreshes) and resident memory per process;
+   - a **Top** tab sortable by CPU, memory, network or age;
+   - **masquerade_name**: system program names running from outside system folders (High),
+     or a system name on a different binary (Medium), T1036.005.
+8. **Persist:**
+   - a known-malware autostart name (`rat-agent.service`);
+   - ATT&CK per location;
+   - a scan history table;
+   - a copy-only daily **systemd user timer** (unit text plus commands, with undo).
+
+## Tests
+- New suites:
+  - `tests/suite` (7): overview, check-up resilience, a real-tool runner on synthetic
+    data, Home routes and page, the launcher on free ports, every page loading the
+    switcher with ports mirroring the registry;
+  - `tests/ai` (7): redaction, fencing, injection, provenance, the brief, the provider
+    against a stub SDK (request shape, refusal, errors, SDK missing), the Cases analyst API
+    opt-in and log;
+  - `tests/cases/test_correlate.py` (4);
+  - `tests/core/test_attack.py` (3);
+  - `tests/pkg/test_inbox.py` (4);
+  - `tests/files/test_upload_sweep.py` (3);
+  - `tests/tasks/test_usage.py` (2);
+  - `tests/persist/test_extras.py` (2).
+- New suite-wide safety rule: only `ai/providers.py` may import the Anthropic SDK, and
+  only inside functions; `ai/context.py` and `ai/analyst.py` have no network code.
+- The STIX test was extended to check attack-pattern objects. The Markdown test (no live
+  links outside code) caught the first ATT&CK links, so the report names ids without URLs.
+  The test was kept as it was.
+- **371 tests pass on Python 3.13 and 3.11.**
+
+## Live verification in this container
+- `python3 -m vigil.suite --no-net` started five tools and Home.
+- The staged demo (all synthetic and removed afterwards):
+  - a copy of `sleep` running as `/tmp/.x/agent`;
+  - `~/.config/systemd/user/updater.service` starting it;
+  - a launcher and two archives in `~/Downloads`.
+- **Check this PC** finished all six steps:
+  - 267 autostart entries (baseline);
+  - 2 Downloads files flagged;
+  - 16 findings imported;
+  - **one storyline "What happened around agent"** joining Tasks and Persist through
+    `/tmp/.x/agent`.
+- Screenshots of Home, the Tools menu, Cases Analyst, the Files treemap, Tasks Top and
+  Persist Changes showed no console errors after these fixes:
+  - a NaN in the treemap on zero-size boxes;
+  - programs coloured as tricks;
+  - the Cases card on Home saying "Never run".
+
+## Decisions made without asking
+- **SDK optional, not a dependency.** CLAUDE.md requires asking before adding a
+  dependency, so the Claude provider imports the official SDK only if present, and the
+  offline analyst covers everything without it. No raw-HTTP fallback was written.
+- **No local-model provider yet.** It is on the roadmap. The first slice keeps one
+  well-tested provider, and the bundle and provenance checks are provider-independent.
+- **Documentation IPs (198.51.100.0/24 and similar) are treated as public** for
+  correlation and redaction. Only RFC 1918, CGNAT, link-local and ULA count as "yours".
+  Python's `is_private` would have hidden the synthetic test addresses and real public
+  ones alike.
+- **Fixed ports for the suite**, so links between tools work without discovery. A busy
+  port is linked, not retried on another.
+- **The check-up's Downloads sweep** only re-checks files whose size or mtime changed, and
+  stops at 300 files and 1 GB per file.
+
+## Known limitations
+- The Claude provider was tested against a stub of the SDK, not the live API (no key in
+  this session).
+- Storylines use exact entity matches. Two findings about the same program at different
+  paths, or a process seen only by name, won't link. Fuzzy linking would trade
+  explainability, so it waits for evals.
+- Tasks CPU% needs two refreshes. The terminal `tree` shows no CPU.
+- Pkg's incident windows come from public reporting with uncertain dates (June 2026 is
+  approximate). The list is data in `pkg/names.py`.

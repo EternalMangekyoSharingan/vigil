@@ -35,6 +35,8 @@ class Home:
                 close()
 
     def stories(self):
+        if "cases" not in self.apps and not (self.root / "cases" / "cases.db").exists():
+            return []          # never create Cases' store just to look at it
         try:
             return self.runner.app("cases").api_stories({})["stories"][:5]
         except Exception:  # Home must render even if Cases' store is unreadable

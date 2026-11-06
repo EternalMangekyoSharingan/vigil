@@ -7,6 +7,24 @@ explanations and fix commands look and work the same everywhere. The suite plan 
 and what has been built, with test results, decisions and known limits, in
 [docs/PROGRESS.md](docs/PROGRESS.md).
 
+## Start here
+
+```bash
+python3 -m vigil.suite
+```
+
+Then open **<http://127.0.0.1:8760/>** (Vigil Home) and press **Check this PC**. It runs every
+tool's read-only check (running programs, autostart, new files in Downloads, AUR packages, the
+Network Map's alerts), puts the results on one timeline, and shows:
+- what needs a look, worst first, each with its ATT&CK technique;
+- **storylines**: findings from different tools that point at the same program, file, address
+  or package;
+- a card per tool, with a link.
+
+Every page has a **Tools** menu (or press <kbd>g</kbd>) to jump between tools, and <kbd>?</kbd>
+shows the shortcuts. Nothing is changed, sent or deleted unless you press a button that says
+it will. `python3 -m vigil.suite --checkup` runs the same check-up in the terminal and exits.
+
 ## The tools
 
 Every tool: Python 3.11+ standard library only, no root, its own page on 127.0.0.1,
@@ -15,6 +33,7 @@ for Vigil Cases).
 
 | Tool | Question | Run it |
 | --- | --- | --- |
+| **Vigil Home** | How is this PC doing, and what needs a look? | `python3 -m vigil.suite` → <http://127.0.0.1:8760/> (starts all the tools) |
 | **Vigil Net** | Who is this PC talking to, and which program? | `python3 -m vigil.net` (same as `python3 -m vigil`) |
 | **Vigil Pkg** | Is this AUR package safe to build and install? | `python3 -m vigil.pkg` → <http://127.0.0.1:8766/> |
 | **Vigil Files** | Is this file or archive safe to open? | `python3 -m vigil.files` → <http://127.0.0.1:8767/> |
@@ -44,13 +63,33 @@ format. Cases imports them:
 - the Network Map's alerts are exported offline, with the same titles, explanations
   and Fix panels as its Alerts tab.
 
+**Storylines** join findings from different tools that mention the same thing: a file path, a
+hash, a public IP or domain, a package, or a systemd unit. Each storyline lists its steps in
+time order and names what tied each step in. It also shows the ATT&CK chain (persistence → C2…)
+and can become a case in one click. Click any entity on a finding (`path · agent`,
+`ip · 198.51.100.9`) to **pivot** to every finding that mentions it.
+
+The **Analyst** tab writes a triage brief from the evidence alone, sending nothing: what
+happened, how sure Vigil is, what to check first, what can wait. If the evidence contains text
+addressed to an AI ("ignore previous instructions…"), the brief reports it as tampering.
+**Ask Claude** is optional and off by default:
+- it needs `pip install anthropic` and your `ANTHROPIC_API_KEY` (or an `ant auth login`
+  profile);
+- you see exactly what would be sent, with your user name, host name, home folder, LAN
+  addresses and secrets redacted;
+- answers flag any command Vigil did not generate;
+- every request is logged.
+
+See [docs/AI_PLATFORM.md](docs/AI_PLATFORM.md) for the design.
+
 The **timeline** mixes findings from all tools, notes and case events, filtered by tool or
 severity. **Cases** hold findings, notes, a summary, tags, a status (open, investigating,
 closed) and a log. Exports:
 - **CSV** of indicators and of findings, with cells that a spreadsheet could run as a
   formula neutralised;
 - a **STIX 2.1** bundle: identity, one indicator per unique indicator, one note per
-  finding and per analyst note, and a grouping, all with stable ids;
+  finding and per analyst note, an attack-pattern per ATT&CK technique, and a grouping,
+  all with stable ids;
 - a **Markdown report**: timeline, every finding with its evidence and its Check/Fix
   commands in code blocks, indicators defanged (`hxxp[://]`, `[.]`), notes and limits.
 
@@ -62,7 +101,8 @@ python3 -m vigil.tasks tree     # the process tree in the terminal, with flags
 python3 -m vigil.tasks scan     # flagged processes only; also saved for Vigil Cases
 ```
 
-An EDR-style process tree from `/proc`, read-only. For every process it shows:
+An EDR-style process tree from `/proc`, read-only, plus a **Top** view sorted by CPU, memory,
+network or age (CPU is measured between refreshes). For every process it shows:
 - the binary path and its owning package (pacman or dpkg database);
 - the SHA-256 of the running binary, read through `/proc/<pid>/exe`, which works even if
   the file was deleted;
@@ -81,8 +121,11 @@ Flags:
 - **odd parents**: a browser, mail app, document viewer, office or chat app starting a
   shell, interpreter or network tool (High; `xdg-open` and friends are Low); a web server
   or database starting a shell (High).
-- a user program wearing a kernel-thread name (`[kworker…]`), a network tool wired to a
-  shell, and a program in a temp or cache folder listening on all interfaces.
+- a user program wearing a kernel-thread name (`[kworker…]`), or a **system program's name**
+  (`dbus-daemon`, `sshd`, `systemd-*`…) running from somewhere else (the July 2026 AUR malware
+  ran Tor as `dbus-daemon`);
+- a network tool wired to a shell, and a program in a temp or cache folder listening on all
+  interfaces.
 
 **Vigil never stops or signals a process.** Each finding's Fix panel offers commands to copy:
 - *Pause it (reversible)*: `kill -STOP PID`, undo `kill -CONT PID`;
@@ -115,6 +158,10 @@ A Linux "Autoruns". It reads, and never changes:
 - udev rules;
 - rc.local and init.d, NetworkManager dispatcher scripts, pacman hooks and apt.conf.d,
   update-motd.d.
+
+It also recognises autostart names used by known Linux malware (the 2025 AUR RAT's `rat-agent`
+service). The **Changes** tab keeps the history of scans and shows, copy-only, a systemd user
+timer that runs the scan daily.
 
 The first scan is the **baseline**. Later scans show what is **new**, **changed** (content,
 permissions or link target) and **gone**, and **Accept as baseline** moves the baseline on.
@@ -151,6 +198,12 @@ python3 -m vigil.files quarantine FILE         # move it into quarantine (asks f
 python3 -m vigil.files quarantined             # list quarantined files
 python3 -m vigil.files restore ID              # put one back, with its permissions and time
 ```
+
+**Drop a file** on the page to check it: it is copied into Vigil's inbox (mode 0600, never
+runnable) and read. **Check every file here** sweeps a whole folder in the background and
+sorts the results worst first. An archive's report starts with a **treemap** of what takes the
+space, coloured by kind (programs, archives, documents, media); entries that are tricks
+(`../` paths, links out, setuid, devices) are outlined in red.
 
 A safe explorer: it shows what each file **is** (from its first bytes) and never opens a
 file with its default app, never extracts an archive and never runs anything.
@@ -197,7 +250,14 @@ python3 -m vigil.pkg installed                         # audit foreign packages 
 python3 -m vigil.pkg trusted                           # versions you approved
 ```
 
-Point it at a PKGBUILD folder: your AUR helper's review folder (paru: `~/.cache/paru/clone/<pkg>`,
+**Inbox** (the first tab): Vigil finds the packages your AUR helper downloaded (paru, yay,
+pikaur, trizen, pamac build caches), reviews each new or changed PKGBUILD and shows its verdict.
+It also shows whether you approved that exact version, or whether it changed since you did,
+so there is no path to type. **Installed** also reads `/var/log/pacman.log` and flags foreign
+packages installed or updated during known AUR malware windows (July 2025, June 2026, the July
+2026 takeover wave), and packages named in reports of hijacks.
+
+Or point it at a PKGBUILD folder: your AUR helper's review folder (paru: `~/.cache/paru/clone/<pkg>`,
 yay: `~/.cache/yay/<pkg>`) or a `git clone https://aur.archlinux.org/<pkg>.git`. Vigil reads
 the files as **text**: it never runs `makepkg`, never sources the PKGBUILD and never
 downloads the sources. The verdict is **Don't install**, **Review these lines** or **Looks
@@ -793,8 +853,12 @@ netlink byte counts are exact.
 ## Layout
 
 ```
+vigil/suite/         Vigil Home and the launcher: overview, one-click check-up
+vigil/ai/            the AI layer: redacted fenced evidence (context.py), offline analyst, opt-in Claude
 vigil/core/          shared by every tool
   finding.py         the one finding format, validated; JSON-lines export
+  attack.py          MITRE ATT&CK techniques per check
+  suite.py           the tool registry (names, questions, ports)
   wording.py         title rules (60 characters, plain English), friendly names, human numbers
   commands.py        colour-coded command tokeniser (display only)
   fixes.py           Check / Fix / Undo options, distro-aware, copy only
@@ -807,7 +871,8 @@ vigil/core/          shared by every tool
   pkgdb.py           pacman and dpkg databases read directly: ownership, mtree / md5sums integrity, vercmp
 vigil/ui/static/     shared UI kit: style.css, fonts, ui.js, fx.js, menu.js, findings.js
                      (finding card, Fix panel, colour-coded commands, verdict, code and diff
-                     views), tree.js (tree view), icon
+                     views), tree.js (tree view), treemap.js (squarified treemap),
+                     suite.js (Tools menu and shortcuts on every page), icon
 vigil/net/           Vigil Net: the Network Map and its tabs
   collector.py       read-only /proc parser: sockets, processes, what is hidden
   store.py           its SQLite evidence store (data/vigil.db); tracker turning polls into history
@@ -838,7 +903,8 @@ vigil/pkg/           Vigil Pkg
   checks.py          every review check, the verdict
   names.py           look-alike and known-malicious package names
   review.py          safe folder reading, approved versions, opt-in AUR metadata
-  installed.py       foreign packages, pacman -Qkk-style file check
+  installed.py       foreign packages, pacman -Qkk-style file check, pacman.log incident windows
+  inbox.py           finds PKGBUILDs your AUR helper downloaded
   server.py static/  its page
 vigil/persist/       Vigil Persist
   locations.py       every autostart location and the content checks for each
@@ -849,7 +915,8 @@ vigil/tasks/         Vigil Tasks
   findings.py        findings and copy-only stop commands
   server.py static/  its page (uses the shared tree view, ui/static/tree.js) and command line
 vigil/cases/         Vigil Cases
-  store.py           imported findings, cases, notes, log; the timeline
+  store.py           imported findings, cases, notes, log, AI log; the timeline
+  correlate.py       entities, storylines, pivots
   importer.py        every tool's findings.jsonl, Net's alerts, pasted files
   export.py          CSV, STIX 2.1, Markdown report
   server.py static/  its page and command line

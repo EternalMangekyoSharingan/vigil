@@ -84,3 +84,10 @@ press, every run logged. All other modules still never run fix commands.
    - anything would need sudo, a new dependency, or a change outside this folder;
    - tests for a step still fail after several honest attempts (record what failed).
 7. Never weaken a test to make it pass. Never mark a step done with failing tests.
+
+## AI layer (added 2026-11-06; design in docs/AI_PLATFORM.md)
+- Evidence reaches a model only through vigil/ai/context.py: slimmed, redacted by default,
+  fenced in a random-boundary block, scanned for instruction-like text (shown as tampering).
+- The model gets no tools and Vigil never runs a command from an AI answer; answers are
+  checked against Vigil-generated commands. Off by default, opt-in, previewed, logged.
+- The Anthropic SDK stays optional (imported inside ai/providers.py functions only).

@@ -69,20 +69,25 @@ function renderReport(r) {
         catch (e) { toast(e.message, "err"); }
       } }));
   }
-  box.append(actions, el("h3", { text: "Findings" }));
-  const list = el("div");
-  box.append(list);
-  findingList(list, r.findings, { empty: "Nothing matched Vigil's checks." });
+  box.append(actions);
   if (r.listing) {
     const l = r.listing;
     const trickNames = new Set();
-    for (const f of r.findings) for (const e of f.evidence || []) if (e.kind === "entry") trickNames.add(e.value.split(" → ")[0].replace(/ \(\d+\)$/, ""));
+    const TRICKS = new Set(["archive_traversal", "archive_absolute", "archive_link_escape", "archive_device", "archive_setuid", "archive_fifo"]);
+    for (const f of r.findings) if (TRICKS.has(f.check)) for (const e of f.evidence || []) if (e.kind === "entry") trickNames.add(e.value.split(" → ")[0].replace(/ \(\d+\)$/, ""));
     const ents = l.entries.map((e) => ({ name: e.name, size: e.size || 0, trick: trickNames.has(e.name) ? "flagged by Vigil" : null }));
     const tm = el("div");
     if (treemap(tm, ents)) {
       box.append(el("h3", { text: "What takes the space" }), tm,
         el("div", { class: "tm-legend" }, LEGEND.map(([k, label]) => { const i = el("i", {}); i.style.background = TM_COLOURS[k]; return el("span", {}, i, label); })));
     }
+  }
+  box.append(el("h3", { text: "Findings" }));
+  const list = el("div");
+  box.append(list);
+  findingList(list, r.findings, { empty: "Nothing matched Vigil's checks." });
+  if (r.listing) {
+    const l = r.listing;
     box.append(el("h3", { text: `Inside (${l.format}, ${l.count} entries${l.complete ? "" : ", incomplete"})` }),
       el("table", { class: "list" }, l.entries.slice(0, 300).map((e) => el("tr", {},
         el("td", { class: "mono", text: e.name + (e.link ? ` → ${e.link}` : "") }), el("td", { text: e.type }),

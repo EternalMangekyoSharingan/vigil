@@ -47,6 +47,8 @@ def overview(root, running, job=None, stories=None):
         st = tool_state(t["id"], root)
         if t["id"] == "cases":
             st["counts"], st["top"] = {}, []          # Cases re-shows other tools' findings
+            db = Path(root) / "cases" / "cases.db"
+            st["last"] = os.path.getmtime(db) if db.exists() else None
         else:
             for s, n in st["counts"].items():
                 total[s] += n
