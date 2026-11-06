@@ -161,6 +161,13 @@ def program_of(cmd):
     return cmd.split()[0] if cmd else ""
 
 
+# Autostart names used by known Linux malware (file or unit basename -> what it was).
+KNOWN_BAD = {
+    "rat-agent.service": "the service the July 2025 AUR browser packages installed (CHAOS RAT)",
+    "rat-agent": "the service the July 2025 AUR browser packages installed (CHAOS RAT)",
+}
+
+
 def flags(e):
     """[(severity, strength, text, line number or None, title template)] for one entry.
     Title templates may use {name} (the file or module name)."""
@@ -223,6 +230,9 @@ def flags(e):
         if g == "ssh" and e["kind"] == "SSH server" and re.search(r"^\s*(PermitRootLogin\s+yes|"
                                                                   r"PermitEmptyPasswords\s+yes|AuthorizedKeysCommand\s)", s, re.I):
             add("Medium", 0.5, f"SSH server setting worth a look: {s[:80]}", n, "An SSH server setting is worth a look")
+    base = os.path.basename(e["path"])
+    if base in KNOWN_BAD:
+        add("High", 1.0, f"has the name of {KNOWN_BAD[base]}", None, "{name} has the name of known malware")
     if g == "preload" and e["kind"] == "dynamic linker preload" and text.strip():
         add("High", 1.0, "lists libraries loaded into every program, a classic rootkit trick", 1, "/etc/ld.so.preload loads libraries into every program")
     if g == "ssh" and e["kind"] == "SSH login keys":

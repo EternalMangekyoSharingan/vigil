@@ -7,19 +7,20 @@ from pathlib import Path
 
 from ..core import system, web
 from ..core.web import BadRequest, _json_body
-from . import installed, review
+from . import inbox, installed, parse, review
 
 STATIC = Path(__file__).resolve().parent / "static"
 MAX_FILES_BODY = 8 * 1024 * 1024
 
 
 class App:
-    def __init__(self, data_dir, os_release_path="/etc/os-release", fs_root="/", fetcher=None):
+    def __init__(self, data_dir, os_release_path="/etc/os-release", fs_root="/", fetcher=None, home=None):
         self.data_dir = Path(data_dir)
         self.store = review.open_store(self.data_dir)
         self.trusted = review.Trusted(self.store)
         self.os_release_path, self.fs_root = os_release_path, fs_root
         self.fetcher = fetcher            # tests replace the network; None means the real one
+        self.home = home or os.path.expanduser("~")
         self.lock = threading.Lock()
         self.last = {}                    # pkgbase -> (files, folder) of the last review, for Approve
 
@@ -94,8 +95,45 @@ class App:
             self.store.add_run("installed", rep["findings"], {"foreign": len(rep["foreign"]), "how": rep["how"]})
         return rep
 
+    def api_inbox(self, q):
+        """Packages your AUR helper downloaded, with their review state. review=1 reviews the
+        new or changed ones (text only), so the list shows a verdict for each."""
+        pkgs, helpers = inbox.find(self.home)
+        seen = self.store.get_meta("inbox", {}) or {}
+        out = []
+        for p in pkgs:
+            try:
+                text = open(os.path.join(p["path"], "PKGBUILD"), encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            sc = parse.Script(text)
+            base = sc.get("pkgbase") or (sc.array("pkgname") or [p["name"]])[0]
+            ver = f"{sc.get('pkgver')}-{sc.get('pkgrel')}"
+            t = self.trusted.get(base)
+            state = ("approved" if t and (t.get("files") or {}).get("PKGBUILD") == text else
+                     "changed" if t else "new")
+            row = dict(p, pkgbase=base, version=ver, state=state,
+                       approved_version=t.get("version") if t else None)
+            key = f"{p['path']}|{p['mtime']}"
+            cached = seen.get(p["path"])
+            if cached and cached.get("key") == key:
+                row.update(verdict=cached.get("verdict"), counts=cached.get("counts"), top=cached.get("top"))
+            elif q.get("review") == "1":
+                try:
+                    rep = review.review_folder(p["path"], store=self.store, osr=self.osr())
+                    self.last[rep["package"]["pkgbase"]] = review.read_folder(p["path"])[0], p["path"]
+                    top = next((f["title"] for f in rep["findings"] if f["severity"] in ("High", "Medium")), None)
+                    row.update(verdict=rep["verdict"], counts=rep["counts"], top=top)
+                    seen[p["path"]] = {"key": key, "verdict": rep["verdict"], "counts": rep["counts"], "top": top}
+                except (OSError, ValueError) as exc:
+                    row.update(verdict=None, error=str(exc))
+            out.append(row)
+        if q.get("review") == "1":
+            self.store.set_meta("inbox", seen)
+        return {"helpers": helpers, "packages": out, "home": self.home}
+
     def routes(self):
-        return {("GET", "/api/status"): self.api_status,
+        return {("GET", "/api/status"): self.api_status, ("GET", "/api/inbox"): self.api_inbox,
                 ("POST", "/api/review"): self.api_review,
                 ("POST", "/api/aur"): self.api_aur,
                 ("POST", "/api/trust"): self.api_trust,

@@ -99,7 +99,20 @@ def stix(case, findings, now=None):
         objs.append({"type": "note", "spec_version": "2.1", "id": nid, "created_by_ref": ident,
                      "created": iso(n["ts"]), "modified": iso(n["ts"]), "abstract": "Analyst note",
                      "content": n["text"], "object_refs": [group_id], "authors": ["Vigil user"]})
-    refs = list(ind_ids.values()) + note_ids
+    techniques = {}
+    for f in findings:
+        for a in f["body"].get("attack") or []:
+            techniques[a["id"]] = a
+    ap_ids = []
+    for tid, a in sorted(techniques.items()):
+        apid = stix_id("attack-pattern", "mitre", tid)
+        ap_ids.append(apid)
+        objs.append({"type": "attack-pattern", "spec_version": "2.1", "id": apid, "created": iso(0), "modified": iso(0),
+                     "name": a["name"], "external_references": [{"source_name": "mitre-attack", "external_id": tid,
+                                                                "url": a.get("url") or ""}],
+                     "kill_chain_phases": [{"kill_chain_name": "mitre-attack", "phase_name": a["tactic"]}]
+                     if a.get("tactic") else []})
+    refs = list(ind_ids.values()) + note_ids + ap_ids
     objs.append({"type": "grouping", "spec_version": "2.1", "id": group_id, "created_by_ref": ident,
                  "created": created, "modified": iso(now), "name": (case or {}).get("title") or "All Vigil findings",
                  "description": (case or {}).get("summary") or f"Exported from Vigil {__version__}.",
@@ -141,6 +154,8 @@ def markdown(case, findings, timeline, now=None):
         if b.get("likely"):
             out += [f"Likely explanation: {md(b['likely'])}", ""]
         out += [f"How sure: **{b['confidence']['level']}**. {md(b['confidence'].get('reason', ''))}", ""]
+        if b.get("attack"):
+            out += ["Looks like (MITRE ATT&CK): " + ", ".join(f"**{a['id']}** {md(a['name'])}" for a in b["attack"]), ""]
         ev = [e for e in b.get("evidence") or [] if e.get("value")]
         if ev:
             out += ["Evidence:", ""] + [f"- {md(e['kind'])}: `{e['value'].replace('`', '')}`"
@@ -164,5 +179,7 @@ def markdown(case, findings, timeline, now=None):
             "- Every finding comes from Vigil's read-only, static tools on one PC: nothing was run in a sandbox, "
             "so behaviour was not observed (Vigil Lab is not built yet).",
             "- \"No finding\" never means safe; it means nothing matched Vigil's checks.",
-            "- Indicators are defanged here (hxxp, [.]) so the report cannot be clicked by accident.", ""]
+            "- Indicators are defanged here (hxxp, [.]) so the report cannot be clicked by accident.",
+            "- ATT&CK ids name the technique a finding is evidence of (Vigil's mapping); look them up at "
+            "attack.mitre.org/techniques/ followed by the id.", ""]
     return "\n".join(out)

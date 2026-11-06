@@ -31,11 +31,14 @@
   <section class="tab active" id="tab-explore">
     <div class="split">
       <div class="main">
+        <div class="dropzone" id="drop">Drop a file here to check it, or pick one below. It is copied into Vigil's inbox and read; it never opens.</div>
         <div class="form-row">
           <input type="text" id="folder" autocomplete="off" spellcheck="false" placeholder="Folder">
           <button type="button" class="btn" id="up" title="Parent folder">Up</button>
           <button type="button" class="btn" id="list">List</button>
+          <button type="button" class="btn primary" id="sweep" title="Check every file in this folder (not subfolders)">Check every file here</button>
         </div>
+        <div id="sweep-box"></div>
         <p class="faint">Vigil shows what each file really is from its first bytes. Clicking a file inspects it; nothing is ever opened with an app, extracted or run.</p>
         <div id="entries"></div>
       </div>

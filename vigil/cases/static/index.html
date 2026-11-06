@@ -21,6 +21,8 @@
   </div>
   <nav class="tabs" id="tabs">
     <button type="button" data-tab="timeline" class="active">Timeline</button>
+    <button type="button" data-tab="stories">Storylines<span class="count" id="story-count" hidden></span></button>
+    <button type="button" data-tab="analyst">Analyst</button>
     <button type="button" data-tab="cases">Cases</button>
     <button type="button" data-tab="import">Import</button>
   </nav>
@@ -41,6 +43,22 @@
         <ol class="timeline" id="timeline"></ol>
       </div>
       <aside class="side" id="detail"><p class="muted">Pick a finding to read it, add a note, or put it in a case.</p></aside>
+    </div>
+  </section>
+  <section class="tab" id="tab-stories">
+    <div class="split">
+      <div class="main">
+        <h2>Storylines</h2>
+        <p class="muted">Findings from different tools that point at the same program, file, address or package, put together in time order. Each step says what tied it in.</p>
+        <div id="story-list"></div>
+      </div>
+      <aside class="side" id="story-detail"><p class="muted">Pick a storyline to see every step and its ATT&amp;CK techniques.</p></aside>
+    </div>
+  </section>
+  <section class="tab" id="tab-analyst">
+    <div class="split">
+      <div class="main" id="analyst"></div>
+      <aside class="side" id="analyst-side"></aside>
     </div>
   </section>
   <section class="tab" id="tab-cases">

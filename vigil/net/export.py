@@ -45,7 +45,24 @@ def to_finding(a, ctx, view, fixpanel):
         iocs=iocs[:10],
         technical=[{"label": t["label"], "value": t["value"]} for t in x["technical"]]
         + [{"label": "score", "value": str(a["score"])}, {"label": "status", "value": a["status"]}],
-        data=f"alert #{a['id']} in vigil.db", when=a["first_raised"], tags=[a["status"]])
+        data=f"alert #{a['id']} in vigil.db", when=a["first_raised"], tags=[a["status"]],
+        attack=_attack(a, x))
+
+
+def _attack(a, x):
+    sig = {s.get("signal") for s in x["signals"]}
+    out = []
+    if a["port"] in (80, 443, 8080, 8443):
+        out.append("T1071.001")
+    if "timer" in sig:
+        out.append("T1029")
+    if "odd_port" in sig:
+        out.append("T1571")
+    if {"temp_dir", "hidden_dir"} & sig:
+        out.append("T1564.001")
+    if "deleted_exe" in sig:
+        out.append("T1070.004")
+    return out
 
 
 def export(data_dir):

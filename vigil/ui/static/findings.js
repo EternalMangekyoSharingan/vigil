@@ -132,6 +132,10 @@ export function findingCard(f, { open = false, onToggle = null, extra = null } =
       e.note ? el("span", { class: "muted", text: ` ${e.note}` }) : null))));
   }
   if (f.likely) body.append(el("h3", { text: "Likely explanation" }), el("p", { text: f.likely }));
+  if (f.attack?.length) {
+    body.append(el("h3", { text: "Looks like (MITRE ATT&CK)" }), el("div", { class: "actions" }, f.attack.map((a) =>
+      el("a", { class: "attack", href: a.url, target: "_blank", rel: "noopener noreferrer", title: `${a.name} · ${a.tactic || ""}`, text: `${a.id} ${a.name.split(": ").pop()}` }))));
+  }
   body.append(el("h3", { text: "How sure Vigil is" }),
     el("p", {}, el("span", { class: `sev ${f.confidence.level === "High" ? "danger" : f.confidence.level === "Medium" ? "warn" : ""}`, text: f.confidence.level }),
       " ", f.confidence.reason || ""));

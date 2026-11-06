@@ -21,6 +21,7 @@
   </div>
   <nav class="tabs" id="tabs">
     <button type="button" data-tab="tree" class="active">Process tree</button>
+    <button type="button" data-tab="top">Top</button>
     <button type="button" data-tab="flagged">Flagged<span class="count" id="flag-count" hidden></span></button>
   </nav>
   <div class="status" id="status"></div>
@@ -40,6 +41,15 @@
       </div>
       <aside class="side" id="detail"><p class="muted">Pick a process to see where it came from.</p></aside>
     </div>
+  </section>
+  <section class="tab" id="tab-top">
+    <div class="split"><div class="main">
+      <div class="form-row">
+        <label class="field">Sort by <select id="sort"><option value="cpu">CPU</option><option value="rss">Memory</option><option value="net">Network</option><option value="started">Newest</option></select></label>
+        <span class="faint">CPU is measured between refreshes (every 5 s).</span>
+      </div>
+      <div id="top"></div>
+    </div></div>
   </section>
   <section class="tab" id="tab-flagged">
     <div class="split"><div class="main"><div id="flagged"></div></div></div>

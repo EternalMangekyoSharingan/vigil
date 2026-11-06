@@ -30,6 +30,50 @@ def _fixes(osr, name, remove=False):
     return fx.panel(osr, check=check, fix=fix)
 
 
+def pacman_log(root="/"):
+    """{package: [(timestamp, action, version)]} from /var/log/pacman.log (installed/upgraded/removed)."""
+    import calendar
+    import re
+    import time as _t
+    out = {}
+    try:
+        fh = open(f"{root.rstrip('/')}/var/log/pacman.log", encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    rx = re.compile(r"^\[(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d)(?::\d\d)?([+-]\d{4})?\] \[ALPM\] "
+                    r"(installed|upgraded|downgraded|reinstalled|removed) (\S+) \((.*)\)")
+    with fh:
+        for line in fh:
+            m = rx.match(line)
+            if not m:
+                continue
+            day, hm, tz, action, name, ver = m.groups()
+            ts = calendar.timegm(_t.strptime(f"{day} {hm}", "%Y-%m-%d %H:%M"))
+            if tz:
+                sign = 1 if tz[0] == "+" else -1
+                ts -= sign * (int(tz[1:3]) * 3600 + int(tz[3:5]) * 60)
+            out.setdefault(name, []).append((ts, action, ver.split(" -> ")[-1]))
+    return out
+
+
+def _day(ts):
+    import time as _t
+    return _t.strftime("%Y-%m-%d", _t.gmtime(ts))
+
+
+def incident_hits(history):
+    """[(incident, timestamp, action)] when a package was installed/updated inside a known window."""
+    hits = []
+    for ts, action, ver in history or []:
+        if action == "removed":
+            continue
+        d = _day(ts)
+        for inc in names.INCIDENTS:
+            if inc["start"] <= d <= inc["end"]:
+                hits.append((inc, ts, action, ver))
+    return hits
+
+
 def audit(root="/", osr=None, verify=True, now=None, limit=None):
     """Returns {"supported", "how", "foreign": [...], "findings": [...], "note"}."""
     osr = osr if osr is not None else system.os_release(f"{root.rstrip('/')}/etc/os-release" if root != "/" else "/etc/os-release")
@@ -46,12 +90,36 @@ def audit(root="/", osr=None, verify=True, now=None, limit=None):
                                     "Lists files that changed since their package installed them.", "safe", [other])]
                 if other else []}
     foreign, how = pkgdb.foreign(root)
+    history = pacman_log(root)
     rows, findings = [], []
     for i, (name, info) in enumerate(sorted(foreign.items())):
         row = {"name": name, "version": info["version"], "packager": info["packager"],
                "installed": info["installdate"], "built": info["builddate"], "verify": None, "name_check": names.check(name)}
         hit = row["name_check"]
         subj = f"installed:{name}"
+        hits = incident_hits((history or {}).get(name))
+        row["history"] = [{"when": ts, "action": a, "version": v} for ts, a, v in ((history or {}).get(name) or [])][-10:]
+        if hits or name in names.HIJACKED:
+            listed = name in names.HIJACKED
+            inc, ts, action, ver = hits[-1] if hits else (next(i for i in names.INCIDENTS if i["id"] == names.HIJACKED[name]), None, None, None)
+            sev = "High" if hits and listed else "Medium" if hits or listed else "Low"
+            when = f"{action} {ver} on {_day(ts)}" if ts else "not found in pacman.log"
+            findings.append(fmt.make(
+                TOOL, "installed_hijack_window",
+                fmt_title(f"{name} was {action} during an AUR malware wave" if ts else f"{name} was named in an AUR malware wave",
+                          "A package was updated during an AUR malware wave"),
+                f"{name} was {when}, during {inc['what']}." if ts else
+                f"{name} was named in reporting on {inc['what']}; check when you last updated it.", sev,
+                signals=[(f"pacman.log: {when}", 0.8 if hits else 0.3)] + ([(f"{name} is named in reports of that wave", 0.7)] if listed else []),
+                likely="Most packages updated in that window were fine; the ones taken over pushed malware for a few days. "
+                       "Compare the version you built with the AUR history before trusting it.",
+                confidence="Medium" if hits and listed else "Low",
+                confidence_reason="Dates come from your own pacman.log; the window comes from public reporting.",
+                subject=f"{subj}:window", fixes=_fixes(osr, name, remove=sev == "High"),
+                evidence=[{"kind": "package", "value": f"{name} {info['version']}"},
+                          {"kind": "log", "value": "/var/log/pacman.log", "note": when}],
+                technical=[{"label": "incident", "value": inc["id"]}, {"label": "window", "value": f"{inc['start']} to {inc['end']}"}],
+                data="/var/log/pacman.log", when=now))
         if hit and hit["kind"] == "known":
             findings.append(fmt.make(
                 TOOL, "installed_known_malicious", fmt_title(f"Installed package {name} is known malware",
@@ -97,7 +165,7 @@ def audit(root="/", osr=None, verify=True, now=None, limit=None):
                     data=f"{info['dir']}/mtree", when=now))
         rows.append(row)
     return {"supported": True, "how": how, "foreign": rows, "findings": fmt.sort(findings),
-            "distro": fx.distro_info(osr), "installed_count": len(installed),
+            "distro": fx.distro_info(osr), "installed_count": len(installed), "pacman_log": history is not None,
             "note": None if how == "sync" else
             "Vigil could not read the sync databases, so 'foreign' means 'not built by an Arch packager' here."}
 

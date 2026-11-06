@@ -20,14 +20,33 @@
     Vigil <span class="tool-name">Pkg</span> <small>AUR package review</small>
   </div>
   <nav class="tabs" id="tabs">
-    <button type="button" data-tab="review" class="active">Review</button>
+    <button type="button" data-tab="inbox" class="active">Inbox<span class="count" id="inbox-count" hidden></span></button>
+    <button type="button" data-tab="review">Review</button>
     <button type="button" data-tab="installed">Installed</button>
     <button type="button" data-tab="approved">Approved</button>
   </nav>
   <div class="status" id="status"></div>
 </header>
 <main>
-  <section class="tab active" id="tab-review">
+  <section class="tab active" id="tab-inbox">
+    <div class="split">
+      <div class="main">
+        <h2>Packages your AUR helper downloaded</h2>
+        <p class="muted">Vigil looks in paru, yay, pikaur, trizen and pamac's build caches and reviews each PKGBUILD as text, before you build it. New or changed ones are reviewed automatically when this page opens.</p>
+        <div id="inbox"></div>
+      </div>
+      <aside class="side">
+        <h2>How to use it</h2>
+        <ol class="muted">
+          <li>Ask your helper to download a package (it shows you the PKGBUILD before building).</li>
+          <li>Come here: it appears with a verdict. Open it to read the exact lines.</li>
+          <li>If it looks right, press <b>Approve</b>. Next update, Vigil shows only what changed.</li>
+        </ol>
+        <p class="faint">Terminal: <code>python3 -m vigil.pkg review DIR</code> exits 2 for "Don't install", so it can gate a build.</p>
+      </aside>
+    </div>
+  </section>
+  <section class="tab" id="tab-review">
     <div class="split">
       <div class="main">
         <h2>Review a PKGBUILD before you build it</h2>

@@ -269,6 +269,15 @@ class Review:
 
     def check_names(self):
         for n in self.pkgnames():
+            if n.lower() in names.HIJACKED:
+                inc = next(i for i in names.INCIDENTS if i["id"] == names.HIJACKED[n.lower()])
+                self.add("known_hijacked", "This package was taken over during an AUR malware wave",
+                         f"{n} was named in reporting on {inc['what']} ({inc['start']} to {inc['end']}).", "Medium", 0.6,
+                         f"{n} is on Vigil's list of hijacked AUR packages", file="PKGBUILD",
+                         line=self.pkgbuild.vars.get("pkgname", {}).get("line"),
+                         likely="The project is real; for a few days its AUR package was not. Read the diff since the "
+                                "version you trust, and check the maintainer.",
+                         confidence="Medium", reason="Taken from public reporting on the incident.")
             hit = names.check(n)
             if not hit:
                 continue

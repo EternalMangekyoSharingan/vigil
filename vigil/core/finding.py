@@ -18,6 +18,7 @@ A finding is a plain JSON-able dict:
     subject     what the finding is about (a path, package, pid ...)
     source      {"tool", "check", "data", "when"}: where it came from, as CLAUDE.md asks
     tags        free-form short labels
+    attack      [{"id", "name", "tactic", "url"}]: MITRE ATT&CK techniques this is evidence of
     format      FORMAT_VERSION
 
 make() validates as it builds, so a tool cannot emit a finding that breaks the rules.
@@ -27,6 +28,7 @@ import hashlib
 import json
 import time
 
+from . import attack as attack_map
 from . import wording
 
 FORMAT_VERSION = 1
@@ -62,7 +64,7 @@ def finding_id(tool, check, subject):
 
 def make(tool, check, title, summary, severity, *, signals=(), likely=None, confidence="Medium",
          confidence_reason="", subject="", fixes=None, evidence=(), iocs=(), technical=(), data="",
-         when=None, tags=()):
+         when=None, tags=(), attack=None):
     """Build and validate one finding. Raises FindingError listing every rule it breaks."""
     when = time.time() if when is None else when
     f = {
@@ -74,6 +76,8 @@ def make(tool, check, title, summary, severity, *, signals=(), likely=None, conf
         "fixes": fixes, "evidence": [dict(e) for e in evidence], "iocs": [dict(i) for i in iocs],
         "technical": [dict(t) for t in technical], "subject": subject,
         "source": {"tool": tool, "check": check, "data": data, "when": when}, "tags": list(tags),
+        "attack": [dict(a) if isinstance(a, dict) else attack_map.tag(a) for a in attack]
+        if attack is not None else attack_map.for_check(tool, check),
     }
     bad = problems(f)
     if bad:
@@ -108,6 +112,9 @@ def problems(f):
     for opt in ((f.get("fixes") or {}).get("fix") or []):
         if opt.get("commands") and not (opt.get("undo") or opt.get("undo_steps")):
             out.append(f"fix '{opt.get('title')}' has no undo")
+    for a in f.get("attack") or []:
+        if not attack_map.ID_RE.match(str(a.get("id", ""))):
+            out.append(f"bad ATT&CK id {a.get('id')!r}")
     src = f["source"]
     if not (src.get("tool") and src.get("check") and src.get("when")):
         out.append("source must say which tool, which check and when")

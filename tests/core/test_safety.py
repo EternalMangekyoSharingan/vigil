@@ -80,6 +80,18 @@ class SafetyRules(unittest.TestCase):
                 self.assertIsNone(LOADS.search(code_of(p)), p.name)
                 self.assertIsNone(OPENS.search(code_of(p)), p.name)
 
+    def test_the_ai_provider_is_the_only_other_network_door(self):
+        # Anthropic's SDK is optional; only ai/providers.py may import it, and only inside the
+        # functions that run on an explicit "Ask" (never at import time).
+        uses = [str(p.relative_to(PKG)) for p in modules() if re.search(r"\bimport anthropic\b|from anthropic\b", code_of(p))]
+        self.assertEqual(uses, ["ai/providers.py"])
+        for line in (PKG / "ai/providers.py").read_text().splitlines():
+            if re.search(r"\bimport anthropic\b", line):
+                self.assertTrue(line.startswith("        "), "anthropic must be imported inside a function")
+        for mod in ("ai/context.py", "ai/analyst.py"):
+            self.assertIsNone(re.search(r"\b(socket\.(create_connection|connect)|urllib|http\.client|anthropic)\b",
+                                        code_of(PKG / mod).replace("socket.gethostname", "")), mod)
+
     def test_the_open_with_app_rule_catches_real_launches(self):
         self.assertTrue(OPENS.search('subprocess.run(["xdg-open", path])'))
         self.assertTrue(OPENS.search("os.system('xdg-open ' + path)"))

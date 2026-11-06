@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS notes(
 CREATE TABLE IF NOT EXISTS case_log(
   id INTEGER PRIMARY KEY, case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE, ts REAL NOT NULL,
   text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS ai_log(
+  id INTEGER PRIMARY KEY, ts REAL NOT NULL, provider TEXT NOT NULL, model TEXT, scope TEXT NOT NULL,
+  question TEXT NOT NULL, bytes_sent INTEGER NOT NULL, findings INTEGER NOT NULL, redactions INTEGER NOT NULL,
+  answer TEXT, refused INTEGER NOT NULL DEFAULT 0, error TEXT, usage TEXT);
 CREATE TABLE IF NOT EXISTS imports(
   id INTEGER PRIMARY KEY, ts REAL NOT NULL, source TEXT NOT NULL, added INTEGER NOT NULL, updated INTEGER NOT NULL,
   skipped INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT '[]');
@@ -223,6 +228,25 @@ class CaseStore:
                (int(case_id) if case_id else None, finding_key, now, text[:NOTE_MAX]))
         return {"ok": True}
 
+    # ---- settings and the AI log -------------------------------------------------------------------
+
+    def get_meta_ai(self):
+        """AI settings: off until the user turns them on; redaction on by default."""
+        rows = self.q("SELECT value FROM meta WHERE key='ai'")
+        s = {"enabled": False, "redact": True}
+        if rows:
+            s.update(json.loads(rows[0]["value"]))
+        return s
+
+    def set_meta_ai(self, value):
+        self.x("INSERT OR REPLACE INTO meta(key, value) VALUES ('ai', ?)", (json.dumps(value),))
+
+    def log_ai(self, row, answer=None, refused=False, error=None, usage=None):
+        self.x("INSERT INTO ai_log(ts, provider, model, scope, question, bytes_sent, findings, redactions, answer,"
+               " refused, error, usage) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+               (time.time(), row["provider"], row.get("model"), row["scope"], row["question"], row["bytes_sent"],
+                row["findings"], row["redactions"], answer, int(bool(refused)), error, json.dumps(usage or {})))
+
     # ---- the timeline ----------------------------------------------------------------------------
 
     def timeline(self, case_id=None, tool=None, severity=None, limit=1000):
@@ -231,7 +255,8 @@ class CaseStore:
         for f in self.findings(tool, severity, case_id, limit):
             events.append({"ts": f["first_seen"], "kind": "finding", "key": f["key"], "tool": f["tool"],
                            "severity": f["severity"], "title": f["title"], "summary": f["summary"],
-                           "seen": f["times"], "last_seen": f["last_seen"]})
+                           "seen": f["times"], "last_seen": f["last_seen"],
+                           "attack": [a["id"] for a in f["body"].get("attack") or []]})
         if not tool and not severity:
             notes = self.q("SELECT * FROM notes WHERE case_id=? OR finding_key IN (SELECT key FROM case_findings "
                            "WHERE case_id=?)" if case_id else "SELECT * FROM notes", (case_id, case_id) if case_id else ())

@@ -147,7 +147,8 @@ class ExportTests(StoreTests):
         self.assertEqual(types.count("note"), 6)            # 5 findings + 1 analyst note
         self.assertEqual(types.count("grouping"), 1)
         required = {"identity": ("name", "identity_class"), "indicator": ("pattern", "pattern_type", "valid_from"),
-                    "note": ("content", "object_refs"), "grouping": ("context", "object_refs")}
+                    "note": ("content", "object_refs"), "grouping": ("context", "object_refs"),
+                    "attack-pattern": ("name", "external_references")}
         for o in b["objects"]:
             self.assertEqual(o["spec_version"], "2.1")
             self.assertTrue(STIX_ID.match(o["id"]) and o["id"].startswith(o["type"] + "--"), o["id"])
@@ -157,6 +158,10 @@ class ExportTests(StoreTests):
                 self.assertIn(k, o)
             for ref in o.get("object_refs", []) + ([o["created_by_ref"]] if "created_by_ref" in o else []):
                 self.assertIn(ref, ids)
+            if o["type"] == "attack-pattern":
+                ref = o["external_references"][0]
+                self.assertEqual(ref["source_name"], "mitre-attack")
+                self.assertRegex(ref["external_id"], r"^T\d{4}(\.\d{3})?$")
             if o["type"] == "indicator":
                 self.assertRegex(o["pattern"], r"^\[[a-z0-9-]+:[a-z.'A-Z0-9-]+ = '.+'\]$")
         pats = {o["pattern"] for o in b["objects"] if o["type"] == "indicator"}

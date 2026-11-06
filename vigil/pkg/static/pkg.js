@@ -1,4 +1,5 @@
 // Vigil Pkg page: review a PKGBUILD folder, audit installed foreign packages, approved versions.
+import "./suite.js";
 import { api, el, clear, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
 import { findingList, initTabs, verdictBox, codeView, diffView, fixPanel } from "./findings.js";
@@ -112,7 +113,35 @@ async function refreshApproved() {
     el("td", { text: r.summary.verdict || `${r.n} findings` })))));
 }
 
-initTabs($("tabs"), (name) => { if (name === "approved") refreshApproved(); });
+const STATE = { new: ["Not reviewed by you", ""], changed: ["Changed since you approved it", "warn"], approved: ["Approved, unchanged", "live"] };
+async function refreshInbox() {
+  const box = clear($("inbox"));
+  box.append(el("p", { class: "faint", text: "Looking in your AUR helper's cache…" }));
+  let r;
+  try { r = await api.get("/api/inbox?review=1"); } catch (e) { clear(box).append(el("p", { class: "form-msg", text: e.message })); return; }
+  clear(box);
+  const need = r.packages.filter((p) => p.verdict && p.verdict !== "Looks normal" && p.state !== "approved");
+  const c = $("inbox-count");
+  c.hidden = !need.length; c.textContent = String(need.length);
+  c.classList.toggle("hot", need.some((p) => p.verdict === "Don't install"));
+  if (!r.packages.length) {
+    box.append(el("div", { class: "empty-state" }, el("b", { text: "Nothing waiting" }),
+      r.helpers.length ? "Your helper's cache has no PKGBUILDs right now." : `No AUR helper cache found under ${r.home}. Use the Review tab to check a folder or paste a PKGBUILD.`));
+    return;
+  }
+  box.append(el("table", { class: "list" },
+    el("tr", {}, el("th", { text: "Package" }), el("th", { text: "Verdict" }), el("th", { text: "Your review" }), el("th", { text: "Downloaded" }), el("th", { text: "" })),
+    r.packages.map((p) => el("tr", {},
+      el("td", {}, el("strong", { text: p.pkgbase }), el("div", { class: "faint mono", text: `${p.version} · ${p.helper}` })),
+      el("td", {}, p.verdict ? el("span", { class: `tag ${VCLASS[p.verdict] === "ok" ? "" : VCLASS[p.verdict]}`, text: p.verdict }) : el("span", { class: "faint", text: p.error || "not reviewed" }),
+        p.top ? el("div", { class: "faint", text: p.top }) : null),
+      el("td", {}, el("span", { class: `tag ${STATE[p.state][1]}`, text: STATE[p.state][0] }), p.approved_version ? el("div", { class: "faint", text: `approved ${p.approved_version}` }) : null),
+      el("td", { text: fmtClock(p.mtime) }),
+      el("td", {}, el("button", { type: "button", class: "btn", text: "Open", onclick: () => { document.querySelector("[data-tab=review]").click(); $("folder").value = p.path; review({ path: p.path }); } }))))));
+}
+
+initTabs($("tabs"), (name) => { if (name === "approved") refreshApproved(); if (name === "inbox") refreshInbox(); });
+refreshInbox();
 $("go").addEventListener("click", () => review({ path: $("folder").value.trim() }));
 $("folder").addEventListener("keydown", (e) => { if (e.key === "Enter") review({ path: $("folder").value.trim() }); });
 $("go-paste").addEventListener("click", () => review({ files: { PKGBUILD: $("paste").value } }));

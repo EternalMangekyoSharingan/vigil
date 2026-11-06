@@ -39,6 +39,15 @@ APP_PARENTS = {   # programs that open untrusted content and should not start sh
 SERVER_PARENTS = {"nginx": "the web server", "apache2": "the web server", "httpd": "the web server",
                   "php-fpm": "PHP", "lighttpd": "the web server", "mysqld": "the database",
                   "mariadbd": "the database", "postgres": "the database", "redis-server": "Redis"}
+# Names malware borrows to blend in (the July 2026 AUR wave ran Tor as "dbus-daemon").
+SYSTEM_NAMES = {"dbus-daemon", "dbus-broker", "systemd", "systemd-journald", "systemd-logind", "systemd-resolved",
+                "systemd-timesyncd", "systemd-udevd", "systemd-networkd", "sshd", "cron", "crond", "atd", "rsyslogd",
+                "NetworkManager", "wpa_supplicant", "polkitd", "udisksd", "upowerd", "accounts-daemon", "avahi-daemon",
+                "cupsd", "pipewire", "wireplumber", "pulseaudio", "Xorg", "Xwayland", "gnome-shell", "kwin_wayland",
+                "plasmashell", "gvfsd", "at-spi-bus-launcher", "xdg-desktop-portal", "agetty", "login", "bash", "sh"}
+SYSTEM_DIRS = ("/usr/", "/bin/", "/sbin/", "/lib/", "/lib64/", "/opt/", "/nix/store/", "/snap/", "/app/")
+PAGE = os.sysconf("SC_PAGE_SIZE")
+CLK = os.sysconf("SC_CLK_TCK")
 HARMLESS_CHILD_CMD = re.compile(r"(^|[\s/])(xdg-open|xdg-mime|gio|kde-open\d*|exo-open)\b")
 
 
@@ -80,6 +89,21 @@ def _unit(proc_root, pid):
     unit = units[-1]
     return {"unit": unit, "user": "/user@" in path or path.startswith("/user.slice/user-") and "user@" in path,
             "cgroup": path}
+
+
+def _usage(proc_root, pid):
+    """(cpu ticks used so far, resident memory in bytes), or (None, None)."""
+    try:
+        stat = collector._read(f"{proc_root}/{pid}/stat")
+        rest = stat[stat.rfind(")") + 2:].split()
+        ticks = int(rest[11]) + int(rest[12])            # utime + stime (fields 14 and 15)
+    except (OSError, IndexError, ValueError):
+        ticks = None
+    try:
+        rss = int(collector._read(f"{proc_root}/{pid}/statm").split()[1]) * PAGE
+    except (OSError, IndexError, ValueError):
+        rss = None
+    return ticks, rss
 
 
 def _threads_state(proc_root, pid):
@@ -155,6 +179,7 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
             unreadable += info["ppid"] != 2 and pid != 2   # kernel threads have no exe by design
         path = (exe or "").removesuffix(" (deleted)")
         threads, state = _threads_state(proc_root, pid)
+        ticks, rss = _usage(proc_root, pid)
         info.update({
             "kernel": exe is None and (info["ppid"] == 2 or pid == 2) and not info["cmdline"],
             "path": path or None,
@@ -163,7 +188,8 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
             "package": pkg.owner(path) if path and not path.startswith("/memfd:") else None,
             "sha256": hasher(proc_root, pid) if exe else None,
             "ld": _environ_ld(proc_root, pid), "unit": _unit(proc_root, pid),
-            "sockets": socks.get(pid, []), "threads": threads, "state": state,
+            "sockets": socks.get(pid, []), "threads": threads, "state": state, "ticks": ticks, "rss": rss,
+            "cpu": None,
             "children": [],
         })
         info.pop("ancestry", None)
@@ -174,6 +200,7 @@ def snapshot(proc_root="/proc", pkgfiles=None, hasher=None, now=None, home=None,
             parent["children"].append(pid)
     for p in procs.values():
         p["children"].sort()
+        p["package_db"] = pkg.kind
     roots = sorted(pid for pid, p in procs.items() if p["ppid"] not in procs)
     return {"taken_at": now, "proc_root": proc_root, "processes": procs, "roots": roots,
             "viewer_uid": os.getuid(), "unreadable_exe": unreadable, "package_db": pkg.kind}
@@ -221,6 +248,14 @@ def flags(p, procs, home=None):
             out.append(("odd_parent", "Low", 0.2, f"{parent['name']} ({kind}) opened something with {cmd[:80]}"))
         elif srv:
             out.append(("odd_parent", "High", 0.9, f"{parent['name']} ({srv}) started {base}: {cmd[:120]}"))
+    if (p["comm"] in SYSTEM_NAMES or base in SYSTEM_NAMES) and path and not path.startswith(SYSTEM_DIRS) \
+            and not path.startswith("/memfd:"):
+        out.append(("masquerade_name", "High", 0.9,
+                    f"is named {p['comm']} like a system program, but runs from {path}"))
+    elif (p["comm"] in SYSTEM_NAMES) and path and p.get("package") is None and p.get("package_db") \
+            and base != p["comm"] and not base.startswith(p["comm"][:6]):
+        out.append(("masquerade_name", "Medium", 0.6,
+                    f"is named {p['comm']} like a system program, but its file {path} is a different program"))
     if p["cmdline"] and p["cmdline"][0].startswith("[") and p["exe"]:
         out.append(("fake_kernel_name", "High", 0.9, f"calls itself {p['cmdline'][0]} like a kernel thread, but runs {path}"))
     if base in NETTOOLS and re.search(r"\s-e\s|\bexec:|/bin/(ba)?sh", cmd):
@@ -230,6 +265,22 @@ def flags(p, procs, home=None):
         out.append(("listens_from_odd_place", "High", 0.8,
                     f"listens on port {listening[0]['local_port']} for the whole network while running from {path}"))
     return out
+
+
+def cpu_usage(snap, previous):
+    """Fill in each process's CPU % from the ticks it used since the previous snapshot.
+    previous: {(pid, started): (ticks, time)}; returns the new one to keep."""
+    now, keep = snap["taken_at"], {}
+    for pid, p in snap["processes"].items():
+        if p.get("ticks") is None:
+            continue
+        k = (pid, p.get("started"))
+        keep[k] = (p["ticks"], now)
+        if k in previous:
+            t0, w0 = previous[k]
+            if now > w0:
+                p["cpu"] = round(100.0 * (p["ticks"] - t0) / CLK / (now - w0), 1)
+    return keep
 
 
 def ancestry(procs, pid, depth=12):

@@ -41,6 +41,25 @@ KNOWN_MALICIOUS = {
     "minergate": "an orphaned package adopted by an attacker in June 2018 and made malicious",
 }
 
+# Packages named in reporting on the July 2026 takeover wave: real projects whose AUR
+# packages were adopted or taken over and pushed a malicious commit for a few days. The
+# name is not bad in itself; installing or updating it during the window is the risk.
+# (Reported by BleepingComputer, SC Media and others; Arch had not published a full list.)
+HIJACKED = {
+    "openconnect-sso": "2026-07", "boringssl-git": "2026-07", "icloudpd": "2026-07",
+    "windscribe-cli-v2-bin": "2026-07", "stirling-pdf-desktop-bin": "2026-07",
+    "arduino-language-server-noclang-bin": "2026-07", "pgadmin4-server": "2026-07",
+}
+# Known AUR malware windows (UTC dates, inclusive). Approximate where reporting differs.
+INCIDENTS = [
+    {"id": "2025-07", "start": "2025-07-16", "end": "2025-07-18",
+     "what": "browser packages carrying the CHAOS remote access trojan (librewolf-fix-bin and others)"},
+    {"id": "2026-06", "start": "2026-06-08", "end": "2026-06-20",
+     "what": "the June 2026 AUR malware wave (hundreds of packages; dates approximate)"},
+    {"id": "2026-07", "start": "2026-07-29", "end": "2026-08-02",
+     "what": "the July 2026 package-takeover wave (adopted packages pushing an infostealer)"},
+]
+
 
 def base(name):
     n = name.lower()

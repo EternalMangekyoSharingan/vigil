@@ -12,7 +12,7 @@ from . import procs as P
 
 STATIC = Path(__file__).resolve().parent / "static"
 FIELDS = ("pid", "ppid", "name", "comm", "path", "exe_deleted", "user", "uid", "started", "package", "sha256", "unit",
-          "kernel", "children", "threads", "state", "cmdline")
+          "kernel", "children", "threads", "state", "cmdline", "cpu", "rss")
 
 
 class App:
@@ -24,6 +24,7 @@ class App:
         self.pkg = PackageFiles(root)
         self.hasher = P.Hasher()
         self.lock = threading.Lock()
+        self.previous = {}
 
     def close(self):
         self.store.close()
@@ -31,6 +32,7 @@ class App:
     def take(self):
         with self.lock:
             snap = P.snapshot(self.proc_root, self.pkg, self.hasher, root=self.root)
+            self.previous = P.cpu_usage(snap, self.previous)
             fs, per_pid = F.build(snap, system.os_release(self.os_release_path), self.home)
         return snap, fs, per_pid
 

@@ -11,7 +11,7 @@ import re
 import shlex
 import time
 
-from ..core import catalogue
+from ..core import attack, catalogue
 from ..core import finding as fmt
 from ..core import fixes as fx
 from ..core import system
@@ -120,7 +120,9 @@ class Scan:
             technical=[{"label": "kind", "value": e["kind"]}, {"label": "sha256", "value": e.get("sha256") or "-"},
                        {"label": "mode", "value": oct(e["mode"]) if e.get("mode") is not None else "-"},
                        {"label": "owner uid", "value": str(e.get("uid"))}] + list(technical),
-            data=e["path"], when=self.now))
+            data=e["path"], when=self.now,
+            attack=attack.for_persist(e["group"], e["kind"], e["path"]) if check != "package_changed" or
+            e["group"] in attack.BY_PERSIST_GROUP else []))
 
     @staticmethod
     def _line(e, n):

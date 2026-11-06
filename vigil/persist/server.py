@@ -57,7 +57,32 @@ class App:
         return {("GET", "/api/status"): self.api_status,
                 ("POST", "/api/scan"): lambda q, b, h: self.scan(),
                 ("POST", "/api/accept"): lambda q, b, h: (_json_body(b), self.accept())[1],
-                ("GET", "/api/run"): lambda q: self.store.run(int(q.get("id", 0)))}
+                ("GET", "/api/run"): lambda q: self.store.run(int(q.get("id", 0))),
+                ("GET", "/api/runs"): lambda q: {"runs": self.store.runs(50)},
+                ("GET", "/api/schedule"): self.api_schedule}
+
+    def api_schedule(self, q):
+        """A systemd user timer that runs the scan daily: shown for you to install, never installed by Vigil."""
+        import shlex
+        import sys
+        from ..core import fixes as fx
+        repo = str(Path(__file__).resolve().parent.parent.parent)
+        unit = ("[Unit]\nDescription=Vigil Persist daily autostart check (read-only)\n\n[Service]\nType=oneshot\n"
+                f"WorkingDirectory={repo}\nExecStart={sys.executable} -m vigil.persist --data {self.store.dir} scan\n")
+        timer = ("[Unit]\nDescription=Run Vigil Persist daily\n\n[Timer]\nOnCalendar=daily\nPersistent=true\n"
+                 "RandomizedDelaySec=15min\n\n[Install]\nWantedBy=timers.target\n")
+        d = "~/.config/systemd/user"
+        opt = fx.option("Check autostart every day", "A systemd timer for your user runs the read-only scan once a day, "
+                        "so the next time you open Persist the changes are already listed.", "settings",
+                        [f"systemctl --user daemon-reload", "systemctl --user enable --now vigil-persist.timer"],
+                        ["systemctl --user disable --now vigil-persist.timer"],
+                        steps=[f"Create {d}/vigil-persist.service with the first text below.",
+                               f"Create {d}/vigil-persist.timer with the second text below.",
+                               "Then run the two commands."],
+                        undo_steps=[f"Delete the two files from {d} after disabling the timer."])
+        return {"option": opt, "files": [{"path": f"{d}/vigil-persist.service", "content": unit},
+                                         {"path": f"{d}/vigil-persist.timer", "content": timer}],
+                "note": f"Uses {shlex.quote(sys.executable)} from {repo}."}
 
 
 def make_server(app, port=8768, verbose=False):

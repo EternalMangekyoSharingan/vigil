@@ -1,9 +1,12 @@
 """Vigil Files' page and JSON API (127.0.0.1 only, via core.web)."""
 
+import hashlib
 import os
 import re
 import stat
+import threading
 import time
+import urllib.parse
 from pathlib import Path
 
 from ..core import finding as fmt
@@ -16,6 +19,15 @@ from .watch import Watcher
 
 STATIC = Path(__file__).resolve().parent / "static"
 LIST_MAX = 2000
+UPLOAD_MAX = 256 * 1024 * 1024
+SWEEP_MAX = 300
+
+
+def safe_name(name):
+    """A file name from the browser, made harmless: no folders, no control characters."""
+    name = os.path.basename((name or "").replace("\\", "/"))
+    name = "".join(c for c in name if c.isprintable() and c not in "/\0")[:200].strip(". ")
+    return name or "upload.bin"
 
 
 def downloads_dir(home=None):
@@ -41,6 +53,8 @@ class App:
         self.downloads = downloads_dir(home)
         self.watcher = None
         self.requester = requester or engines.request_json   # tests replace the network
+        self.sweep = {"running": False, "folder": None, "total": 0, "done": 0, "results": [], "started": None}
+        self.sweep_lock = threading.Lock()
 
     def close(self):
         if self.watcher:
@@ -106,6 +120,57 @@ class App:
         if not path:
             raise BadRequest("give a file path")
         return self.inspect(os.path.expanduser(path))
+
+    def api_upload(self, q, body, headers):
+        """A file dropped on the page: saved to data/files/inbox/<sha256>/<name>, mode 0600 (never
+        runnable), then inspected like any other file. Nothing is opened or run."""
+        name = safe_name(urllib.parse.unquote(headers.get("X-Filename") or ""))
+        if not body:
+            raise BadRequest("empty file")
+        digest = hashlib.sha256(body).hexdigest()
+        d = self.data_dir / "inbox" / digest
+        d.mkdir(parents=True, exist_ok=True, mode=0o700)
+        p = d / name
+        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(body)
+        os.chmod(p, 0o600)
+        return self.inspect(str(p))
+
+    def api_sweep_start(self, q, body, headers):
+        """Check every file in one folder (not its subfolders), in the background."""
+        folder = os.path.abspath(os.path.expanduser(_json_body(body).get("path") or self.downloads))
+        if not os.path.isdir(folder):
+            raise BadRequest(f"{folder} is not a folder")
+        with self.sweep_lock:
+            if self.sweep["running"]:
+                raise BadRequest("a folder check is already running")
+            files = sorted((e.path for e in os.scandir(folder) if e.is_file(follow_symlinks=False)
+                            and not e.name.startswith(".")), key=lambda x: x.lower())[:SWEEP_MAX]
+            self.sweep = {"running": True, "folder": folder, "total": len(files), "done": 0, "results": [],
+                          "started": time.time()}
+        threading.Thread(target=self._sweep, args=(files,), daemon=True, name="vigil-files-sweep").start()
+        return self.api_sweep({})
+
+    def _sweep(self, files):
+        for path in files:
+            try:
+                rep = self.inspect(path)
+                row = {"path": path, "name": rep["name"], "verdict": rep["verdict"], "counts": rep.get("counts"),
+                       "type": rep["type"].get("description"), "size": rep["size"],
+                       "top": next((f["title"] for f in rep["findings"] if f["severity"] in ("High", "Medium")), None)}
+            except Exception as exc:  # one unreadable file must not stop the sweep
+                row = {"path": path, "name": os.path.basename(path), "verdict": None, "error": f"{type(exc).__name__}: {exc}"}
+            with self.sweep_lock:
+                self.sweep["results"].append(row)
+                self.sweep["done"] += 1
+        with self.sweep_lock:
+            self.sweep["running"] = False
+            self.sweep["finished"] = time.time()
+
+    def api_sweep(self, q):
+        with self.sweep_lock:
+            return dict(self.sweep, results=list(self.sweep["results"]))
 
     def api_preview(self, q):
         return triage.preview(q.get("path", ""))
@@ -197,12 +262,14 @@ class App:
                 ("POST", "/api/quarantine"): self.api_quarantine, ("POST", "/api/restore"): self.api_restore,
                 ("POST", "/api/quarantine/delete"): self.api_quarantine_delete,
                 ("POST", "/api/watch"): self.api_watch, ("GET", "/api/watch/events"): self.api_watch_events,
-                ("POST", "/api/keys"): self.api_keys, ("POST", "/api/lookup"): self.api_lookup}
+                ("POST", "/api/keys"): self.api_keys, ("POST", "/api/lookup"): self.api_lookup,
+                ("POST", "/api/upload"): self.api_upload, ("POST", "/api/sweep"): self.api_sweep_start,
+                ("GET", "/api/sweep"): self.api_sweep}
 
 
 def make_server(app, port=8767, verbose=False):
-    return web.make_server(app, port, verbose, static_dirs=[STATIC])
+    return web.make_server(app, port, verbose, max_body=UPLOAD_MAX, static_dirs=[STATIC])
 
 
 def serve(data_dir, port=8767, verbose=False):
-    web.serve_tool(App(data_dir), "Vigil Files", port, verbose, static_dirs=[STATIC])
+    web.serve_tool(App(data_dir), "Vigil Files", port, verbose, static_dirs=[STATIC], max_body=UPLOAD_MAX)

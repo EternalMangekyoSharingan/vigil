@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vigil Home</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script type="module" src="/static/home.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <polygon points="16,4 26.4,10 16,16 5.6,10" fill="#9fe3df"/>
+      <polygon points="5.6,10 16,16 16,28 5.6,22" fill="#3f9a95"/>
+      <polygon points="26.4,10 16,16 16,28 26.4,22" fill="#5dbdb9"/>
+      <circle cx="16" cy="16" r="2.2" fill="#ff9f43"/>
+    </svg>
+    Vigil <span class="tool-name">Home</span> <small>personal blue-team lab</small>
+  </div>
+  <div class="status" id="status"></div>
+</header>
+<main>
+  <section class="tab active home" id="tab-home">
+    <div id="hero"></div>
+    <div class="posture" id="posture"></div>
+    <div id="checkup"></div>
+    <h2>Needs a look</h2>
+    <div id="needs"></div>
+    <div id="stories"></div>
+    <h2>Tools</h2>
+    <div class="tool-grid" id="tools"></div>
+    <p class="faint">Everything runs on this PC and listens on 127.0.0.1 only. Vigil reads; it never changes, deletes or sends anything unless you press a button that says it will. Press <kbd>?</kbd> for shortcuts.</p>
+  </section>
+</main>
+</body>
+</html>

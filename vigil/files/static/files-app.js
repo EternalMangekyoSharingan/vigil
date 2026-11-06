@@ -1,7 +1,11 @@
 // Vigil Files page: safe explorer, report, quarantine, Downloads watcher, hash lookups.
+import "./suite.js";
 import { api, el, clear, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
 import { findingList, initTabs, verdictBox, SEV_CLASS } from "./findings.js";
+import { treemap, LEGEND, kindOf } from "./treemap.js";
+
+const TM_COLOURS = { program: "#a35a3a", archive: "#6a5a92", document: "#3f7f7b", media: "#4b6a8a", other: "#3a3446", trick: "#a83a4e" };
 
 const $ = (id) => document.getElementById(id);
 const VCLASS = { "Likely malicious": "danger", Suspicious: "warn" };
@@ -71,6 +75,14 @@ function renderReport(r) {
   findingList(list, r.findings, { empty: "Nothing matched Vigil's checks." });
   if (r.listing) {
     const l = r.listing;
+    const trickNames = new Set();
+    for (const f of r.findings) for (const e of f.evidence || []) if (e.kind === "entry") trickNames.add(e.value.split(" → ")[0].replace(/ \(\d+\)$/, ""));
+    const ents = l.entries.map((e) => ({ name: e.name, size: e.size || 0, trick: trickNames.has(e.name) ? "flagged by Vigil" : null }));
+    const tm = el("div");
+    if (treemap(tm, ents)) {
+      box.append(el("h3", { text: "What takes the space" }), tm,
+        el("div", { class: "tm-legend" }, LEGEND.map(([k, label]) => { const i = el("i", {}); i.style.background = TM_COLOURS[k]; return el("span", {}, i, label); })));
+    }
     box.append(el("h3", { text: `Inside (${l.format}, ${l.count} entries${l.complete ? "" : ", incomplete"})` }),
       el("table", { class: "list" }, l.entries.slice(0, 300).map((e) => el("tr", {},
         el("td", { class: "mono", text: e.name + (e.link ? ` → ${e.link}` : "") }), el("td", { text: e.type }),
@@ -135,4 +147,50 @@ $("watch-toggle").addEventListener("click", async () => {
 for (const [id, svc] of [["vt", "virustotal"], ["mb", "malwarebazaar"]]) {
   $(`save-${id}`).addEventListener("click", async () => { await api.send("POST", "/api/keys", { service: svc, key: $(`key-${id}`).value }); $(`key-${id}`).value = ""; toast("Saved"); refreshStatus(); });
 }
-refreshStatus().then(() => browse(status.downloads));
+// ---- drop a file ------------------------------------------------------------------------
+const drop = $("drop");
+for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
+for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, () => drop.classList.remove("over"));
+drop.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  const f = e.dataTransfer?.files?.[0];
+  if (!f) return;
+  if (f.size > 256 * 1024 * 1024) { toast("Larger than 256 MB: check it by path instead", "err"); return; }
+  const box = clear($("report"));
+  box.append(el("p", { class: "faint", text: `Copying ${f.name} into Vigil's inbox…` }));
+  try {
+    const r = await api.send("POST", "/api/upload", await f.arrayBuffer(), "application/octet-stream", { "X-Filename": encodeURIComponent(f.name) });
+    renderReport(r);
+  } catch (err) { clear(box).append(el("p", { class: "form-msg", text: err.message })); }
+});
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => { if (!drop.contains(e.target)) e.preventDefault(); });
+
+// ---- check every file in a folder ------------------------------------------------------
+const VORDER = { "Likely malicious": 0, Suspicious: 1, "No suspicious indicators found": 2 };
+let sweepTimer = null;
+async function sweepTick() {
+  const s = await api.get("/api/sweep");
+  const box = clear($("sweep-box"));
+  if (!s.folder) return;
+  const pct = s.total ? Math.round((s.done / s.total) * 100) : 100;
+  const bar = el("div", { class: "progress" }, el("span", {}));
+  bar.firstChild.style.width = `${pct}%`;
+  const rows = s.results.slice().sort((a, b) => (VORDER[a.verdict] ?? 3) - (VORDER[b.verdict] ?? 3));
+  const bad = rows.filter((r) => r.verdict && r.verdict !== "No suspicious indicators found").length;
+  box.append(el("div", { class: "card" },
+    el("div", { class: "card-head" }, el("strong", { text: s.running ? `Checking ${s.folder}…` : `Checked ${s.done} files in ${s.folder}` }),
+      el("span", { class: "faint", text: `${bad} need a look` })), bar,
+    el("table", { class: "list" }, rows.slice(0, 50).map((r) => el("tr", { class: "clickable", onclick: () => inspect(r.path) },
+      el("td", { class: "mono", text: r.name }),
+      el("td", {}, r.verdict ? el("span", { class: `tag ${VCLASS[r.verdict] || ""}`, text: r.verdict }) : el("span", { class: "form-msg", text: r.error })),
+      el("td", { class: "faint", text: r.top || r.type || "" }))))));
+  if (!s.running) clearInterval(sweepTimer);
+}
+$("sweep").addEventListener("click", async () => {
+  try { await api.send("POST", "/api/sweep", { path: $("folder").value }); } catch (e) { toast(e.message, "err"); return; }
+  clearInterval(sweepTimer); sweepTimer = setInterval(sweepTick, 1000); sweepTick();
+});
+
+const hashPath = location.hash.match(/^#inspect=(.+)$/);
+refreshStatus().then(() => browse(status.downloads)).then(() => { if (hashPath) inspect(decodeURIComponent(hashPath[1])); });

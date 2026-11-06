@@ -28,6 +28,7 @@ TITLES = {
     "fake_kernel_name": ["{name} pretends to be a kernel thread", "A program pretends to be a kernel thread"],
     "reverse_shell": ["{name} looks like a reverse shell", "A program looks like a reverse shell"],
     "listens_from_odd_place": ["{name} listens for connections from an odd place", "A program listens from an odd place"],
+    "masquerade_name": ["{name} pretends to be a system program", "A program pretends to be a system program"],
 }
 WHY = {
     "memory_only": "Programs normally run from a file; running only from memory is how fileless malware avoids leaving traces.",
@@ -42,6 +43,8 @@ WHY = {
     "fake_kernel_name": "Kernel threads have no program file; a user program with a kernel-thread name is hiding.",
     "reverse_shell": "A network tool wired to a shell hands control of this PC to someone elsewhere.",
     "listens_from_odd_place": "A program accepting connections from the whole network should be installed software.",
+    "masquerade_name": "Malware borrows system program names so a glance at a process list looks normal; the July 2026 "
+                       "AUR malware ran its Tor client as \"dbus-daemon\".",
 }
 
 
@@ -75,6 +78,13 @@ def fixes(p, osr, viewer_uid):
                          undo_steps=[f"Start it again if you need it: {' '.join(p['cmdline'])[:200] or p['name']}"],
                          lose="Whatever it was doing."))
     return fx.panel(osr, check=check, fix=fix)
+
+
+def _attack(check, text):
+    if check == "odd_parent":
+        return ["T1505.003", "T1059.004"] if any(w in text for w in ("web server", "PHP", "database", "Redis")) \
+            else ["T1203", "T1059.004"]
+    return None  # the table in core/attack.py
 
 
 def build(snap, osr, home=None, now=None):
@@ -115,5 +125,5 @@ def build(snap, osr, home=None, now=None):
                             if p.get("started") else "-"},
                            {"label": "systemd unit", "value": (p.get("unit") or {}).get("unit") or "-"},
                            {"label": "package", "value": p["package"] or "none"}],
-                data=f"/proc/{pid}", when=now))
+                data=f"/proc/{pid}", when=now, attack=_attack(check, text)))
     return fmt.sort(out), per_pid

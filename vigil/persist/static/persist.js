@@ -1,7 +1,8 @@
 // Vigil Persist page: scan, findings, every autostart entry by group, changes since the baseline.
+import "./suite.js";
 import { api, el, clear, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
-import { findingList, initTabs } from "./findings.js";
+import { findingList, initTabs, option, legend } from "./findings.js";
 
 const $ = (id) => document.getElementById(id);
 const GROUPS = { systemd: "systemd units and timers", cron: "cron", autostart: "XDG autostart", shell: "Shell start-up files",
@@ -27,11 +28,27 @@ function render(r) {
   }
   if (r.hidden.length) all.append(el("p", { class: "note", text: `${r.hidden.length} files can only be read by root; Vigil notices if they appear, disappear or change size.` }));
   const ch = clear($("changes"));
+  history(ch);
   if (!d) { ch.append(el("p", { class: "muted", text: "This scan is the baseline. Scan again later to see what changed." })); return; }
   for (const [label, list] of [["New", d.added], ["Changed", d.changed], ["Gone", d.removed.map((x) => x.path)]]) {
     ch.append(el("h2", { text: `${label} (${list.length})` }));
     ch.append(list.length ? el("ul", { class: "evidence" }, list.map((p) => el("li", {}, el("code", { text: p })))) : el("p", { class: "faint", text: "None." }));
   }
+}
+
+async function history(box) {
+  const [r, sched] = await Promise.all([api.get("/api/runs"), api.get("/api/schedule")]);
+  const hist = el("div");
+  hist.append(el("h2", { text: "Scans" }), el("table", { class: "list" },
+    el("tr", {}, el("th", { text: "When" }), el("th", { text: "Entries" }), el("th", { text: "New" }), el("th", { text: "Changed" }), el("th", { text: "Gone" }), el("th", { text: "High / Medium" })),
+    r.runs.slice(0, 20).map((x) => el("tr", {}, el("td", { text: fmtClock(x.finished) }), el("td", { text: String(x.summary.entries ?? "") }),
+      el("td", { text: String(x.summary.diff?.added ?? "—") }), el("td", { text: String(x.summary.diff?.changed ?? "—") }),
+      el("td", { text: String(x.summary.diff?.removed ?? "—") }),
+      el("td", { text: `${x.summary.counts?.High ?? 0} / ${x.summary.counts?.Medium ?? 0}` })))));
+  hist.append(el("h2", { text: "Check automatically" }), option(sched.option, "fix"),
+    ...sched.files.flatMap((f) => [el("p", { class: "faint", text: f.path }), el("pre", { class: "code", text: f.content })]),
+    el("p", { class: "faint", text: sched.note }));
+  box.prepend(hist);
 }
 
 async function scan() {

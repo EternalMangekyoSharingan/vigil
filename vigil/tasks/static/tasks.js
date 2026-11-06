@@ -1,4 +1,5 @@
 // Vigil Tasks page: the process tree, one process's story, and flagged processes.
+import "./suite.js";
 import { api, el, clear, fmtClock, kv } from "./ui.js";
 import { toast } from "./fx.js";
 import { findingList, initTabs, SEV_CLASS } from "./findings.js";
@@ -9,6 +10,26 @@ const RANK = { High: 3, Medium: 2, Low: 1, Info: 0 };
 let data = null;
 let selected = null;
 const collapsed = new Set([2]);
+
+const mb = (n) => (n == null ? "—" : n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`);
+
+function drawTop() {
+  if (!data) return;
+  const key = $("sort").value;
+  const rows = Object.values(data.nodes).filter((n) => !n.kernel)
+    .sort((a, b) => (key === "started" ? (b.started || 0) - (a.started || 0) : (b[key] || 0) - (a[key] || 0))).slice(0, 60);
+  const maxCpu = Math.max(1, ...rows.map((r) => r.cpu || 0));
+  const maxMem = Math.max(1, ...rows.map((r) => r.rss || 0));
+  const bar = (v, max) => { const b = el("div", { class: "minibar" }, el("span", {})); b.firstChild.style.width = `${Math.round(((v || 0) / max) * 100)}%`; return b; };
+  clear($("top")).append(el("table", { class: "list" },
+    el("tr", {}, el("th", { text: "Process" }), el("th", { text: "User" }), el("th", { text: "CPU" }), el("th", { text: "" }), el("th", { text: "Memory" }), el("th", { text: "" }), el("th", { text: "Net" }), el("th", { text: "" })),
+    rows.map((n) => el("tr", { class: "clickable", onclick: () => { document.querySelector("[data-tab=tree]").click(); selected = n.pid; draw(); detail(n.pid); } },
+      el("td", {}, el("strong", { text: n.name }), el("div", { class: "faint mono", text: `${n.pid} · ${n.package || (n.path ? "not from a package" : "")}` })),
+      el("td", { text: n.user }), el("td", { class: "mono", text: n.cpu == null ? "…" : `${n.cpu}%` }), el("td", {}, bar(n.cpu, maxCpu)),
+      el("td", { class: "mono", text: mb(n.rss) }), el("td", {}, bar(n.rss, maxMem)),
+      el("td", { class: "mono", text: n.net ? String(n.net) : "" }),
+      el("td", {}, ...n.flags.filter((f) => f.severity !== "Info" && f.severity !== "Low").map((f) => el("span", { class: `tag ${SEV_CLASS[f.severity]}`, title: f.text, text: f.severity })))))));
+}
 
 function worst(n) { return n.flags.reduce((w, f) => (RANK[f.severity] > RANK[w] ? f.severity : w), "Info"); }
 
@@ -61,6 +82,7 @@ async function detail(pid) {
       ["SHA-256", p.sha256 || "-"],
       ["Command", p.cmdline || "-"],
       ["Started", p.started ? fmtClock(p.started) : "-"],
+      ["CPU / memory", `${p.cpu == null ? "…" : `${p.cpu}%`} · ${mb(p.rss)}`],
       ["Service", p.unit ? p.unit.unit : "-"],
       ["Linker vars", p.ld && Object.keys(p.ld).length ? Object.entries(p.ld).map(([k, v]) => `${k}=${v}`).join(" ") : p.ld ? "none" : "not visible to you"],
     ]));
@@ -90,11 +112,13 @@ async function refresh() {
   c.classList.toggle("hot", flagged.some((f) => f.severity === "High"));
   $("note").textContent = data.note || "";
   draw();
+  drawTop();
   if (!document.querySelector("#flagged .finding.open")) findingList($("flagged"), data.findings, { empty: "No process matched Vigil's checks." });
 }
 
 initTabs($("tabs"));
 $("filter").addEventListener("input", draw);
+$("sort").addEventListener("change", drawTop);
 $("kernel").addEventListener("change", () => { collapsed.delete(2); draw(); });
 $("save").addEventListener("click", async () => { const r = await api.send("POST", "/api/scan", {}); toast(`Saved ${r.findings.length} findings for Vigil Cases`); });
 setInterval(() => { if ($("live").checked && !document.hidden) refresh(); }, 5000);

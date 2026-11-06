@@ -1,4 +1,5 @@
 // App shell: tabs, the status line, motion, and the refresh loop.
+import "./suite.js";
 import { api, el, clear, fmtClock, appState } from "./ui.js";
 import { moveIndicator, constellation } from "./fx.js";
 import { NetworkMap } from "./netmap.js";
