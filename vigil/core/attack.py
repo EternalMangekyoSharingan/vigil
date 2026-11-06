@@ -130,6 +130,7 @@ BY_CHECK = {
     ("tasks", "reverse_shell"): ["T1059.004"],
     # Vigil Persist (content checks are tagged per location in persist/scan.py)
     ("persist", "package_changed"): [],
+    ("persist", "borrowed_name"): ["T1036.005", "T1543.002"],
 }
 # Persist: by location group (and kind, for timers and boot scripts).
 BY_PERSIST_GROUP = {

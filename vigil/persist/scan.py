@@ -12,6 +12,7 @@ import shlex
 import time
 
 from ..core import attack, catalogue
+from . import known
 from ..core import finding as fmt
 from ..core import fixes as fx
 from ..core import system
@@ -121,7 +122,8 @@ class Scan:
                        {"label": "mode", "value": oct(e["mode"]) if e.get("mode") is not None else "-"},
                        {"label": "owner uid", "value": str(e.get("uid"))}] + list(technical),
             data=e["path"], when=self.now,
-            attack=attack.for_persist(e["group"], e["kind"], e["path"]) if check != "package_changed" or
+            attack=None if attack.BY_CHECK.get((TOOL, check)) else
+            attack.for_persist(e["group"], e["kind"], e["path"]) if check != "package_changed" or
             e["group"] in attack.BY_PERSIST_GROUP else []))
 
     @staticmethod
@@ -144,13 +146,15 @@ class Scan:
                 exp = self.pkg.expected(e["path"]) or {}
                 e["conffile"] = exp.get("conffile", False)
             e["service"] = self.service_of(e)
+            e["known"] = known.lookup(e["path"]) if e["kind"] != "loaded kernel module" else None
             current[e["path"]] = {"sha256": e["sha256"], "mode": e["mode"], "link": e["link"], "kind": e["kind"],
                                   "group": e["group"], "scope": e["scope"], "package": pkg}
             self.content(e)
             self.integrity(e)
+            self.borrowed(e)
         diff = self.diff(base, current, {e["path"]: e for e in entries}) if base is not None else None
         rows = [{k: e.get(k) for k in ("path", "kind", "group", "scope", "size", "mode", "uid", "link", "readable",
-                                       "sha256", "package", "integrity", "taint", "service")} for e in entries]
+                                       "sha256", "package", "integrity", "taint", "service", "known")} for e in entries]
         return {"tool": TOOL, "entries": rows, "hidden": hidden, "findings": fmt.sort(self.findings),
                 "diff": diff, "baseline_at": base_ts, "current": current, "scanned_at": self.now,
                 "package_db": self.pkg.kind, "distro": fx.distro_info(self.osr),
@@ -200,6 +204,21 @@ class Scan:
                      confidence="Low" if shipped else "High" if sev == "High" else "Medium",
                      reason="Read from the file itself." + (" The package vouches for it." if shipped else ""),
                      package=e.get("package"), line=line, subject=f"{e['path']}:content:{text[:60]}")
+
+    def borrowed(self, e):
+        b = known.borrowed(e)
+        if not b:
+            return
+        name = b["name"]
+        self.add("borrowed_name", [f"{name} in your home folder is not the real one",
+                                      f"Not the real {name}", "A user unit borrows a system service's name"],
+                 f"{e['path']} uses the name of {name} ({b['what'].rstrip('.').lower()}), a system service that never "
+                 "runs from your home folder.", "Medium",
+                 [(f"Named like the system service {name}, but in ~/.config/systemd/user", 0.7, "borrowed_name")], e,
+                 likely="Copying a system unit here does nothing useful, so a unit with this name is either a "
+                        "leftover experiment or something hiding behind a familiar name. Read what it starts.",
+                 confidence="Medium", reason="The real one lives in /usr/lib/systemd/system; this one is in your home folder.",
+                 subject=f"{e['path']}:borrowed")
 
     def integrity(self, e):
         if e.get("integrity") != "changed":

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..core import system, web
 from ..core.web import BadRequest, _json_body
-from . import inbox, installed, parse, review
+from . import gate, inbox, installed, parse, review
 
 STATIC = Path(__file__).resolve().parent / "static"
 MAX_FILES_BODY = 8 * 1024 * 1024
@@ -139,7 +139,8 @@ class App:
                 ("POST", "/api/trust"): self.api_trust,
                 ("POST", "/api/forget"): self.api_forget,
                 ("GET", "/api/run"): self.api_run,
-                ("GET", "/api/installed"): self.api_installed}
+                ("GET", "/api/installed"): self.api_installed,
+                ("GET", "/api/gate"): lambda q: gate.snippet(fail_on="medium" if q.get("fail_on") == "medium" else "high")}
 
 
 def make_server(app, port=8766, verbose=False):

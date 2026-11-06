@@ -14,6 +14,9 @@ function hero(o) {
   clear($("hero")).append(
     el("h1", { class: v.cls ? `sev-${v.cls}` : "", text: v.word }),
     el("p", { class: "lede", text: v.text }),
+    o.new_since && o.new_since.count ? el("p", { class: "since" }, el("span", { class: "tag live", text: `${o.new_since.count} new` }),
+      ` since your last check-up (${fmtClock(o.new_since.ts)})${o.new_since.needs ? `, ${o.new_since.needs} of them below` : ", none of them High or Medium"}.`)
+      : o.new_since ? el("p", { class: "since faint", text: `Nothing new since your last check-up (${fmtClock(o.new_since.ts)}).` }) : null,
     el("div", { class: "actions" },
       el("button", { type: "button", class: "btn primary", disabled: running, text: running ? "Checking…" : (o.first_run ? "Check this PC" : "Check again"),
         title: "Runs every tool's read-only check: running programs, autostart, Downloads, AUR packages, then one timeline.",
@@ -53,6 +56,7 @@ function needs(o) {
   box.append(el("ol", { class: "timeline" }, o.needs_look.map((n) => el("li", { class: n.severity },
     el("div", { class: "when", text: `${fmtClock(n.when)} · ${n.tool_name}` }),
     el("span", { class: `sev-word ${SEV_CLASS[n.severity]}`, text: n.severity }), " ",
+    n.new ? el("span", { class: "tag live", title: "Not there before your last check-up", text: "new" }) : null, n.new ? " " : null,
     el("a", { class: "linkish", href: n.tool === "cases" ? n.url : `${o.tools.find((t) => t.id === "cases").url}#finding=${encodeURIComponent(n.key)}`, text: n.title }),
     " ", ...(n.attack || []).slice(0, 2).map((a) => el("span", { class: "attack", title: a.name, text: a.id })),
     el("div", { class: "muted", text: n.summary }),
@@ -113,7 +117,7 @@ function tools(o) {
 async function refresh() {
   let o;
   try { o = await api.get("/api/overview"); } catch (e) { $("status").textContent = e.message; return; }
-  const sig = JSON.stringify([o.posture, o.needs_look.map((n) => n.key), o.checkup, o.tools.map((t) => [t.last, t.running]), o.stories.map((s) => s.id), o.set_aside.map((a) => a.key)]);
+  const sig = JSON.stringify([o.posture, o.needs_look.map((n) => n.key), o.checkup, o.tools.map((t) => [t.last, t.running]), o.stories.map((s) => s.id), o.set_aside.map((a) => a.key), o.new_since]);
   $("status").textContent = o.last_activity ? `Last activity ${fmtAgo(o.last_activity, o.now)}` : "";
   if (sig === lastSig) return;
   lastSig = sig;

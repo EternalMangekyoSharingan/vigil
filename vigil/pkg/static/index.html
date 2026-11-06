@@ -42,7 +42,10 @@
           <li>Come here: it appears with a verdict. Open it to read the exact lines.</li>
           <li>If it looks right, press <b>Approve</b>. Next update, Vigil shows only what changed.</li>
         </ol>
-        <p class="faint">Terminal: <code>python3 -m vigil.pkg review DIR</code> exits 2 for "Don't install", so it can gate a build.</p>
+        <h2>Review before every build</h2>
+        <p class="muted">paru can run Vigil in each package's folder before it builds, and stop when the review finds something. Copy these lines into your paru.conf:</p>
+        <div id="gate"></div>
+        <p class="faint">Terminal: <code>python3 -m vigil.pkg review DIR --fail-on high</code> exits 2 when anything is High.</p>
       </aside>
     </div>
   </section>

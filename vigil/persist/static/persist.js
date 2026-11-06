@@ -23,7 +23,8 @@ function render(r) {
         el("td", { class: "mono", text: e.path + (e.link ? ` → ${e.link}` : "") }),
         el("td", { text: e.scope }),
         el("td", { text: e.package ? `${e.package}${e.integrity ? ` · ${e.integrity === "ok" ? "matches package" : e.integrity}` : ""}` : e.kind === "loaded kernel module" ? (e.taint ? `taint ${e.taint}` : "") : "not from a package" }),
-        el("td", { text: e.service ? `probably ${e.service.name}` : "" }),
+        el("td", { class: "what" }, e.known ? el("span", { title: `Going by its name (${e.known.name}). Vigil still checks what it starts.`, text: e.known.what })
+          : e.service ? el("span", { text: `starts ${e.service.name}` }) : el("span", { class: "faint", text: "" })),
         el("td", { text: e.readable ? "" : "root only" })))));
   }
   if (r.hidden.length) all.append(el("p", { class: "note", text: `${r.hidden.length} files can only be read by root; Vigil notices if they appear, disappear or change size.` }));

@@ -1156,3 +1156,4 @@ details.aside summary { cursor: pointer; color: var(--text-2); }
 .timeline li.hl { background: var(--bg-3); }
 .field.grow { flex: 1 1 200px; }
 .field.grow input { flex: 1; min-width: 120px; }
+.home .since { margin: 4px 0 0; color: var(--text-2); }

@@ -52,6 +52,8 @@ class Home:
         bad = [s for s in steps if s not in dict(checkup.STEPS)]
         if bad:
             raise BadRequest(f"unknown step {bad[0]}")
+        if not self.job.snapshot()["running"]:
+            overview.remember_seen(self.root)   # before the check-up: so Home can say what is new after it
         started = self.job.start(self.runner, steps)
         return dict(self.job.snapshot(), started_now=started)
 

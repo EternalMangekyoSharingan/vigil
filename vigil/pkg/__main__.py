@@ -1,11 +1,11 @@
-"""python -m vigil.pkg [serve | review DIR | installed | trusted]"""
+"""python -m vigil.pkg [serve | review DIR [--fail-on high|medium] | installed | trusted | gate]"""
 
 import argparse
 import json
 import sys
 
 from ..core.store import default_data_dir
-from . import installed, review
+from . import gate, installed, review
 
 SEV_MARK = {"High": "!!", "Medium": "! ", "Low": "· ", "Info": "  "}
 
@@ -35,6 +35,11 @@ def main(argv=None):
     r.add_argument("--json", action="store_true")
     r.add_argument("--approve", action="store_true", help="after reviewing, remember this version as approved")
     r.add_argument("--aur", action="store_true", help="also fetch AUR metadata (network: sends the package name)")
+    r.add_argument("--fail-on", choices=("high", "medium", "never"), default=None,
+                   help="exit 2 if any finding is at least this severe (for a build gate, e.g. paru's "
+                        "PreBuildCommand); without it: 2 for Don't install, 1 for Review these lines")
+    g = sub.add_parser("gate", parents=[common], help="print the paru.conf lines that make Vigil review before each build")
+    g.add_argument("--fail-on", choices=("high", "medium"), default="high")
     i = sub.add_parser("installed", parents=[common], help="audit foreign packages already installed")
     i.add_argument("--json", action="store_true")
     i.add_argument("--no-verify", action="store_true", help="skip the pacman -Qkk-style file check")
@@ -69,6 +74,13 @@ def main(argv=None):
                 review.Trusted(store).approve(rep["package"]["pkgbase"], files, rep["package"]["version"])
                 print(f"\nApproved {rep['package']['pkgbase']} {rep['package']['version']}: "
                       "the next review shows what changed.")
+            if a.fail_on:
+                code = gate.exit_code(rep["findings"], a.fail_on)
+                if code:
+                    print(f"\nVigil Pkg: stopping the build ({rep['package']['pkgbase']} has findings at "
+                          f"{a.fail_on} or above). Read them above; approve with --approve if they are expected.",
+                          file=sys.stderr)
+                return code
             return {"Don't install": 2, "Review these lines": 1}.get(rep["verdict"], 0)
         if a.cmd == "installed":
             rep = installed.audit(verify=not a.no_verify)
@@ -86,6 +98,10 @@ def main(argv=None):
                       + (f"{v['changed']} changed of {v['checked']}" if v and not v["error"] else (v or {}).get("error") or ""))
             print()
             print_findings(rep["findings"])
+            return 0
+        if a.cmd == "gate":
+            sn = gate.snippet(fail_on=a.fail_on)
+            print(f"# {sn['file']}  (check `{sn['check']}` first)\n{sn['text']}\n# {sn['note']}")
             return 0
         if a.cmd == "trusted":
             for t in review.Trusted(store).all():

@@ -2,6 +2,7 @@
 import "./suite.js";
 import { api, el, clear, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
+import { copy } from "./menu.js";
 import { findingList, initTabs, verdictBox, codeView, diffView, fixPanel } from "./findings.js";
 
 const VCLASS = { "Don't install": "danger", "Review these lines": "warn", "Looks normal": "ok" };
@@ -140,6 +141,16 @@ async function refreshInbox() {
       el("td", {}, el("button", { type: "button", class: "btn", text: "Open", onclick: () => { document.querySelector("[data-tab=review]").click(); $("folder").value = p.path; review({ path: p.path }); } }))))));
 }
 
+async function gateBox() {
+  const box = clear($("gate"));
+  let g;
+  try { g = await api.get("/api/gate"); } catch { return; }
+  const pre = el("pre", { class: "code", text: g.text });
+  box.append(el("div", { class: "faint mono", text: g.file }), pre,
+    el("div", { class: "actions" }, el("button", { type: "button", class: "btn small", text: "Copy", onclick: () => copy(g.text) })),
+    el("p", { class: "faint", text: g.note }));
+}
+
 initTabs($("tabs"), (name) => { if (name === "approved") refreshApproved(); if (name === "inbox") refreshInbox(); });
 refreshInbox();
 $("go").addEventListener("click", () => review({ path: $("folder").value.trim() }));
@@ -147,3 +158,4 @@ $("folder").addEventListener("keydown", (e) => { if (e.key === "Enter") review({
 $("go-paste").addEventListener("click", () => review({ files: { PKGBUILD: $("paste").value } }));
 $("audit").addEventListener("click", audit);
 refreshApproved();
+gateBox();
