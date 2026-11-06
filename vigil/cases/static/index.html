@@ -36,10 +36,13 @@
           <button type="button" class="btn primary" id="import-now" title="Read every tool's latest findings">Import from all tools</button>
           <label class="field">Tool <select id="f-tool"><option value="">all</option><option>net</option><option>pkg</option><option>files</option><option>persist</option><option>tasks</option></select></label>
           <label class="field">Severity <select id="f-sev"><option value="">all</option><option>High</option><option>Medium</option><option>Low</option><option>Info</option></select></label>
+          <label class="field">Show <select id="f-view"><option value="all">everything</option><option value="open">open only</option><option value="aside">set aside by you</option></select></label>
+          <label class="field grow">Search <input type="search" id="f-q" placeholder="title, summary, note… (press /)"></label>
           <a class="btn" id="exp-all-md" href="/api/export?format=md">Report (Markdown)</a>
           <a class="btn" href="/api/export?format=stix">STIX 2.1</a>
           <a class="btn" href="/api/export?format=csv">Indicators (CSV)</a>
         </div>
+        <div class="lanes" id="lanes"></div>
         <ol class="timeline" id="timeline"></ol>
       </div>
       <aside class="side" id="detail"><p class="muted">Pick a finding to read it, add a note, or put it in a case.</p></aside>

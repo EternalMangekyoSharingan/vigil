@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from ..core import web
+from ..core import decisions as decisions_mod
 from ..core.store import default_data_dir
 from ..core.web import BadRequest, _json_body
 from ..ai import analyst, context, providers
@@ -20,6 +21,7 @@ class App:
         self.store = CaseStore(data_dir)
         self.ask = None          # tests replace the provider; None means the real one
         self.data_root = Path(data_root) if data_root else Path(data_dir).parent
+        self.decisions = decisions_mod.Decisions(self.data_root)
 
     def close(self):
         self.store.close()
@@ -50,21 +52,46 @@ class App:
             return {"results": [importer.import_text(self.store, d["text"], d.get("source") or "pasted")]}
         return {"results": importer.import_all(self.store, self.data_root, refresh_net=d.get("net", True))}
 
+    def open_rows(self, rows=None):
+        """Findings you haven't set aside (or that came back worse since)."""
+        rows = self.store.findings() if rows is None else rows
+        keep, _ = decisions_mod.split(rows, lambda r: r["key"], self.decisions.all(), lambda r: r["last_seen"])
+        return keep
+
     def api_timeline(self, q):
-        return {"events": self.store.timeline(q.get("case") or None, q.get("tool") or None, q.get("severity") or None)}
+        decided = self.decisions.all()
+        view = q.get("view") or "all"
+        q_text = (q.get("q") or "").lower().strip()
+        out = []
+        for e in self.store.timeline(q.get("case") or None, q.get("tool") or None, q.get("severity") or None):
+            if e["kind"] == "finding":
+                d = self.decisions.applies(e["key"], e["severity"], decided, e["last_seen"])
+                e["decision"] = d
+                if (view == "open" and d) or (view == "aside" and not d):
+                    continue
+            elif view == "aside":
+                continue
+            if q_text and q_text not in " ".join(str(e.get(k) or "") for k in ("title", "summary", "text", "tool")).lower():
+                continue
+            out.append(e)
+        return {"events": out, "decided": len(decided)}
 
     def api_finding(self, q):
         f = self.store.finding(q.get("key", ""))
         f["entities"] = [{"kind": k, "value": v, "display": correlate.display((k, v))}
                          for k, v in sorted(correlate.entities(f["body"]))]
+        f["decision"] = self.decisions.get(f["key"])
+        f["decision_applies"] = bool(self.decisions.applies(f["key"], f["severity"], None, f["last_seen"]))
+        f["statuses"] = decisions_mod.STATUSES
         return f
 
     def api_stories(self, q):
-        return {"stories": correlate.stories(self.store.findings())}
+        rows = self.store.findings()
+        return {"stories": correlate.stories(rows if q.get("all") == "1" else self.open_rows(rows))}
 
     def api_story(self, q):
         sid = q.get("id", "")
-        for st in correlate.stories(self.store.findings()):
+        for st in correlate.stories(self.store.findings()):   # all findings: a story you open stays whole
             if st["id"] == sid:
                 return st
         raise LookupError(f"no storyline {sid}")
@@ -83,6 +110,7 @@ class App:
         """(findings, stories, case, label) for a scope: a case, a storyline, or everything worth a look."""
         rows = self.store.findings()
         all_stories = correlate.stories(rows)
+        open_rows = self.open_rows(rows)
         if d.get("case"):
             case = self.store.case(d["case"])
             keys = {f["key"] for f in case["findings"]}
@@ -94,8 +122,10 @@ class App:
                 raise LookupError("no such storyline")
             keys = set(st["keys"])
             return [r["body"] for r in rows if r["key"] in keys], [st], None, f"storyline {st['id']}"
-        fs = [r["body"] for r in rows if r["severity"] in ("High", "Medium")][:150]
-        return fs, all_stories[:10], None, "everything High or Medium"
+        fs = [r["body"] for r in open_rows if r["severity"] in ("High", "Medium")][:150]
+        aside = len(rows) - len(open_rows)
+        label = "everything High or Medium" + (f" ({aside} set aside by you, left out)" if aside else "")
+        return fs, correlate.stories(open_rows)[:10], None, label
 
     def api_ai_status(self, q):
         s = self.store.get_meta_ai()
@@ -203,7 +233,7 @@ class App:
                 ("POST", "/api/story/case"): w(self.api_story_case), ("GET", "/api/pivot"): w(self.api_pivot),
                 ("GET", "/api/ai"): w(self.api_ai_status), ("POST", "/api/ai/brief"): w(self.api_ai_brief),
                 ("POST", "/api/ai/preview"): w(self.api_ai_preview), ("POST", "/api/ai/settings"): w(self.api_ai_settings),
-                ("POST", "/api/ai/ask"): w(self.api_ai_ask)}
+                ("POST", "/api/ai/ask"): w(self.api_ai_ask), **decisions_mod.routes(self.decisions)}
 
 
 def make_server(app, port=8770, verbose=False):

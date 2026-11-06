@@ -2,7 +2,7 @@
 import "./suite.js";
 import { api, el, clear, fmtClock, fmtAgo } from "./ui.js";
 import { toast } from "./fx.js";
-import { SEV_CLASS } from "./findings.js";
+import { SEV_CLASS, DECISIONS, decisionBox } from "./findings.js";
 
 const $ = (id) => document.getElementById(id);
 let polling = null;
@@ -55,8 +55,35 @@ function needs(o) {
     el("span", { class: `sev-word ${SEV_CLASS[n.severity]}`, text: n.severity }), " ",
     el("a", { class: "linkish", href: n.tool === "cases" ? n.url : `${o.tools.find((t) => t.id === "cases").url}#finding=${encodeURIComponent(n.key)}`, text: n.title }),
     " ", ...(n.attack || []).slice(0, 2).map((a) => el("span", { class: "attack", title: a.name, text: a.id })),
-    el("div", { class: "muted", text: n.summary })))));
+    el("div", { class: "muted", text: n.summary }),
+    setAside(n)))));
   if (o.needs_total > o.needs_look.length) box.append(el("p", { class: "faint", text: `${o.needs_total - o.needs_look.length} more in the timeline.` }));
+}
+
+// "Set aside…" opens the shared decision form under the row; Home redraws after a decision.
+function setAside(n) {
+  const slot = el("div", {});
+  const btn = el("button", { type: "button", class: "btn small ghost", text: "Set aside…",
+    title: "Expected, fixed or a false alarm? Say why, and it leaves this list (it comes back if it gets worse).",
+    onclick: () => { btn.hidden = true; slot.append(decisionBox(n, () => { lastSig = ""; refresh(); })); } });
+  return el("div", { class: "row-actions" }, btn, slot);
+}
+
+function asideBox(o) {
+  const box = clear($("aside"));
+  if (!o.set_aside_total) return;
+  const list = el("ul", { class: "evidence" }, o.set_aside.map((a) => el("li", {},
+    el("span", { class: "tag", text: DECISIONS[a.decision.status] || a.decision.status }), " ",
+    el("strong", { text: a.title }), el("span", { class: "faint", text: ` · ${a.tool_name} · ` }),
+    el("span", { class: "muted", text: a.decision.reason }), " ",
+    el("button", { type: "button", class: "btn small ghost", text: "Reopen", onclick: async () => {
+      try { await api.send("POST", "/api/undecide", { key: a.key }); toast("Reopened"); lastSig = ""; refresh(); }
+      catch (e) { toast(e.message, "err"); }
+    } }))));
+  box.append(el("details", { class: "aside" },
+    el("summary", { text: `${o.set_aside_total} set aside by you` }),
+    el("p", { class: "faint", text: "Not counted above. Each keeps your reason; anything that gets worse, or that you fixed and a later scan sees again, comes back by itself." }),
+    list));
 }
 
 function stories(o) {
@@ -86,11 +113,11 @@ function tools(o) {
 async function refresh() {
   let o;
   try { o = await api.get("/api/overview"); } catch (e) { $("status").textContent = e.message; return; }
-  const sig = JSON.stringify([o.posture, o.needs_look.map((n) => n.key), o.checkup, o.tools.map((t) => [t.last, t.running]), o.stories.map((s) => s.id)]);
+  const sig = JSON.stringify([o.posture, o.needs_look.map((n) => n.key), o.checkup, o.tools.map((t) => [t.last, t.running]), o.stories.map((s) => s.id), o.set_aside.map((a) => a.key)]);
   $("status").textContent = o.last_activity ? `Last activity ${fmtAgo(o.last_activity, o.now)}` : "";
   if (sig === lastSig) return;
   lastSig = sig;
-  hero(o); posture(o); checkupBox(o.checkup); needs(o); stories(o); tools(o);
+  hero(o); posture(o); checkupBox(o.checkup); needs(o); asideBox(o); stories(o); tools(o);
   clearInterval(polling);
   polling = setInterval(refresh, o.checkup?.running ? 1000 : 15000);
 }

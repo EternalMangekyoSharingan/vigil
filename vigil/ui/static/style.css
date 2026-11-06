@@ -1126,3 +1126,33 @@ h1.sev-ok { color: var(--ok); }
 .home .actions { margin-bottom: 16px; }
 .split.wide > .side { width: min(52%, 780px); }
 @media (max-width: 900px) { .split { flex-direction: column; } .split > .side, .split.wide > .side { width: auto; border-left: 0; border-top: 1px solid var(--line); } }
+
+/* ---- decisions: set aside as expected / fixed / not a problem ---- */
+.btn.small { height: 24px; padding: 0 9px; font-size: 11.5px; }
+.btn.ghost { background: transparent; border-color: var(--line); color: var(--text-2); }
+.btn.ghost:hover { color: var(--text); border-color: var(--line-3); background: var(--bg-3); }
+.row-actions { margin-top: 6px; }
+.decide { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-1); }
+.decide .actions { align-items: center; flex-wrap: wrap; }
+.decide input[type=text] { flex: 1 1 260px; min-width: 200px; }
+.decide .decided { margin: 0 0 6px; }
+details.aside { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px; background: var(--bg-1); }
+details.aside summary { cursor: pointer; color: var(--text-2); }
+.timeline li.decided { opacity: .55; }
+.timeline li.decided:hover { opacity: .9; }
+
+/* ---- Cases: findings per tool over time ---- */
+.lanes { margin: 4px 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-1); overflow: hidden; }
+.lanes:empty { display: none; }
+.lanes svg { display: block; width: 100%; height: auto; }
+.lanes .lane { stroke: var(--line); }
+.lanes .lane-label, .lanes .tick { fill: var(--text-3); font-size: 11px; font-family: var(--sans); }
+.lanes .dot { fill: var(--text-3); stroke: var(--bg-1); stroke-width: 1; cursor: pointer; }
+.lanes .dot.High { fill: var(--danger); }
+.lanes .dot.Medium { fill: var(--warn); }
+.lanes .dot.Low { fill: var(--aqua); }
+.lanes .dot.decided { fill: transparent; stroke: var(--text-3); }
+.lanes .dot:hover, .lanes .dot:focus-visible { stroke: var(--text); stroke-width: 2; outline: none; }
+.timeline li.hl { background: var(--bg-3); }
+.field.grow { flex: 1 1 200px; }
+.field.grow input { flex: 1; min-width: 120px; }

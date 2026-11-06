@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from ..core import finding as fmt
+from ..core.decisions import Decisions, split
 from ..core.store import EXPORT_NAME
 from ..core.suite import TOOLS, url
 
@@ -41,6 +42,8 @@ def tool_state(tid, root):
 
 def overview(root, running, job=None, stories=None):
     tools, needs, total = [], [], {s: 0 for s in fmt.SEVERITIES}
+    decided = Decisions(root).all()
+    aside = []
     for t in TOOLS:
         if t["id"] == "home":
             continue
@@ -50,9 +53,14 @@ def overview(root, running, job=None, stories=None):
             db = Path(root) / "cases" / "cases.db"
             st["last"] = os.path.getmtime(db) if db.exists() else None
         else:
+            keep, gone = split(st["findings"], lambda f, tid=t["id"]: f"{tid}:{f['id']}", decided,
+                               lambda f: f["source"]["when"])
+            aside += [{"key": f"{t['id']}:{f['id']}", "title": f["title"], "tool_name": t["name"],
+                       "decision": decided[f"{t['id']}:{f['id']}"]} for f in gone]
+            st["counts"] = {s: sum(f["severity"] == s for f in keep) for s in fmt.SEVERITIES}
             for s, n in st["counts"].items():
                 total[s] += n
-            for f in st["findings"]:
+            for f in keep:
                 if f["severity"] in ("High", "Medium"):
                     needs.append({"tool": t["id"], "tool_name": t["name"], "title": f["title"], "summary": f["summary"],
                                   "severity": f["severity"], "when": f["source"]["when"], "key": f"{t['id']}:{f['id']}",
@@ -65,7 +73,7 @@ def overview(root, running, job=None, stories=None):
     return {"tools": tools, "posture": total, "needs_look": needs[:12], "needs_total": len(needs),
             "first_run": not ran, "last_activity": max((t["last"] for t in ran), default=None),
             "checkup": job.snapshot() if job else None, "stories": stories or [], "now": time.time(),
-            "verdict": verdict(total, ran)}
+            "verdict": verdict(total, ran), "set_aside": aside[:50], "set_aside_total": len(aside)}
 
 
 def verdict(total, ran):

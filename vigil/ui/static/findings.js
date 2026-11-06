@@ -212,3 +212,55 @@ export function diffView(unified) {
 }
 
 export const VERDICT_CLASS = (worst) => (worst === "High" ? "danger" : worst === "Medium" ? "warn" : "ok");
+
+// ---- your decision about a finding: expected, fixed or not a problem, always with a reason ----
+export const DECISIONS = { expected: "Expected", fixed: "Fixed", not_a_problem: "Not a problem" };
+const DECISION_HELP = {
+  expected: "You know what this is and it belongs here. It leaves “needs a look” unless it gets worse.",
+  fixed: "You dealt with it. If a later scan sees it again, it comes back.",
+  not_a_problem: "A false alarm. It leaves “needs a look” unless it gets worse.",
+};
+
+// A row of buttons (or, when decided, your reason and "Reopen"). onDone(decision|null) after a change.
+export function decisionBox(item, onDone) {
+  const box = el("div", { class: "decide" });
+  const draw = (d) => {
+    clear(box);
+    if (d) {
+      box.append(el("p", { class: "decided" },
+        el("span", { class: "tag", text: DECISIONS[d.status] || d.status }), " ",
+        el("span", { text: d.reason }), el("span", { class: "faint", text: ` · ${new Date(d.ts * 1000).toLocaleString()}` })),
+        el("div", { class: "actions" }, el("button", { type: "button", class: "btn", text: "Reopen",
+          title: "Undo your decision: the finding counts again everywhere.",
+          onclick: async () => {
+            try { await api.send("POST", "/api/undecide", { key: item.key }); draw(null); onDone?.(null); }
+            catch (e) { toast(e.message, "err"); }
+          } })));
+      return;
+    }
+    box.append(el("div", { class: "actions" }, el("span", { class: "faint", text: "Set aside as" }),
+      ...Object.entries(DECISIONS).map(([status, label]) => el("button", { type: "button", class: "btn", text: label,
+        title: DECISION_HELP[status], onclick: () => ask(status) }))));
+  };
+  const ask = (status) => {
+    clear(box);
+    const reason = el("input", { type: "text", maxlength: "2000", placeholder: "Why? (required, so you can check it later)" });
+    const msg = el("span", { class: "form-msg" });
+    const save = async () => {
+      try {
+        const res = await api.send("POST", "/api/decide", { key: item.key, status, reason: reason.value.trim(),
+          title: item.title || "", severity: item.severity || "Info" });
+        toast(`${DECISIONS[status]}: set aside`);
+        draw(res.decision); onDone?.(res.decision);
+      } catch (e) { msg.textContent = e.message; }
+    };
+    reason.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") draw(null); });
+    box.append(el("p", { class: "faint", text: DECISION_HELP[status] }),
+      el("div", { class: "actions" }, reason,
+        el("button", { type: "button", class: "btn primary", text: `Mark ${DECISIONS[status].toLowerCase()}`, onclick: save }),
+        el("button", { type: "button", class: "btn", text: "Cancel", onclick: () => draw(null) }), msg));
+    reason.focus();
+  };
+  draw(item.decision || null);
+  return box;
+}

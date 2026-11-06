@@ -11,6 +11,7 @@ import sys
 import threading
 from pathlib import Path
 
+from ..core import decisions as decisions_mod
 from ..core import web
 from ..core.store import default_data_dir
 from ..core.suite import BY_ID, TOOLS
@@ -55,8 +56,10 @@ class Home:
         return dict(self.job.snapshot(), started_now=started)
 
     def routes(self):
-        return {("GET", "/api/overview"): self.api_overview, ("POST", "/api/checkup"): self.api_checkup,
-                ("GET", "/api/checkup"): lambda q: self.job.snapshot()}
+        r = {("GET", "/api/overview"): self.api_overview, ("POST", "/api/checkup"): self.api_checkup,
+             ("GET", "/api/checkup"): lambda q: self.job.snapshot()}
+        r.update(decisions_mod.routes(decisions_mod.Decisions(self.root)))
+        return r
 
 
 def make_server(app, port=8760, verbose=False):

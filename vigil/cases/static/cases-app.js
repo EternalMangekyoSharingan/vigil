@@ -1,32 +1,74 @@
 // Vigil Cases page: one timeline across every tool, cases with notes, imports and exports.
 import "./suite.js";
-import { api, el, clear, fmtClock } from "./ui.js";
+import { api, el, svg, clear, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
-import { findingCard, initTabs, SEV_CLASS, commandLine } from "./findings.js";
+import { findingCard, initTabs, SEV_CLASS, commandLine, decisionBox, DECISIONS } from "./findings.js";
 
 const $ = (id) => document.getElementById(id);
 const TOOLS = { net: "Net", pkg: "Pkg", files: "Files", persist: "Persist", tasks: "Tasks" };
 let cases = [];
 let openCase = null;
 
+let lastEvents = [];
 async function timeline() {
-  const q = new URLSearchParams({ tool: $("f-tool").value, severity: $("f-sev").value });
+  const q = new URLSearchParams({ tool: $("f-tool").value, severity: $("f-sev").value, view: $("f-view").value, q: $("f-q").value });
   const r = await api.get(`/api/timeline?${q}`);
+  lastEvents = r.events;
+  swimlanes($("lanes"), r.events);
   const box = clear($("timeline"));
-  if (!r.events.length) box.append(el("li", { class: "muted", text: "Nothing yet. Press Import from all tools." }));
+  if (!r.events.length) box.append(el("li", { class: "muted", text: $("f-q").value || $("f-view").value !== "all" ? "Nothing matches." : "Nothing yet. Press Import from all tools." }));
   for (const e of r.events) {
     if (e.kind === "finding") {
-      box.append(el("li", { class: e.severity },
+      box.append(el("li", { class: `${e.severity}${e.decision ? " decided" : ""}`, "data-key": e.key },
         el("div", { class: "when", text: `${fmtClock(e.ts)} · ${TOOLS[e.tool] || e.tool}${e.seen > 1 ? ` · seen ${e.seen}×, last ${fmtClock(e.last_seen)}` : ""}` }),
         el("span", { class: `sev-word ${SEV_CLASS[e.severity]}`, text: e.severity }), " ",
         el("button", { type: "button", class: "linkish", text: e.title, onclick: () => finding(e.key) }),
         " ", ...(e.attack || []).slice(0, 3).map((a) => attackChip(a)),
+        e.decision ? el("span", { class: "tag", title: e.decision.reason, text: `set aside: ${DECISIONS[e.decision.status] || e.decision.status}` }) : null,
         el("div", { class: "muted", text: e.summary })));
     } else {
       box.append(el("li", {}, el("div", { class: "when", text: `${fmtClock(e.ts)} · ${e.kind === "note" ? "note" : `case: ${e.case}`}` }),
         el("div", { text: e.text })));
     }
   }
+}
+
+// One lane per tool, findings as dots in time: you see at a glance which tools lit up together.
+const LANES = ["tasks", "persist", "files", "pkg", "net"];
+const SEV_R = { High: 6, Medium: 4.5, Low: 3, Info: 2.5 };
+function swimlanes(box, events) {
+  clear(box);
+  const fs = events.filter((e) => e.kind === "finding");
+  if (fs.length < 2) return;
+  const t0 = Math.min(...fs.map((e) => e.ts)), t1 = Math.max(...fs.map((e) => e.ts));
+  const W = Math.max(box.clientWidth || 640, 320), LH = 22, L = 64, R = 14, top = 6;
+  const H = top + LANES.length * LH + 22;
+  const x = (t) => (t1 === t0 ? (L + W - R) / 2 : L + ((t - t0) / (t1 - t0)) * (W - L - R));
+  const g = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
+    "aria-label": `Findings over time by tool, ${fs.length} findings` });
+  LANES.forEach((tool, i) => {
+    const y = top + i * LH + LH / 2;
+    g.append(svg("line", { x1: L, x2: W - R, y1: y, y2: y, class: "lane" }),
+      svg("text", { x: L - 8, y: y + 4, "text-anchor": "end", class: "lane-label" }, TOOLS[tool]));
+  });
+  for (let i = 0; i <= 4; i++) {
+    const t = t0 + ((t1 - t0) * i) / 4;
+    g.append(svg("text", { x: x(t), y: H - 6, "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle", class: "tick" },
+      new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })));
+  }
+  for (const e of fs.slice().sort((a, b) => (SEV_R[a.severity] || 2) - (SEV_R[b.severity] || 2))) {
+    const i = LANES.indexOf(e.tool);
+    if (i < 0) continue;
+    const dot = svg("circle", { cx: x(e.ts), cy: top + i * LH + LH / 2, r: SEV_R[e.severity] || 2.5,
+      class: `dot ${e.severity}${e.decision ? " decided" : ""}`, tabindex: "0" },
+      svg("title", {}, `${e.severity} · ${e.title}${e.decision ? " (set aside)" : ""}`));
+    const open = () => { finding(e.key); for (const li of document.querySelectorAll("#timeline li.hl")) li.classList.remove("hl");
+      document.querySelector(`#timeline li[data-key="${CSS.escape(e.key)}"]`)?.classList.add("hl"); };
+    dot.addEventListener("click", open);
+    dot.addEventListener("keydown", (k) => { if (k.key === "Enter" || k.key === " ") { k.preventDefault(); open(); } });
+    g.append(dot);
+  }
+  box.append(g);
 }
 
 async function finding(key) {
@@ -40,6 +82,9 @@ async function finding(key) {
     toast("Added to the case"); refreshCases(); finding(key);
   });
   const note = el("textarea", { class: "paste", placeholder: "Note on this finding" });
+  box.append(el("h3", { text: "Your decision" }),
+    f.decision && !f.decision_applies ? el("p", { class: "sev-word warn", text: `You set this aside as “${DECISIONS[f.decision.status]}”, but it came back (worse, or seen again after you fixed it). It counts again.` }) : null,
+    decisionBox({ key, title: f.title, severity: f.severity, decision: f.decision_applies ? f.decision : null }, () => timeline()));
   if (f.entities?.length) {
     box.append(el("h3", { text: "Pivot: other findings about" }), el("div", { class: "actions" },
       f.entities.map((en) => el("button", { type: "button", class: "btn", title: `${en.kind}: ${en.value}`, text: `${en.kind} · ${en.display}`,
@@ -271,6 +316,13 @@ initTabs($("tabs"), (name) => {
 $("import-now").addEventListener("click", importAll);
 $("f-tool").addEventListener("change", timeline);
 $("f-sev").addEventListener("change", timeline);
+$("f-view").addEventListener("change", timeline);
+let searchTimer = null;
+$("f-q").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(timeline, 200); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); $("f-q").focus(); }
+});
+window.addEventListener("resize", () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => swimlanes($("lanes"), lastEvents), 150); });
 $("new-case").addEventListener("click", async () => {
   try { const c = await api.send("POST", "/api/cases", { title: $("new-title").value }); $("new-title").value = ""; await refreshCases(); showCase(c.id); }
   catch (e) { toast(e.message, "err"); }
