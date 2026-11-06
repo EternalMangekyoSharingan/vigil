@@ -146,7 +146,8 @@ class Scan:
                 exp = self.pkg.expected(e["path"]) or {}
                 e["conffile"] = exp.get("conffile", False)
             e["service"] = self.service_of(e)
-            e["known"] = known.lookup(e["path"]) if e["kind"] != "loaded kernel module" else None
+            e["known"] = (known.lookup(e["path"]) or (known.lookup(e["link"]) if e.get("link") else None)) \
+                if e["kind"] != "loaded kernel module" else None
             current[e["path"]] = {"sha256": e["sha256"], "mode": e["mode"], "link": e["link"], "kind": e["kind"],
                                   "group": e["group"], "scope": e["scope"], "package": pkg}
             self.content(e)

@@ -134,6 +134,8 @@ def claude_lookups(ctx, client=None):
     from ..cases.store import CaseStore
     from . import investigate
     from .tools import Lookups
+    if not investigate.LOOKUPS_ENABLED:
+        raise EvalError(investigate.OFF_NOTE)
     with tempfile.TemporaryDirectory() as tmp:
         store = CaseStore(tmp)
         try:

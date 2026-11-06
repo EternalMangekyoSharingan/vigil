@@ -1157,3 +1157,4 @@ details.aside summary { cursor: pointer; color: var(--text-2); }
 .field.grow { flex: 1 1 200px; }
 .field.grow input { flex: 1; min-width: 120px; }
 .home .since { margin: 4px 0 0; color: var(--text-2); }
+.side .finding, .side .evidence, .side .bars { overflow-wrap: anywhere; }

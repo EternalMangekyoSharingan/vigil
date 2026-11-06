@@ -1,6 +1,6 @@
 // Vigil Home: how the PC is doing, what needs a look, the one-click check-up, every tool.
 import "./suite.js";
-import { api, el, clear, fmtClock, fmtAgo } from "./ui.js";
+import { api, el, clear, put, fmtClock, fmtAgo } from "./ui.js";
 import { toast } from "./fx.js";
 import { SEV_CLASS, DECISIONS, decisionBox } from "./findings.js";
 
@@ -11,7 +11,7 @@ let lastSig = "";
 function hero(o) {
   const v = o.verdict;
   const running = o.checkup?.running;
-  clear($("hero")).append(
+  put(clear($("hero")),
     el("h1", { class: v.cls ? `sev-${v.cls}` : "", text: v.word }),
     el("p", { class: "lede", text: v.text }),
     o.new_since && o.new_since.count ? el("p", { class: "since" }, el("span", { class: "tag live", text: `${o.new_since.count} new` }),

@@ -1,12 +1,11 @@
 """python3 -m vigil.ai  evals | investigate
 
     evals                          score the offline analyst on the synthetic scenarios (no network)
-    evals --claude [--lookups] --yes
-                                   also ask Claude: sends each SYNTHETIC scenario, never your data
-    investigate "question" --lookups [--yes] [--no-redact]
-                                   Claude investigates your Cases findings with read-only lookups.
-                                   Without --yes it only shows what it would do. Needs "Allow sending"
-                                   on in Cases → Analyst, and is logged there like an Ask.
+    evals --claude --yes           also ask Claude: sends each SYNTHETIC scenario, never your data
+    investigate "question" --lookups
+                                   shows what an investigation with read-only lookups would do.
+                                   Sending is switched off (CLAUDE.md: the model gets no tools);
+                                   see vigil/ai/investigate.py.
 """
 
 import argparse
@@ -15,6 +14,16 @@ import sys
 from pathlib import Path
 
 from ..core.store import default_data_dir
+
+
+def investigate_enabled():
+    from . import investigate
+    return investigate.LOOKUPS_ENABLED
+
+
+def off_note():
+    from . import investigate
+    return investigate.OFF_NOTE
 
 
 def main(argv=None):
@@ -36,6 +45,9 @@ def main(argv=None):
     if a.cmd == "evals":
         from . import evals
         responders = ["offline"]
+        if a.lookups and not investigate_enabled():
+            print(off_note() + " Scoring without lookups.\n", file=sys.stderr)
+            a.lookups = False
         if a.claude:
             if not a.yes:
                 print("--claude sends every synthetic scenario to Anthropic's API (about 6 requests"
@@ -73,6 +85,9 @@ def main(argv=None):
                 "search_findings, get_finding, pivot, list_storylines, get_storyline, attack_technique.\n"
                 f"Each result is {'redacted (home, user, host, LAN addresses, secrets) and ' if redact else ''}"
                 "fenced as data; nothing is changed, run or opened. The run is logged in Cases → Analyst.")
+        if not investigate.LOOKUPS_ENABLED:
+            print(plan + "\n\n" + investigate.OFF_NOTE)
+            return 2
         if not a.yes:
             print(plan + "\n\nAdd --yes to send.")
             return 0

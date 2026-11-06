@@ -159,4 +159,5 @@ class Runner:
         res = importer.import_all(app.store, self.root, refresh_net=False)
         added = sum(r.get("added", 0) for r in res)
         stories = app.api_stories({})["stories"]
-        return f"{added} new findings imported; {len(stories)} storylines"
+        return (f"{added} new finding{'s' if added != 1 else ''} imported; "
+                f"{len(stories)} storyline{'s' if len(stories) != 1 else ''}")

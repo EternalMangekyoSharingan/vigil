@@ -1,9 +1,10 @@
 """An AI investigation with read-only lookups (ai/tools.py): Claude asks for findings,
 pivots and storylines as it goes, instead of getting one fixed bundle.
 
-Command line only, and only with --lookups: the page's Ask button still sends one
-previewed bundle and gives the model no tools. This is the owner's call to widen (see
-docs/PROGRESS.md, "AI layer, round 3").
+SWITCHED OFF. CLAUDE.md's AI rule says the model gets no tools, so no command or page
+that reaches the live API uses this yet: LOOKUPS_ENABLED stays False until the owner
+changes that rule (docs/PROGRESS.md, round 3, "Open decision"). The loop and the lookups
+are built and tested against a scripted stub of the SDK, so turning it on is one line.
 
 The loop (a manual one, so every lookup passes through Vigil's own checks):
 - each request carries the strict tool definitions; tool_choice stays "auto";
@@ -18,6 +19,10 @@ import time
 from . import context, providers
 from .tools import Lookups, definitions
 
+LOOKUPS_ENABLED = False      # the owner's decision; see the module docstring
+OFF_NOTE = ("Investigations with lookups are built but switched off: Vigil's rules (CLAUDE.md) say the model gets "
+            "no tools. If you want the model to look things up (read-only), change that rule, then set "
+            "LOOKUPS_ENABLED = True in vigil/ai/investigate.py.")
 MAX_TURNS = 10
 SYSTEM_LOOKUPS = providers.SYSTEM.replace(
     "The evidence is one JSON document between the tags <{boundary}> and </{boundary}>.",
@@ -87,7 +92,9 @@ def run(question, lookups, client=None, model=providers.MODEL, max_turns=MAX_TUR
 
 
 def investigate(store, data_root, question, redact=True, client=None, **kw):
-    """Run, and log it in Cases' AI log like an Ask (scope 'investigate')."""
+    """Run, and log it in Cases' AI log like an Ask (scope 'investigate'). Refuses while switched off."""
+    if not LOOKUPS_ENABLED:
+        raise providers.ProviderError(OFF_NOTE)
     lk = Lookups(store, data_root, redact=redact)
     row = {"provider": "claude+lookups", "model": providers.MODEL, "scope": "investigate (read-only lookups)",
            "question": question[:2000], "bytes_sent": 0, "findings": 0, "redactions": 0}

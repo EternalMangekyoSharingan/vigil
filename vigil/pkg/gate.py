@@ -36,7 +36,7 @@ def snippet(vigil_dir=None, fail_on="high"):
         "check": "man paru.conf",
         "note": ("Add these lines under [bin] in your paru.conf (create the file if it does not exist). paru then runs "
                  "Vigil's review in each package's folder before building, and stops if the review finds anything "
-                 f"{LEVELS[fail_on]}{' or worse' if fail_on == 'medium' else ''}. Read `man paru.conf` first: if your "
+                 f"{LEVELS[fail_on]}{' or worse' if fail_on == 'medium' else ''}. Read “man paru.conf” first: if your "
                  "paru has no PreBuildCommand, or runs it differently, follow the manual, not this. To undo, delete "
                  "the line. Vigil never edits paru.conf itself."),
     }

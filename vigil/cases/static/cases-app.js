@@ -1,7 +1,7 @@
 // Vigil Cases page: one timeline across every tool, cases with notes, imports and exports.
 import "./suite.js";
 import { toolUrl } from "./suite.js";
-import { api, el, svg, clear, fmtClock } from "./ui.js";
+import { api, el, svg, clear, put, fmtClock } from "./ui.js";
 import { toast } from "./fx.js";
 import { findingCard, initTabs, SEV_CLASS, commandLine, decisionBox, DECISIONS } from "./findings.js";
 
@@ -42,9 +42,9 @@ function swimlanes(box, events) {
   const fs = events.filter((e) => e.kind === "finding");
   if (fs.length < 2) return;
   const t0 = Math.min(...fs.map((e) => e.ts)), t1 = Math.max(...fs.map((e) => e.ts));
-  const W = Math.max(box.clientWidth || 640, 320), LH = 22, L = 64, R = 14, top = 6;
+  const W = Math.max(box.parentElement?.clientWidth || 640, 320), LH = 22, L = 72, R = 16, top = 6;
   const H = top + LANES.length * LH + 22;
-  const x = (t) => (t1 === t0 ? (L + W - R) / 2 : L + ((t - t0) / (t1 - t0)) * (W - L - R));
+  const x = (t) => (t1 === t0 ? (L + W - R) / 2 : L + 8 + ((t - t0) / (t1 - t0)) * (W - L - R - 16));
   const g = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
     "aria-label": `Findings over time by tool, ${fs.length} findings` });
   LANES.forEach((tool, i) => {
@@ -52,10 +52,10 @@ function swimlanes(box, events) {
     g.append(svg("line", { x1: L, x2: W - R, y1: y, y2: y, class: "lane" }),
       svg("text", { x: L - 8, y: y + 4, "text-anchor": "end", class: "lane-label" }, TOOLS[tool]));
   });
-  for (let i = 0; i <= 4; i++) {
-    const t = t0 + ((t1 - t0) * i) / 4;
-    g.append(svg("text", { x: x(t), y: H - 6, "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle", class: "tick" },
-      new Date(t * 1000).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })));
+  const ticks = t1 - t0 < 4 ? [t0, t1] : [0, 1, 2, 3, 4].map((i) => t0 + ((t1 - t0) * i) / 4);
+  for (const [i, t] of ticks.entries()) {
+    g.append(svg("text", { x: x(t), y: H - 6, "text-anchor": i === 0 ? "start" : i === ticks.length - 1 ? "end" : "middle", class: "tick" },
+      fmtClock(t)));
   }
   for (const e of fs.slice().sort((a, b) => (SEV_R[a.severity] || 2) - (SEV_R[b.severity] || 2))) {
     const i = LANES.indexOf(e.tool);
@@ -86,7 +86,7 @@ async function finding(key) {
     toast("Added to the case"); refreshCases(); finding(key);
   });
   const note = el("textarea", { class: "paste", placeholder: "Note on this finding" });
-  box.append(el("h3", { text: "Your decision" }),
+  put(box, el("h3", { text: "Your decision" }),
     f.decision && !f.decision_applies ? el("p", { class: "sev-word warn", text: `You set this aside as “${DECISIONS[f.decision.status]}”, but it came back (worse, or seen again after you fixed it). It counts again.` }) : null,
     decisionBox({ key, title: f.title, severity: f.severity, decision: f.decision_applies ? f.decision : null }, () => timeline()));
   if (f.entities?.length) {
@@ -94,7 +94,7 @@ async function finding(key) {
       f.entities.map((en) => el("button", { type: "button", class: "btn", title: `${en.kind}: ${en.value}`, text: `${en.kind} · ${en.display}`,
         onclick: () => pivot(en) }))));
   }
-  box.append(el("div", { class: "actions" }, sel),
+  put(box, el("div", { class: "actions" }, sel),
     f.cases.length ? el("p", { class: "faint", text: `In: ${f.cases.map((c) => `#${c.id} ${c.title}`).join(", ")}` }) : null,
     el("h3", { text: "Notes" }), ...f.notes.map((n) => el("p", {}, el("span", { class: "faint", text: `${fmtClock(n.ts)} ` }), n.text)),
     note, el("button", { type: "button", class: "btn", text: "Add note", onclick: async () => {

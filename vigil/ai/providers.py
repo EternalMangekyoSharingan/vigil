@@ -7,8 +7,8 @@ ANTHROPIC_API_KEY variable, or an `ant auth login` profile); Vigil never stores 
 
 This module and core/netfetch.py are the only places in Vigil that can reach the
 network, and this one only from an explicit, previewed request. Here the model gets no
-tools: it reads the evidence bundle and answers. (ai/investigate.py adds read-only
-lookups over Vigil's own stores, from the command line only, when you ask for them.)
+tools: it reads the evidence bundle and answers. (ai/investigate.py holds a read-only
+lookup loop that is switched off; see its docstring.)
 """
 
 import time

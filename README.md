@@ -19,7 +19,14 @@ Network Map's alerts), puts the results on one timeline, and shows:
 - what needs a look, worst first, each with its ATT&CK technique;
 - **storylines**: findings from different tools that point at the same program, file, address
   or package;
-- a card per tool, with a link.
+- a card per tool, with a link;
+- after the first check-up, what is **new** since the last one.
+
+**Set aside what you know.** Each item has *Set aside…*: mark it **Expected**, **Fixed** or
+**Not a problem**, always with a reason. It leaves "needs a look", the counts and the AI brief,
+but stays on the Cases timeline, dimmed, with your reason. It comes back by itself if it gets
+worse, or, for *Fixed*, if a later scan sees it again. Decisions live in `data/decisions.json`
+and are shared by every tool.
 
 Every page has a **Tools** menu (or press <kbd>g</kbd>) to jump between tools, and <kbd>?</kbd>
 shows the shortcuts. Nothing is changed, sent or deleted unless you press a button that says
@@ -80,10 +87,35 @@ addressed to an AI ("ignore previous instructions…"), the brief reports it as 
 - answers flag any command Vigil did not generate;
 - every request is logged.
 
+Set-aside findings are left out of the brief and of what is sent.
+
+**AI evals and investigations (command line):**
+
+```bash
+python3 -m vigil.ai evals                         # score the offline analyst on SYNTHETIC scenarios (no network)
+python3 -m vigil.ai evals --claude --yes          # also score Claude (sends only the synthetic scenarios)
+python3 -m vigil.ai investigate "What happened?" --lookups        # what an investigation would do (switched off)
+```
+
+The evals check that an answer:
+- names the right storyline;
+- never calls anything safe;
+- notices text addressed to an AI;
+- suggests only commands Vigil generated.
+
+An investigation would let the model look things up itself, all read-only: search findings,
+open one, pivot, read storylines and ATT&CK techniques. Each lookup would be redacted, fenced
+as data and logged. It is built and tested, but **switched off**: Vigil's rules say the model
+gets no tools, so that is your decision (`LOOKUPS_ENABLED` in `vigil/ai/investigate.py`). The
+page's **Ask** sends one previewed bundle and gives the model no tools.
+
 See [docs/AI_PLATFORM.md](docs/AI_PLATFORM.md) for the design.
 
-The **timeline** mixes findings from all tools, notes and case events, filtered by tool or
-severity. **Cases** hold findings, notes, a summary, tags, a status (open, investigating,
+The **timeline** mixes findings from all tools, notes and case events. Filter it by tool,
+severity, open or set aside, or search it (press <kbd>/</kbd>). Above it, a **swimlane** shows
+one lane per tool with each finding as a dot in time, so you see which tools lit up together;
+click a dot to open the finding. On a finding you can set it aside (Expected, Fixed, Not a
+problem, with a reason) or reopen it; a Tasks finding links to its process in Tasks. **Cases** hold findings, notes, a summary, tags, a status (open, investigating,
 closed) and a log. Exports:
 - **CSV** of indicators and of findings, with cells that a spreadsheet could run as a
   formula neutralised;
@@ -125,7 +157,24 @@ Flags:
   (`dbus-daemon`, `sshd`, `systemd-*`…) running from somewhere else (the July 2026 AUR malware
   ran Tor as `dbus-daemon`);
 - a network tool wired to a shell, and a program in a temp or cache folder listening on all
-  interfaces.
+  interfaces;
+- **a program holding your secrets open** that is not their owner. This covers:
+  - SSH and GnuPG private keys;
+  - browser passwords, cookies and keys (Chromium family and Firefox family);
+  - password databases (`.kdbx`) and the desktop keyring;
+  - chat-app login tokens (Discord and friends);
+  - cryptocurrency wallets;
+  - cloud and developer credentials (`~/.aws/credentials`, `~/.kube/config`, `.git-credentials`,
+    `.netrc`…).
+
+  Read from `/proc/<pid>/fd` links only; no file is opened. Firefox holding `key4.db`,
+  ssh-agent holding a key, backup and sync tools, desktop indexers and editors are expected.
+  An interpreter, or a program from a temp, hidden or unpackaged place, is High. The Fix panel
+  says what to replace, assuming it was copied.
+
+Tree nodes show a **secrets** chip; the side panel lists each secret the process holds and
+whether it is its own. Open a process directly with `http://127.0.0.1:8769/#pid=1234`. The
+Network Map's program menu and panel, and Tasks findings in Cases, link there.
 
 **Vigil never stops or signals a process.** Each finding's Fix panel offers commands to copy:
 - *Pause it (reversible)*: `kill -STOP PID`, undo `kill -CONT PID`;
@@ -177,6 +226,12 @@ without running rpm, and offers `rpm -Vf`. Content checks flag:
 - modprobe `install` commands, and udev `RUN+=` shells;
 - world-writable or user-owned system start-up files;
 - unsigned or out-of-tree kernel modules.
+
+Every entry Vigil recognises gets a **plain-language line** (about 250 common units, timers,
+autostart files and cron jobs: "Tells SSDs which blocks are free, once a week."). This goes by
+name only: what the entry starts is still checked. A unit in `~/.config/systemd/user` that
+borrows a **system service's name** (`NetworkManager.service`, `systemd-timesyncd.service`) is
+flagged, because the real one never runs from your home folder.
 
 A file a package shipped unchanged is **labelled, not alarmed**: its findings drop to Low and
 name the package. Known programs (the known-services catalogue) are named, so "Syncthing's
@@ -248,7 +303,21 @@ python3 -m vigil.pkg review ./foo --approve            # ...and remember this ve
 python3 -m vigil.pkg review ./foo --aur                # also fetch AUR details (network: sends the name)
 python3 -m vigil.pkg installed                         # audit foreign packages already installed
 python3 -m vigil.pkg trusted                           # versions you approved
+python3 -m vigil.pkg review . --fail-on high           # exit 2 if anything is High (a build gate)
+python3 -m vigil.pkg gate                              # the paru.conf lines for that gate
 ```
+
+**Review before every build**: paru can run a command in each package's folder before building
+(`PreBuildCommand` in paru.conf; check `man paru.conf` for your version). The Inbox tab shows
+the lines to copy, pointing at your Vigil folder:
+
+```ini
+[bin]
+PreBuildCommand = env PYTHONPATH=/path/to/vigil python3 -m vigil.pkg review . --fail-on high
+```
+
+Vigil never edits paru.conf; delete the line to undo. Approve a version (`--approve`) and the
+next update's review shows only what changed.
 
 **Inbox** (the first tab): Vigil finds the packages your AUR helper downloaded (paru, yay,
 pikaur, trizen, pamac build caches), reviews each new or changed PKGBUILD and shows its verdict.
@@ -841,7 +910,7 @@ python3 -m unittest discover -s tests -t .      # every tool
 python3 -m unittest discover -s tests/net -t .  # one tool
 ```
 
-`tests/fixtures/` holds a **synthetic** miniature `/proc` (labelled as such; see its
+`tests/fixtures/ai/scenarios.json` holds the **synthetic** AI eval scenarios. `tests/fixtures/` holds a **synthetic** miniature `/proc` (labelled as such; see its
 README), synthetic feed files, and benign documents written by LibreOffice. Suspicious
 sample files are *generated at test time* by `tests/synth.py` with harmless content,
 so nothing in the repository looks like malware to antivirus. The `/proc` fixture
@@ -855,10 +924,13 @@ netlink byte counts are exact.
 ```
 vigil/suite/         Vigil Home and the launcher: overview, one-click check-up
 vigil/ai/            the AI layer: redacted fenced evidence (context.py), offline analyst, opt-in Claude
+                     (providers.py), read-only lookups (tools.py), the tool-use loop (investigate.py),
+                     evals (evals.py; scenarios in tests/fixtures/ai/)
 vigil/core/          shared by every tool
   finding.py         the one finding format, validated; JSON-lines export
   attack.py          MITRE ATT&CK techniques per check
   suite.py           the tool registry (names, questions, ports)
+  decisions.py       your decisions on findings (expected / fixed / not a problem), shared by every tool
   wording.py         title rules (60 characters, plain English), friendly names, human numbers
   commands.py        colour-coded command tokeniser (display only)
   fixes.py           Check / Fix / Undo options, distro-aware, copy only
@@ -905,13 +977,16 @@ vigil/pkg/           Vigil Pkg
   review.py          safe folder reading, approved versions, opt-in AUR metadata
   installed.py       foreign packages, pacman -Qkk-style file check, pacman.log incident windows
   inbox.py           finds PKGBUILDs your AUR helper downloaded
+  gate.py            --fail-on exit codes and the paru PreBuildCommand lines
   server.py static/  its page
 vigil/persist/       Vigil Persist
   locations.py       every autostart location and the content checks for each
   scan.py            baseline and diff, package ownership and integrity, findings
+  known.py           plain-language names for common entries; user units borrowing system names
   server.py static/  its page and command line
 vigil/tasks/         Vigil Tasks
   procs.py           /proc walk: binaries, packages, hashes, units, sockets, tree; the flags
+  secrets.py         which programs hold your secrets open (keys, browser stores, wallets, tokens)
   findings.py        findings and copy-only stop commands
   server.py static/  its page (uses the shared tree view, ui/static/tree.js) and command line
 vigil/cases/         Vigil Cases

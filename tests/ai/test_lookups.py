@@ -158,6 +158,9 @@ class LoopTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
+        on = mock.patch.object(investigate, "LOOKUPS_ENABLED", True)    # the switched-on path, against a stub
+        on.start()
+        self.addCleanup(on.stop)
         self.store = store_with(self.tmp.name, [TASKS, PERSIST, NET, FILES, WITH_CMD])
         self.addCleanup(self.store.close)
 
@@ -253,12 +256,42 @@ class EvalTests(unittest.TestCase):
     def test_claude_responders_with_the_stub(self):
         mod, calls = scripted_sdk([("end_turn", [("text", "What happened around /tmp/.x/agent: tampering seen.")])])
         scn = [s for s in evals.load() if s["id"] == "c2_chain_injected"]
-        with mock.patch.dict(sys.modules, {"anthropic": mod}):
+        with mock.patch.dict(sys.modules, {"anthropic": mod}), mock.patch.object(investigate, "LOOKUPS_ENABLED", True):
             res = evals.run(["offline", "claude", "claude+lookups"], scenarios=scn)
         self.assertEqual([r["responder"] for r in res], ["offline", "claude", "claude+lookups"])
         self.assertEqual(len(calls), 2)
         self.assertNotIn("alice", json.dumps(calls[0]["messages"], default=str))     # synthetic user redacted
         self.assertTrue(all(r["score"] is not None for r in res))
+
+
+
+class SwitchedOffTests(unittest.TestCase):
+    """CLAUDE.md: the model gets no tools. Until the owner changes that, nothing that can reach
+    the live API hands the model the lookups."""
+
+    def test_off_by_default_everywhere(self):
+        import contextlib
+        import io
+        from vigil.ai.__main__ import main
+        self.assertFalse(investigate.LOOKUPS_ENABLED)
+        mod, calls = scripted_sdk([("end_turn", [("text", "x")])])
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(sys.modules, {"anthropic": mod}):
+            store = store_with(tmp, [TASKS])
+            store.set_meta_ai({"enabled": True, "redact": True})
+            try:
+                with self.assertRaises(investigate.providers.ProviderError):
+                    investigate.investigate(store, tmp, "q")
+                scn = [s for s in evals.load() if s["id"] == "masquerade"]
+                res = evals.run(["claude+lookups"], scenarios=scn)
+                self.assertTrue(res[0]["answer"].startswith("(error) Investigations with lookups are built but switched off"))
+            finally:
+                store.close()
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                code = main(["investigate", "What now?", "--lookups", "--yes", "--data", tmp])
+            self.assertEqual(code, 2)
+            self.assertIn("switched off", out.getvalue())
+        self.assertEqual(calls, [])                                    # nothing was sent
 
 
 if __name__ == "__main__":

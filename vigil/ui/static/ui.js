@@ -54,6 +54,12 @@ export function svg(tag, attrs = {}, ...children) {
   return node;
 }
 
+// The DOM turns a null child into the text "null"; put() skips null, undefined and false.
+export function put(node, ...kids) {
+  for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) node.append(k);
+  return node;
+}
+
 export function clear(node) {
   while (node.firstChild) node.firstChild.remove();
   return node;

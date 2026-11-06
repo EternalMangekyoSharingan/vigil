@@ -2,7 +2,7 @@
 // button, Check / Fix / Undo options, the colour legend, and a finding card in the
 // suite's one finding format (vigil/core/finding.py).
 // All text goes in through textContent (see ui.js): nothing is parsed as HTML.
-import { api, el, clear, appState } from "./ui.js";
+import { api, el, clear, put, appState } from "./ui.js";
 import { toast } from "./fx.js";
 import { copy } from "./menu.js";
 
@@ -33,7 +33,7 @@ export function commandLine(c, ctx = null) {
       btn.textContent = "Running…";
       try {
         const r = await api.send("POST", "/api/run", { command: c.text, source: ctx.source, ref: ctx.ref });
-        clear(out).append(el("div", { class: `cmd-exit ${r.exit === 0 ? "ok" : "bad"}`,
+        put(clear(out), el("div", { class: `cmd-exit ${r.exit === 0 ? "ok" : "bad"}`,
           text: r.exit === 0 ? `Done in ${r.seconds} s` : r.exit === null ? "Stopped (took too long)" : `Exit code ${r.exit}${r.note ? ` · ${r.note}` : ""}` }),
         (r.stdout || r.stderr) ? el("pre", { class: "code", text: (r.stdout + (r.stderr ? `\n${r.stderr}` : "")).trim() }) : null);
         out.hidden = false;
