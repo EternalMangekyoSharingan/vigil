@@ -115,3 +115,48 @@ D-Bus names, the polkit actions and the desktop id use `org.vigil.*` as the prom
 `vigil.org` is not the project's domain; if Vigil is ever submitted to Flathub or a distro's
 AppStream catalogue, the ids should move to `io.github.eternalmangekyosharingan.Vigil`. Changing
 them now would be cheap; later it means migrating installed systems.
+
+## D-010 The daemon cannot drop capabilities at run time yet (2026-11-08)
+
+Rule 7 says the daemon drops every capability it does not need after start. Dropping
+capabilities from a running process needs the `capset` system call. `nix` has no safe wrapper
+for it, `unsafe` is forbidden, and the `caps` crate is not on the allowlist. What protects the
+system today is the unit: `CapabilityBoundingSet` and `AmbientCapabilities` grant only
+CAP_SYS_PTRACE, CAP_DAC_READ_SEARCH, CAP_NET_ADMIN, CAP_BPF and CAP_PERFMON, and milestone 2 only
+uses the first two. **Question for the owner:** allow the `caps` crate (MIT/Apache-2.0, small,
+maintained, two dependencies) so the daemon can drop CAP_NET_ADMIN, CAP_BPF and CAP_PERFMON
+whenever the sensors that need them are not running? Until then, the unit could be narrowed to
+the two capabilities in use; it was left wider so milestone 3 does not need a unit change.
+
+## D-011 JSON on the bus (2026-11-08)
+
+The daemon's methods return JSON text (D-Bus type `s`) in the shapes of `vigil_model::host` and
+`vigil_model::finding`, not D-Bus structs. Reasons: the finding format stays byte-identical
+everywhere (bus, exports, Vigil 1); one versioned schema instead of two; unknown fields survive.
+Cost: generic D-Bus tools (busctl, d-feet) show a string rather than typed fields. Signals that
+fire often (`Changed`) use plain D-Bus types.
+
+## D-012 polkit action owner (2026-11-08)
+
+Found by running against real polkit in the container: polkit refuses
+`CheckAuthorization` about another user's request unless the caller is root or the action's
+declared owner ("Only trusted callers (e.g. uid 0 or an action owner) can use
+CheckAuthorization() for subjects belonging to other identities"). vigild runs as `vigil`, so
+every action in `org.vigil.policy` carries
+`<annotate key="org.freedesktop.policykit.owner">unix-user:vigil</annotate>`. The daemon failed
+closed before the fix, as designed. The owner annotation needs polkit 0.114 or newer (every
+current distro has it).
+
+## D-013 Attacker-controlled text is neutralised before display (2026-11-08)
+
+Process names, command lines and file names are chosen by whoever created them. Printed raw,
+they can carry newlines (breaking tables), terminal escape sequences (rewriting the screen), or
+Unicode direction overrides (disguising a name). `wording::printable` turns all of these into
+visible marks; the CLI passes every cell through it, and the app will do the same.
+
+## D-014 The daemon sees as root when it may (2026-11-08)
+
+With CAP_SYS_PTRACE the daemon can read every process's open files, so it builds its snapshot
+with root's view. Otherwise an unattributed socket of another user would be explained as "the
+kernel hides other users' sockets", which would be false. `viewer.user` then reads
+"vigil (with CAP_SYS_PTRACE)".

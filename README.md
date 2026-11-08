@@ -7,6 +7,14 @@ explanations and fix commands look and work the same everywhere. The suite plan 
 and what has been built, with test results, decisions and known limits, in
 [docs/PROGRESS.md](docs/PROGRESS.md).
 
+## Vigil 2 (in progress)
+
+A native rewrite in Rust is under way on the `vigil2` branch: one Linux app, a small system
+daemon that watches in the background, and packages for Arch, Fedora and openSUSE. The plan is
+[docs/RUST_REWRITE.md](docs/RUST_REWRITE.md); what exists, measured, is in
+[docs/PROGRESS2.md](docs/PROGRESS2.md); how the code fits together is in
+[docs/vigil2/](docs/vigil2/README.md). Vigil 1, below, keeps working unchanged.
+
 ## Start here
 
 ```bash

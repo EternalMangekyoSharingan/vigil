@@ -1,0 +1,1388 @@
+{
+ "_note": "SYNTHETIC: Vigil 1's collector on tests/fixtures/proc. Regenerate with make_golden.py.",
+ "decode_address": [
+  [
+   "0100007F:0277",
+   [
+    "127.0.0.1",
+    631
+   ]
+  ],
+  [
+   "00000000:0016",
+   [
+    "0.0.0.0",
+    22
+   ]
+  ],
+  [
+   "0000000000000000FFFF00000100007F:0050",
+   [
+    "127.0.0.1",
+    80
+   ]
+  ],
+  [
+   "B80D0120000000000000000001000000:01BB",
+   [
+    "2001:db8::1",
+    443
+   ]
+  ],
+  [
+   "00000000000000000000000001000000:1F90",
+   [
+    "::1",
+    8080
+   ]
+  ],
+  [
+   "2E01A8C0:C350",
+   [
+    "192.168.1.46",
+    50000
+   ]
+  ],
+  [
+   "0101A8C0:0035",
+   [
+    "192.168.1.1",
+    53
+   ]
+  ],
+  [
+   "FFFFFFFF:0000",
+   [
+    "255.255.255.255",
+    0
+   ]
+  ],
+  [
+   "000080FE00000000FF005450B6AD1DFE:0000",
+   [
+    "fe80::5054:ff:fe1d:adb6",
+    0
+   ]
+  ]
+ ],
+ "decode_address_bad": [
+  "0100007F",
+  "01007F:0277",
+  "ZZZZZZZZ:0050",
+  "0100007F:XYZ"
+ ],
+ "program_identity": [
+  [
+   null,
+   [],
+   "kthreadd",
+   [
+    "[kthreadd]",
+    "[kthreadd]"
+   ]
+  ],
+  [
+   "/usr/bin/python3.11",
+   [
+    "python3",
+    "/home/a/x.py",
+    "-v"
+   ],
+   "python3",
+   [
+    "/usr/bin/python3.11 /home/a/x.py",
+    "x.py (python3.11)"
+   ]
+  ],
+  [
+   "/usr/bin/python3",
+   [
+    "python3",
+    "-m",
+    "http.server"
+   ],
+   "python3",
+   [
+    "/usr/bin/python3 -m http.server",
+    "http.server (python3)"
+   ]
+  ],
+  [
+   "/usr/bin/python3",
+   [
+    "python3",
+    "-c",
+    "x"
+   ],
+   "python3",
+   [
+    "/usr/bin/python3",
+    "python3"
+   ]
+  ],
+  [
+   "/usr/bin/java",
+   [
+    "java",
+    "-jar",
+    "/opt/app.jar"
+   ],
+   "java",
+   [
+    "/usr/bin/java -jar /opt/app.jar",
+    "/opt/app.jar (java)"
+   ]
+  ],
+  [
+   "/opt/x (deleted)",
+   [
+    "/opt/x"
+   ],
+   "x",
+   [
+    "/opt/x",
+    "x"
+   ]
+  ],
+  [
+   "/usr/bin/bash",
+   [
+    "bash"
+   ],
+   "bash",
+   [
+    "/usr/bin/bash",
+    "bash"
+   ]
+  ],
+  [
+   "/usr/bin/node",
+   [
+    "node",
+    "--inspect",
+    "srv.js"
+   ],
+   "node",
+   [
+    "/usr/bin/node srv.js",
+    "srv.js (node)"
+   ]
+  ],
+  [
+   null,
+   [
+    "/usr/bin/foo",
+    "a"
+   ],
+   "foo",
+   [
+    "/usr/bin/foo",
+    "foo"
+   ]
+  ],
+  [
+   "/usr/bin/python3",
+   [
+    "python3",
+    "-m"
+   ],
+   "python3",
+   [
+    "/usr/bin/python3",
+    "python3"
+   ]
+  ]
+ ],
+ "root": {
+  "hidden_counts": {
+   "closed": 1
+  },
+  "missing_tables": [],
+  "pids_visible": 13,
+  "processes": {
+   "4410": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/usr/lib/firefox/firefox"
+    ],
+    "comm": "firefox",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "key": "/usr/lib/firefox/firefox",
+    "name": "firefox",
+    "parent": "gnome-shell",
+    "pid": 4410,
+    "ppid": 2301,
+    "started": 1793301234.56,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "4500": {
+    "ancestry": [
+     {
+      "name": "firefox",
+      "pid": 4410,
+      "started": 1793301234.56
+     },
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/usr/lib/firefox/firefox",
+     "-contentproc",
+     "-childID",
+     "1"
+    ],
+    "comm": "Web Content",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "key": "/usr/lib/firefox/firefox",
+    "name": "firefox",
+    "parent": "firefox",
+    "pid": 4500,
+    "ppid": 4410,
+    "started": 1793301235.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "5120": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "python3",
+     "/home/alice/.cache/updater.py",
+     "--quiet"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.11",
+    "exe_deleted": false,
+    "key": "/usr/bin/python3.11 /home/alice/.cache/updater.py",
+    "name": "updater.py (python3.11)",
+    "parent": "gnome-shell",
+    "pid": 5120,
+    "ppid": 2301,
+    "started": 1793302000.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "5200": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "python3",
+     "-u",
+     "-m",
+     "smbsync"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.11",
+    "exe_deleted": false,
+    "key": "/usr/bin/python3.11 -m smbsync",
+    "name": "smbsync (python3.11)",
+    "parent": "gnome-shell",
+    "pid": 5200,
+    "ppid": 2301,
+    "started": 1793302100.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "6000": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "ssh",
+     "backup@203.0.113.10"
+    ],
+    "comm": "ssh",
+    "exe": "/usr/bin/ssh",
+    "exe_deleted": false,
+    "key": "/usr/bin/ssh",
+    "name": "ssh",
+    "parent": "gnome-shell",
+    "pid": 6000,
+    "ppid": 2301,
+    "started": 1793302200.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "640": {
+    "ancestry": [
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/usr/sbin/cupsd",
+     "-l"
+    ],
+    "comm": "cupsd",
+    "exe": "/usr/sbin/cupsd",
+    "exe_deleted": false,
+    "key": "/usr/sbin/cupsd",
+    "name": "cupsd",
+    "parent": "systemd",
+    "pid": 640,
+    "ppid": 1,
+    "started": 1793300009.0,
+    "uid": 0,
+    "user": "root"
+   },
+   "700": {
+    "ancestry": [
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "avahi-daemon: running [pc.local]"
+    ],
+    "comm": "avahi-daemon",
+    "exe": "/usr/sbin/avahi-daemon",
+    "exe_deleted": false,
+    "key": "/usr/sbin/avahi-daemon",
+    "name": "avahi-daemon",
+    "parent": "systemd",
+    "pid": 700,
+    "ppid": 1,
+    "started": 1793300009.5,
+    "uid": 107,
+    "user": "user-107"
+   },
+   "7000": {
+    "ancestry": [
+     {
+      "name": "python3",
+      "pid": 5120,
+      "started": 1793302000.0
+     },
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/tmp/.x/agent"
+    ],
+    "comm": "upd) S 1 2",
+    "exe": "/tmp/.x/agent (deleted)",
+    "exe_deleted": true,
+    "key": "/tmp/.x/agent",
+    "name": "agent",
+    "parent": "python3",
+    "pid": 7000,
+    "ppid": 5120,
+    "started": 1793302300.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "812": {
+    "ancestry": [
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "sshd: /usr/sbin/sshd -D [listener]"
+    ],
+    "comm": "sshd",
+    "exe": "/usr/sbin/sshd",
+    "exe_deleted": false,
+    "key": "/usr/sbin/sshd",
+    "name": "sshd",
+    "parent": "systemd",
+    "pid": 812,
+    "ppid": 1,
+    "started": 1793300010.0,
+    "uid": 0,
+    "user": "root"
+   },
+   "905": {
+    "ancestry": [
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/usr/libexec/packagekitd"
+    ],
+    "comm": "packagekitd",
+    "exe": "/usr/libexec/packagekitd",
+    "exe_deleted": false,
+    "key": "/usr/libexec/packagekitd",
+    "name": "packagekitd",
+    "parent": "systemd",
+    "pid": 905,
+    "ppid": 1,
+    "started": 1793300050.0,
+    "uid": 0,
+    "user": "root"
+   },
+   "950": {
+    "ancestry": [
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "nginx: worker process"
+    ],
+    "comm": "nginx",
+    "exe": "/usr/sbin/nginx",
+    "exe_deleted": false,
+    "key": "/usr/sbin/nginx",
+    "name": "nginx",
+    "parent": "systemd",
+    "pid": 950,
+    "ppid": 1,
+    "started": 1793300012.0,
+    "uid": 33,
+    "user": "user-33"
+   }
+  },
+  "sockets": [
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 1001,
+    "kind": "listen",
+    "local_ip": "0.0.0.0",
+    "local_port": 22,
+    "pid": 812,
+    "pids": [
+     812
+    ],
+    "program": "/usr/sbin/sshd",
+    "proto": "tcp",
+    "remote_ip": "0.0.0.0",
+    "remote_port": 0,
+    "state": "LISTEN",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 1002,
+    "kind": "listen",
+    "local_ip": "127.0.0.1",
+    "local_port": 631,
+    "pid": 640,
+    "pids": [
+     640
+    ],
+    "program": "/usr/sbin/cupsd",
+    "proto": "tcp",
+    "remote_ip": "0.0.0.0",
+    "remote_port": 0,
+    "state": "LISTEN",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2001,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 51234,
+    "pid": 4410,
+    "pids": [
+     4410,
+     4500
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.30",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2002,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 51240,
+    "pid": 4410,
+    "pids": [
+     4410
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.30",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2003,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 40000,
+    "pid": 5120,
+    "pids": [
+     5120
+    ],
+    "program": "/usr/bin/python3.11 /home/alice/.cache/updater.py",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.7",
+    "remote_port": 8443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "closed_ago": 20.0,
+    "direction": "out",
+    "hidden": {
+     "explanation": "The program already closed this connection; the kernel keeps it in TIME_WAIT to finish the shutdown, and no process owns it any more.",
+     "label": "Closed before attribution",
+     "reason": "closed"
+    },
+    "inode": 0,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 51200,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "198.51.100.30",
+    "remote_port": 80,
+    "state": "TIME_WAIT",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 3001,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 45000,
+    "pid": 905,
+    "pids": [
+     905
+    ],
+    "program": "/usr/libexec/packagekitd",
+    "proto": "tcp",
+    "remote_ip": "203.0.113.9",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2004,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 46000,
+    "pid": 6000,
+    "pids": [
+     6000
+    ],
+    "program": "/usr/bin/ssh",
+    "proto": "tcp",
+    "remote_ip": "203.0.113.10",
+    "remote_port": 22,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2009,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 47000,
+    "pid": 7000,
+    "pids": [
+     7000
+    ],
+    "program": "/tmp/.x/agent",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.20",
+    "remote_port": 4444,
+    "state": "SYN_SENT",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2010,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 47010,
+    "pid": 5200,
+    "pids": [
+     5200
+    ],
+    "program": "/usr/bin/python3.11 -m smbsync",
+    "proto": "tcp",
+    "remote_ip": "10.0.0.5",
+    "remote_port": 445,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "in",
+    "hidden": null,
+    "inode": 3002,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 22,
+    "pid": 812,
+    "pids": [
+     812
+    ],
+    "program": "/usr/sbin/sshd",
+    "proto": "tcp",
+    "remote_ip": "203.0.113.50",
+    "remote_port": 60000,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 1003,
+    "kind": "listen",
+    "local_ip": "::",
+    "local_port": 80,
+    "pid": 950,
+    "pids": [
+     950
+    ],
+    "program": "/usr/sbin/nginx",
+    "proto": "tcp",
+    "remote_ip": "::",
+    "remote_port": 0,
+    "state": "LISTEN",
+    "table": "tcp6",
+    "uid": 33
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2005,
+    "kind": "connection",
+    "local_ip": "2001:db8::50",
+    "local_port": 51000,
+    "pid": 4410,
+    "pids": [
+     4410
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "2001:db8:1::10",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp6",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2006,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 52000,
+    "pid": 4410,
+    "pids": [
+     4410
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "192.0.2.80",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp6",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 1004,
+    "kind": "listen",
+    "local_ip": "0.0.0.0",
+    "local_port": 5353,
+    "pid": 700,
+    "pids": [
+     700
+    ],
+    "program": "/usr/sbin/avahi-daemon",
+    "proto": "udp",
+    "remote_ip": "0.0.0.0",
+    "remote_port": 0,
+    "state": "UNCONN",
+    "table": "udp",
+    "uid": 107
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2008,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 41000,
+    "pid": 5120,
+    "pids": [
+     5120
+    ],
+    "program": "/usr/bin/python3.11 /home/alice/.cache/updater.py",
+    "proto": "udp",
+    "remote_ip": "192.168.1.1",
+    "remote_port": 53,
+    "state": "ESTABLISHED",
+    "table": "udp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 1005,
+    "kind": "listen",
+    "local_ip": "::",
+    "local_port": 5353,
+    "pid": 700,
+    "pids": [
+     700
+    ],
+    "program": "/usr/sbin/avahi-daemon",
+    "proto": "udp",
+    "remote_ip": "::",
+    "remote_port": 0,
+    "state": "UNCONN",
+    "table": "udp6",
+    "uid": 107
+   }
+  ],
+  "unreadable_by_uid": {},
+  "viewer": {
+   "root": true,
+   "uid": 0,
+   "user": "root"
+  }
+ },
+ "scope_of": {
+  "0.0.0.0": "unspecified",
+  "10.1.2.3": "lan",
+  "100.64.1.1": "lan",
+  "127.0.0.1": "loopback",
+  "169.254.1.1": "link-local",
+  "172.16.5.4": "lan",
+  "172.32.0.1": "internet",
+  "192.0.2.1": "reserved",
+  "2001:db8::1": "reserved",
+  "224.0.0.251": "multicast",
+  "255.255.255.255": "reserved",
+  "2606:4700::1111": "internet",
+  "8.8.8.8": "internet",
+  "::": "unspecified",
+  "::1": "loopback",
+  "fd00::1": "lan",
+  "fe80::1": "link-local",
+  "ff02::fb": "multicast"
+ },
+ "user1000": {
+  "hidden_counts": {
+   "closed": 1,
+   "other-user": 7,
+   "protected": 1
+  },
+  "missing_tables": [],
+  "pids_visible": 13,
+  "processes": {
+   "4410": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/usr/lib/firefox/firefox"
+    ],
+    "comm": "firefox",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "key": "/usr/lib/firefox/firefox",
+    "name": "firefox",
+    "parent": "gnome-shell",
+    "pid": 4410,
+    "ppid": 2301,
+    "started": 1793301234.56,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "4500": {
+    "ancestry": [
+     {
+      "name": "firefox",
+      "pid": 4410,
+      "started": 1793301234.56
+     },
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/usr/lib/firefox/firefox",
+     "-contentproc",
+     "-childID",
+     "1"
+    ],
+    "comm": "Web Content",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "key": "/usr/lib/firefox/firefox",
+    "name": "firefox",
+    "parent": "firefox",
+    "pid": 4500,
+    "ppid": 4410,
+    "started": 1793301235.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "5120": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "python3",
+     "/home/alice/.cache/updater.py",
+     "--quiet"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.11",
+    "exe_deleted": false,
+    "key": "/usr/bin/python3.11 /home/alice/.cache/updater.py",
+    "name": "updater.py (python3.11)",
+    "parent": "gnome-shell",
+    "pid": 5120,
+    "ppid": 2301,
+    "started": 1793302000.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "5200": {
+    "ancestry": [
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "python3",
+     "-u",
+     "-m",
+     "smbsync"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.11",
+    "exe_deleted": false,
+    "key": "/usr/bin/python3.11 -m smbsync",
+    "name": "smbsync (python3.11)",
+    "parent": "gnome-shell",
+    "pid": 5200,
+    "ppid": 2301,
+    "started": 1793302100.0,
+    "uid": 1000,
+    "user": "user-1000"
+   },
+   "7000": {
+    "ancestry": [
+     {
+      "name": "python3",
+      "pid": 5120,
+      "started": 1793302000.0
+     },
+     {
+      "name": "gnome-shell",
+      "pid": 2301,
+      "started": 1793300030.0
+     },
+     {
+      "name": "systemd",
+      "pid": 1,
+      "started": 1793300000.01
+     }
+    ],
+    "cmdline": [
+     "/tmp/.x/agent"
+    ],
+    "comm": "upd) S 1 2",
+    "exe": "/tmp/.x/agent (deleted)",
+    "exe_deleted": true,
+    "key": "/tmp/.x/agent",
+    "name": "agent",
+    "parent": "python3",
+    "pid": 7000,
+    "ppid": 5120,
+    "started": 1793302300.0,
+    "uid": 1000,
+    "user": "user-1000"
+   }
+  },
+  "sockets": [
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by root (uid 0). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 1001,
+    "kind": "listen",
+    "local_ip": "0.0.0.0",
+    "local_port": 22,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "0.0.0.0",
+    "remote_port": 0,
+    "state": "LISTEN",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by root (uid 0). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 1002,
+    "kind": "listen",
+    "local_ip": "127.0.0.1",
+    "local_port": 631,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "0.0.0.0",
+    "remote_port": 0,
+    "state": "LISTEN",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2001,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 51234,
+    "pid": 4410,
+    "pids": [
+     4410,
+     4500
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.30",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2002,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 51240,
+    "pid": 4410,
+    "pids": [
+     4410
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.30",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2003,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 40000,
+    "pid": 5120,
+    "pids": [
+     5120
+    ],
+    "program": "/usr/bin/python3.11 /home/alice/.cache/updater.py",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.7",
+    "remote_port": 8443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "closed_ago": 20.0,
+    "direction": "out",
+    "hidden": {
+     "explanation": "The program already closed this connection; the kernel keeps it in TIME_WAIT to finish the shutdown, and no process owns it any more.",
+     "label": "Closed before attribution",
+     "reason": "closed"
+    },
+    "inode": 0,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 51200,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "198.51.100.30",
+    "remote_port": 80,
+    "state": "TIME_WAIT",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by root (uid 0). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 3001,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 45000,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "203.0.113.9",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by your user, but 1 of your processes do not allow inspection (setuid or non-dumpable programs such as ssh-agent or keyring daemons). One of them probably holds it.",
+     "label": "Hidden: protected process",
+     "reason": "protected"
+    },
+    "inode": 2004,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 46000,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "203.0.113.10",
+    "remote_port": 22,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2009,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 47000,
+    "pid": 7000,
+    "pids": [
+     7000
+    ],
+    "program": "/tmp/.x/agent",
+    "proto": "tcp",
+    "remote_ip": "198.51.100.20",
+    "remote_port": 4444,
+    "state": "SYN_SENT",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2010,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 47010,
+    "pid": 5200,
+    "pids": [
+     5200
+    ],
+    "program": "/usr/bin/python3.11 -m smbsync",
+    "proto": "tcp",
+    "remote_ip": "10.0.0.5",
+    "remote_port": 445,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 1000
+   },
+   {
+    "direction": "in",
+    "hidden": {
+     "explanation": "Owned by root (uid 0). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 3002,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 22,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "203.0.113.50",
+    "remote_port": 60000,
+    "state": "ESTABLISHED",
+    "table": "tcp",
+    "uid": 0
+   },
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by user-33 (uid 33). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 1003,
+    "kind": "listen",
+    "local_ip": "::",
+    "local_port": 80,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "tcp",
+    "remote_ip": "::",
+    "remote_port": 0,
+    "state": "LISTEN",
+    "table": "tcp6",
+    "uid": 33
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2005,
+    "kind": "connection",
+    "local_ip": "2001:db8::50",
+    "local_port": 51000,
+    "pid": 4410,
+    "pids": [
+     4410
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "2001:db8:1::10",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp6",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2006,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 52000,
+    "pid": 4410,
+    "pids": [
+     4410
+    ],
+    "program": "/usr/lib/firefox/firefox",
+    "proto": "tcp",
+    "remote_ip": "192.0.2.80",
+    "remote_port": 443,
+    "state": "ESTABLISHED",
+    "table": "tcp6",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by user-107 (uid 107). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 1004,
+    "kind": "listen",
+    "local_ip": "0.0.0.0",
+    "local_port": 5353,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "udp",
+    "remote_ip": "0.0.0.0",
+    "remote_port": 0,
+    "state": "UNCONN",
+    "table": "udp",
+    "uid": 107
+   },
+   {
+    "direction": "out",
+    "hidden": null,
+    "inode": 2008,
+    "kind": "connection",
+    "local_ip": "192.168.1.50",
+    "local_port": 41000,
+    "pid": 5120,
+    "pids": [
+     5120
+    ],
+    "program": "/usr/bin/python3.11 /home/alice/.cache/updater.py",
+    "proto": "udp",
+    "remote_ip": "192.168.1.1",
+    "remote_port": 53,
+    "state": "ESTABLISHED",
+    "table": "udp",
+    "uid": 1000
+   },
+   {
+    "direction": "out",
+    "hidden": {
+     "explanation": "Owned by user-107 (uid 107). The kernel shows a process's open sockets only to its owner and to root, so Vigil, running as user-1000, cannot see which program this is.",
+     "label": "Hidden: other user",
+     "reason": "other-user"
+    },
+    "inode": 1005,
+    "kind": "listen",
+    "local_ip": "::",
+    "local_port": 5353,
+    "pid": null,
+    "pids": [],
+    "program": null,
+    "proto": "udp",
+    "remote_ip": "::",
+    "remote_port": 0,
+    "state": "UNCONN",
+    "table": "udp6",
+    "uid": 107
+   }
+  ],
+  "unreadable_by_uid": {
+   "0": 4,
+   "1000": 1,
+   "107": 1,
+   "33": 1
+  },
+  "viewer": {
+   "root": false,
+   "uid": 1000,
+   "user": "user-1000"
+  }
+ }
+}

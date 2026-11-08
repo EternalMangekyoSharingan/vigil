@@ -69,3 +69,71 @@ limits and decisions (the decisions themselves are in docs/DECISIONS.md).
   purpose (no fake data).
 - Fonts: the app asks for Inter and falls back to the system font; Vigil 1's bundled Inter files
   are not embedded yet.
+
+---
+
+## Milestone 2: daemon and store (2026-11-08)
+
+### Built
+- **vigil-sensor**: the /proc source, ported from Vigil 1's collector (socket tables, fd
+  scanning, process identity, parent chains, start times, hidden-socket reasons, hidepid), and the
+  "what Vigil can and cannot see" report from kernel facts (BTF, unprivileged BPF, lockdown,
+  LSMs). Golden test: the same sockets, processes and explanations as Vigil 1 on the synthetic
+  /proc fixture, as root and as a simulated normal user.
+- **vigil-store**: SQLite in WAL mode; append-only migrations with a backup before each upgrade;
+  refuses files from a newer version; connections, programs, destinations, processes (keyed by pid
+  and start time), events, findings; first-seen tracking that outlives retention; the time machine
+  (`connections_at`, `connections_between`); retention with incremental vacuum.
+- **vigild**: polling sensor thread, store, D-Bus API (`org.vigil.Daemon`, `.Processes`,
+  `.Network`, `.Events` with a `Changed` signal, `.Findings`), caller credentials from the bus,
+  polkit checks (`org.vigil.read`, cached 10 s per caller), development mode (`--bus session`,
+  same uid only), sd_notify READY/WATCHDOG/STOPPING, clean stop on SIGTERM, logs with journald
+  levels.
+- **vigil-cli**: `status`, `processes`, `connections`, `at` (time machine), `events`, `whoami`,
+  `doctor`, `--json`; every cell neutralised with `wording::printable`.
+- **Docs**: `docs/vigil2/` explains each crate (README, model, sensor, store, daemon, cli, ui,
+  packaging), including a short guide to reading Rust.
+
+### Tests
+`cargo test --workspace`: 46 tests, all pass (34 in milestone 1 plus 12 new: sensor golden (4), visibility (1), store (3),
+vigild end to end on a private D-Bus (1: every interface, a live `Changed` signal, uid 65534
+refused, clean SIGTERM), CLI (2), `printable` (1)). Clippy `-D warnings` clean; `check-deps` and
+`check-packaging` pass.
+
+### Done-when, checked
+"The CLI lists processes and connections through the daemon, as an unprivileged user": done in
+the container (Ubuntu 24.04) with the real pieces: a system D-Bus, polkitd, vigild started the way
+the unit starts it (user `vigil`, CapEff = CAP_SYS_PTRACE + CAP_DAC_READ_SEARCH only, polkit
+mode), and `vigil-cli` run as the normal user `ula`:
+- without a desktop session polkit asked for an admin password and the request was refused with a
+  readable reason (fail closed);
+- with a rule standing in for the desktop session (container only, `tools/system-demo.sh`),
+  `ula` listed every process and every connection, including root's `http.server` socket
+  attributed to its program, which `ula` alone could never see;
+- `vigil-cli doctor` passed every check.
+
+### Measurements against the budgets
+| budget | measured (container, 88 processes) |
+| --- | --- |
+| daemon idle CPU under 0.5 % | 0.45 % of one core over 60 s, polling every 2 s |
+| daemon RSS under 60 MB | 9 MB |
+
+### Limits (honest list)
+- **Only one distro.** The done-when says "on all three distros"; it was checked on Ubuntu 24.04
+  in a container. Arch (hardened kernel), Fedora and Tumbleweed still need a run
+  (`tools/system-demo.sh` works in any throwaway VM).
+- **The CPU budget is close.** Every look re-reads every process. On a desktop with several
+  hundred processes this will likely pass 0.5 %. Milestone 3 replaces most polling with events
+  (proc connector, eBPF); until then, caching process details by (pid, start time) is the next
+  step if it is needed.
+- **Polling misses short-lived things**, as Vigil 1 did: anything that starts and ends between two
+  looks. That is milestone 3.
+- **No runtime capability drop** (D-010, question for the owner).
+- **No findings yet**: `Findings.List` is empty until the Network and Processes checks are ported
+  (milestone 3).
+- Byte counts per socket (sock_diag, which Vigil 1 had) are not ported yet.
+
+### Questions for the owner
+1. D-003: allow the `regex` crate before porting Pkg and Files (milestone 4)?
+2. D-010: allow the `caps` crate so the daemon can drop unused capabilities at run time?
+3. D-002: run `vigil2/spike/run-bench.sh` on the laptop to confirm GPUI.

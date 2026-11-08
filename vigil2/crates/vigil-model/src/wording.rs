@@ -484,3 +484,33 @@ mod tests {
         assert_eq!(friendly_program(Some("/opt/x/agent (deleted)"), None, None), "agent");
     }
 }
+
+/// Text an attacker may control (process names, command lines, file names), made safe
+/// to show: control characters (newlines, terminal escape sequences) and the Unicode
+/// direction overrides that can disguise a name ("Trojan Source") become visible marks
+/// instead of acting on the terminal or the layout.
+pub fn printable(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\n' | '\r' => out.push('↵'),
+            '\t' => out.push(' '),
+            '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}' | '\u{061C}' => {
+                out.push_str(&format!("⟨U+{:04X}⟩", c as u32))
+            }
+            c if c.is_control() => out.push_str(&format!("\\x{:02x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod printable_tests {
+    #[test]
+    fn hostile_text_is_neutralised() {
+        assert_eq!(super::printable("a\nb\x1b[31mred\tc"), "a↵b\\x1b[31mred c");
+        assert_eq!(super::printable("invoice\u{202E}fdp.exe"), "invoice⟨U+202E⟩fdp.exe");
+        assert_eq!(super::printable("Läuft überall"), "Läuft überall");
+    }
+}

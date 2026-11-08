@@ -3,3 +3,4 @@
 /spike/*.log
 /docs-shots
 /spike/shots
+/spike/*.err

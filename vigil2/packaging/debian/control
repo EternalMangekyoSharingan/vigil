@@ -2,7 +2,7 @@ Source: vigil
 Section: admin
 Priority: optional
 Maintainer: Ula <ulakozdoj@gmail.com>
-Build-Depends: debhelper-compat (= 13), cargo (>= 1.85), rustc (>= 1.85), pkgconf, libdbus-1-dev
+Build-Depends: debhelper-compat (= 13), cargo (>= 1.89), rustc (>= 1.89), pkgconf, libdbus-1-dev
 Standards-Version: 4.7.0
 Homepage: https://github.com/EternalMangekyoSharingan/vigil
 Rules-Requires-Root: no

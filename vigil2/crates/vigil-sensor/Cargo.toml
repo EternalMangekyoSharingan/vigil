@@ -1,9 +1,16 @@
 [package]
 name = "vigil-sensor"
+description = "Event and state sources behind one interface: /proc polling now; proc connector, sock_diag and eBPF next"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
+
+[dependencies]
+vigil-model.workspace = true
+nix.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true

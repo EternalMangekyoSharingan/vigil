@@ -10,11 +10,14 @@
 //! checks the port against outputs computed by the Python code
 //! (`vigil2/tests/golden/make_golden.py`).
 
+pub mod api;
 pub mod attack;
 pub mod commands;
 pub mod distro;
 pub mod finding;
 pub mod fixes;
+pub mod host;
+pub mod netaddr;
 pub mod pyjson;
 pub mod sha1;
 pub mod wording;

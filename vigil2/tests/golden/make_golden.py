@@ -186,3 +186,57 @@ data = {
 }
 (OUT / "model.json").write_text(json.dumps(data, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
 print(f"wrote {OUT / 'model.json'}: {len(COMMANDS)} commands, {len(MAKE)} findings, {len(BROKEN)} broken")
+
+
+# ---- /proc: the Network collector on the synthetic fixture ------------------------------
+# User names come from the machine's passwd file, which differs between machines, so both
+# sides use the same made-up rule here: uid N is called "user-N" (root is "root").
+import tempfile  # noqa: E402
+
+from tests import helpers  # noqa: E402
+from vigil.net import collector  # noqa: E402
+
+collector.username = lambda uid: "root" if uid == 0 else f"user-{uid}"
+collector.username.cache_clear = lambda: None
+
+
+def proc_snapshot(viewer, blocked):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = helpers.make_proc(tmp)
+        if blocked:
+            with helpers.non_root_view(root):
+                snap = collector.snapshot(root, now=1000.0, viewer_uid=viewer)
+        else:
+            snap = collector.snapshot(root, now=1000.0, viewer_uid=viewer)
+    for k in ("taken_at", "proc_root", "byte_counts", "hidepid"):
+        snap.pop(k)
+    snap["processes"] = {str(k): v for k, v in snap["processes"].items()}
+    snap["unreadable_by_uid"] = {str(k): v for k, v in snap["unreadable_by_uid"].items()}
+    return snap
+
+
+identities = [
+    [None, [], "kthreadd"], ["/usr/bin/python3.11", ["python3", "/home/a/x.py", "-v"], "python3"],
+    ["/usr/bin/python3", ["python3", "-m", "http.server"], "python3"], ["/usr/bin/python3", ["python3", "-c", "x"], "python3"],
+    ["/usr/bin/java", ["java", "-jar", "/opt/app.jar"], "java"], ["/opt/x (deleted)", ["/opt/x"], "x"],
+    ["/usr/bin/bash", ["bash"], "bash"], ["/usr/bin/node", ["node", "--inspect", "srv.js"], "node"],
+    [None, ["/usr/bin/foo", "a"], "foo"], ["/usr/bin/python3", ["python3", "-m"], "python3"],
+]
+addresses = ["0100007F:0277", "00000000:0016", "0000000000000000FFFF00000100007F:0050",
+             "B80D0120000000000000000001000000:01BB", "00000000000000000000000001000000:1F90",
+             "2E01A8C0:C350", "0101A8C0:0035", "FFFFFFFF:0000", "000080FE00000000FF005450B6AD1DFE:0000"]
+proc_data = {
+    "_note": "SYNTHETIC: Vigil 1's collector on tests/fixtures/proc. Regenerate with make_golden.py.",
+    "root": proc_snapshot(0, False),
+    "user1000": proc_snapshot(1000, True),
+    "program_identity": [[e, c, comm, list(collector.program_identity(e, c, comm))] for e, c, comm in identities],
+    "decode_address": [[a, list(collector.decode_address(a, "little"))] for a in addresses],
+    "decode_address_bad": [b for b in ["0100007F", "01007F:0277", "ZZZZZZZZ:0050", "0100007F:XYZ"]],
+    "scope_of": {ip: collector.scope_of(ip) for ip in ["127.0.0.1", "10.1.2.3", "192.0.2.1", "8.8.8.8", "::1", "fe80::1",
+                                                         "ff02::fb", "0.0.0.0", "::", "100.64.1.1", "fd00::1",
+                                                         "2001:db8::1", "2606:4700::1111", "224.0.0.251", "169.254.1.1",
+                                                         "172.16.5.4", "172.32.0.1", "255.255.255.255"]},
+}
+(OUT / "proc.json").write_text(json.dumps(proc_data, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
+print(f"wrote {OUT / 'proc.json'}: {len(proc_data['root']['sockets'])} sockets, "
+      f"{len(proc_data['root']['processes'])} processes")

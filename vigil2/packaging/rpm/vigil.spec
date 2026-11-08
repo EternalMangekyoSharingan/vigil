@@ -8,8 +8,8 @@ License:        MIT
 URL:            https://github.com/EternalMangekyoSharingan/vigil
 Source0:        %{url}/releases/download/v%{version}/vigil-%{version}-vendored.tar.zst
 
-BuildRequires:  cargo >= 1.85
-BuildRequires:  rust >= 1.85
+BuildRequires:  cargo >= 1.89
+BuildRequires:  rust >= 1.89
 BuildRequires:  gcc
 BuildRequires:  systemd-rpm-macros
 BuildRequires:  pkgconfig(dbus-1)
