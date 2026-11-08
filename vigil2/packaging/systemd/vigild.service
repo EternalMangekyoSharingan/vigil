@@ -1,0 +1,79 @@
+# Vigil's system service: collects events, stores them and answers queries.
+# It never parses untrusted file formats, never runs a shell and never opens a
+# network socket (only Unix and netlink). Each setting below says why it is there.
+[Unit]
+Description=Vigil security monitor (sensor, store and engine)
+Documentation=https://github.com/EternalMangekyoSharingan/vigil/blob/main/docs/vigil2/DAEMON.md
+After=dbus.service
+Wants=dbus.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/lib/vigil/vigild --bus system
+Restart=on-failure
+RestartSec=2s
+# The daemon pings systemd every 10 s; if it hangs for 30 s it is restarted.
+WatchdogSec=30s
+TimeoutStartSec=30s
+
+# A dedicated account (sysusers.d/vigil.conf), never root.
+User=vigil
+Group=vigil
+UMask=0077
+StateDirectory=vigil
+StateDirectoryMode=0750
+
+# Only the capabilities the sensors need:
+#   CAP_SYS_PTRACE       read other users' /proc/<pid>/fd, exe and maps (which program owns a socket)
+#   CAP_DAC_READ_SEARCH  read autostart and package files that are not world-readable
+#   CAP_NET_ADMIN        netlink proc connector (process exec/exit events)
+#   CAP_BPF, CAP_PERFMON eBPF sensor (milestone 3); unused while it is off
+# The daemon drops whatever its live sensors do not need right after start.
+AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_NET_ADMIN CAP_BPF CAP_PERFMON
+CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH CAP_NET_ADMIN CAP_BPF CAP_PERFMON
+NoNewPrivileges=yes
+SecureBits=noroot-locked
+
+# Filesystem: everything read-only except its own state directory.
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+# /proc must show every process: that is the point. Do not add ProtectProc= or ProcSubset=.
+
+# No network at all: AF_UNIX for D-Bus and sd_notify, AF_NETLINK for the sensors.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+IPAddressDeny=any
+PrivateNetwork=no
+
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+KeyringMode=private
+SystemCallArchitectures=native
+SystemCallFilter=@system-service bpf perf_event_open
+SystemCallFilter=~@privileged @resources @mount @swap @reboot @raw-io @module @debug @obsolete @cpu-emulation @clock
+SystemCallFilter=ptrace
+SystemCallErrorNumber=EPERM
+
+# Budgets from docs/RUST_REWRITE.md section 4 (60 MB target; hard ceiling well above).
+MemoryHigh=96M
+MemoryMax=192M
+TasksMax=64
+CPUWeight=20
+IOWeight=20
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

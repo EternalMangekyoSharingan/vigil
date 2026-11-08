@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Vigil
+GenericName=Security Monitor
+Comment=See which programs talk to the network, what starts automatically, and what changed
+Exec=vigil
+Icon=org.vigil.Vigil
+Terminal=false
+Categories=System;Security;Monitor;
+Keywords=security;network;process;firewall;malware;autostart;edr;
+StartupNotify=true
+StartupWMClass=vigil

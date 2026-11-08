@@ -62,7 +62,8 @@ fn one_sentence() {
 fn fit_title_and_numbers() {
     let g = golden();
     for case in g["fit_title"].as_array().unwrap() {
-        let cands: Vec<String> = case["in"].as_array().unwrap().iter().map(|c| c.as_str().unwrap_or("").to_string()).collect();
+        let cands: Vec<String> =
+            case["in"].as_array().unwrap().iter().map(|c| c.as_str().unwrap_or("").to_string()).collect();
         assert_eq!(wording::fit_title(&cands, wording::TITLE_MAX), case["out"].as_str().unwrap(), "{cands:?}");
     }
     for (secs, want) in g["every"].as_object().unwrap() {
@@ -104,7 +105,13 @@ fn tokens() {
             bad.push(format!("{cmd:?}\n  rust   {got}\n  python {want}"));
         }
     }
-    assert!(bad.is_empty(), "{} of {} differ:\n{}", bad.len(), g["tokenize"].as_object().unwrap().len(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{} of {} differ:\n{}",
+        bad.len(),
+        g["tokenize"].as_object().unwrap().len(),
+        bad.join("\n")
+    );
     assert_eq!(serde_json::to_value(commands::LEGEND).unwrap(), g["legend"]);
 }
 
@@ -151,13 +158,25 @@ fn strs(v: &Value) -> Vec<&str> {
 }
 
 fn opt(o: &Value) -> fixes::FixOption {
-    fixes::option(o["title"].as_str().unwrap(), o["what"].as_str().unwrap(), risk(o["risk"].as_str().unwrap()), &strs(&o["commands"]), &strs(&o["undo"]))
-        .with_steps(&strs(&o["steps"]), &strs(&o["undo_steps"]))
+    fixes::option(
+        o["title"].as_str().unwrap(),
+        o["what"].as_str().unwrap(),
+        risk(o["risk"].as_str().unwrap()),
+        &strs(&o["commands"]),
+        &strs(&o["undo"]),
+    )
+    .with_steps(&strs(&o["steps"]), &strs(&o["undo_steps"]))
 }
 
 /// The same call Vigil 1's make_golden.py made, through the Rust builder.
 fn build(a: &Value) -> Result<finding::Finding, finding::FindingError> {
-    let mut b = Builder::new(s(&a["tool"]).unwrap(), s(&a["check"]).unwrap(), s(&a["title"]).unwrap(), s(&a["summary"]).unwrap(), s(&a["severity"]).unwrap());
+    let mut b = Builder::new(
+        s(&a["tool"]).unwrap(),
+        s(&a["check"]).unwrap(),
+        s(&a["title"]).unwrap(),
+        s(&a["summary"]).unwrap(),
+        s(&a["severity"]).unwrap(),
+    );
     for sig in a["signals"].as_array().into_iter().flatten() {
         b = match s(&sig[2]) {
             Some(k) => b.signal_kind(s(&sig[0]).unwrap(), sig[1].as_f64().unwrap(), k),

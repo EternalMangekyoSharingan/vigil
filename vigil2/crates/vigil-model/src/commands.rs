@@ -50,14 +50,45 @@ pub const PKGMGR: &[(&str, &str, &str)] = &[
 ];
 
 /// Words that install or turn something on.
-const INSTALL: &[&str] = &["install", "add", "enable", "start", "unmask", "reload", "restart", "-S", "-U", "--now-enable"];
+const INSTALL: &[&str] =
+    &["install", "add", "enable", "start", "unmask", "reload", "restart", "-S", "-U", "--now-enable"];
 /// Words that remove or turn something off.
 const REMOVE: &[&str] = &[
-    "remove", "purge", "erase", "del", "autoremove", "disable", "stop", "mask", "-R", "-Rs", "-Rns", "-Rn",
-    "--depclean", "--unmerge", "-C", "deny", "reject", "delete", "rm", "drop",
+    "remove",
+    "purge",
+    "erase",
+    "del",
+    "autoremove",
+    "disable",
+    "stop",
+    "mask",
+    "-R",
+    "-Rs",
+    "-Rns",
+    "-Rn",
+    "--depclean",
+    "--unmerge",
+    "-C",
+    "deny",
+    "reject",
+    "delete",
+    "rm",
+    "drop",
 ];
 const QUERY: &[&str] = &[
-    "-Qo", "-Qi", "-Q", "-qf", "-qi", "-o", "--who-owns", "belongs", "info", "status", "show", "list-timers", "query",
+    "-Qo",
+    "-Qi",
+    "-Q",
+    "-qf",
+    "-qi",
+    "-o",
+    "--who-owns",
+    "belongs",
+    "info",
+    "status",
+    "show",
+    "list-timers",
+    "query",
     "-S",
 ];
 
@@ -153,10 +184,16 @@ fn pkg_action(tool: &str, w: &str) -> Option<(&'static str, String)> {
             return Some(("install", "-S installs (syncs) the packages named after it.".into()))
         }
         "pacman" if w.starts_with("-R") => {
-            return Some(("remove", "-R removes the package; n removes its config files, s unneeded dependencies.".into()))
+            return Some((
+                "remove",
+                "-R removes the package; n removes its config files, s unneeded dependencies.".into(),
+            ))
         }
         "pacman" if w.starts_with("-Q") => {
-            return Some(("flag", "-Q queries the installed-package database (read-only); o asks who owns a file.".into()))
+            return Some((
+                "flag",
+                "-Q queries the installed-package database (read-only); o asks who owns a file.".into(),
+            ))
         }
         "dpkg" if w == "-S" || w == "--search" => {
             return Some(("flag", "-S searches which package owns a file (read-only).".into()))
@@ -210,7 +247,9 @@ pub fn tokenize(command: &str) -> Vec<Token> {
             }
         } else if is_path(bare) {
             t("path", "A file or folder path.".into())
-        } else if let Some((role, tip)) = (in_pkg && !seen_action).then(|| pkg_action(tool.as_deref().unwrap_or(""), &w)).flatten() {
+        } else if let Some((role, tip)) =
+            (in_pkg && !seen_action).then(|| pkg_action(tool.as_deref().unwrap_or(""), &w)).flatten()
+        {
             seen_action = true;
             t(role, tip)
         } else if tool.as_deref() == Some("systemctl")
@@ -242,8 +281,12 @@ pub fn tokenize(command: &str) -> Vec<Token> {
         } else if (in_pkg || tool.as_deref() == Some("systemctl")) && seen_action {
             t(
                 "package",
-                if in_pkg { "The package, app or service this acts on." } else { "The service (or timer) this acts on." }
-                    .into(),
+                if in_pkg {
+                    "The package, app or service this acts on."
+                } else {
+                    "The service (or timer) this acts on."
+                }
+                .into(),
             )
         } else {
             t("arg", "An argument for the command.".into())
@@ -374,10 +417,7 @@ pub fn plan(command: &str, home: &str) -> Result<RunPlan, String> {
     let admin = RUN_ADMIN.contains(&words[0].as_str());
     let words = if admin { &words[1..] } else { &words[..] };
     let Some((program, rest)) = words.split_first() else { return Err("nothing to run".into()) };
-    let args = rest
-        .iter()
-        .map(|w| w.strip_prefix("~/").map_or_else(|| w.clone(), |r| format!("{home}/{r}")))
-        .collect();
+    let args = rest.iter().map(|w| w.strip_prefix("~/").map_or_else(|| w.clone(), |r| format!("{home}/{r}"))).collect();
     Ok(RunPlan { program: program.clone(), args, admin })
 }
 

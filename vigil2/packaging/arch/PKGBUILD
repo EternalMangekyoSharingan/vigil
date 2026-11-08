@@ -1,0 +1,29 @@
+# Maintainer: Ula <ulakozdoj at gmail dot com>
+# vigil-bin: prebuilt Vigil 2 from the GitHub release. The release job
+# (.github/workflows/vigil2-release.yml) fills in pkgver and sha256sums and pushes
+# this file and .SRCINFO to the AUR. Review it like any AUR package: it downloads
+# one tarball from the project's own GitHub releases and copies files; nothing runs.
+pkgname=vigil-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Watch your PC for suspicious programs and connections (daemon, app and CLI)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/EternalMangekyoSharingan/vigil"
+license=('MIT')
+depends=('dbus' 'polkit' 'systemd' 'gcc-libs' 'glibc')
+optdepends=('libxkbcommon: the desktop app' 'vulkan-icd-loader: the desktop app')
+provides=('vigil')
+conflicts=('vigil')
+backup=()
+source_x86_64=("$url/releases/download/v$pkgver/vigil-$pkgver-x86_64-linux.tar.zst"
+               "$url/releases/download/v$pkgver/vigil-$pkgver-x86_64-linux.tar.zst.minisig")
+source_aarch64=("$url/releases/download/v$pkgver/vigil-$pkgver-aarch64-linux.tar.zst"
+                "$url/releases/download/v$pkgver/vigil-$pkgver-aarch64-linux.tar.zst.minisig")
+sha256sums_x86_64=('SKIP-UNTIL-FIRST-RELEASE' 'SKIP-UNTIL-FIRST-RELEASE')
+sha256sums_aarch64=('SKIP-UNTIL-FIRST-RELEASE' 'SKIP-UNTIL-FIRST-RELEASE')
+noextract=()
+
+package() {
+  # The tarball is the staged tree from `cargo xtask dist`: usr/... only.
+  cp -a --no-preserve=ownership "$srcdir/vigil-$pkgver/usr" "$pkgdir/"
+}

@@ -14,20 +14,42 @@ struct PyFormatter;
 
 impl Formatter for PyFormatter {
     fn begin_array_value<W: ?Sized + io::Write>(&mut self, w: &mut W, first: bool) -> io::Result<()> {
-        if first { Ok(()) } else { w.write_all(b", ") }
+        if first {
+            Ok(())
+        } else {
+            w.write_all(b", ")
+        }
     }
     fn begin_object_key<W: ?Sized + io::Write>(&mut self, w: &mut W, first: bool) -> io::Result<()> {
-        if first { Ok(()) } else { w.write_all(b", ") }
+        if first {
+            Ok(())
+        } else {
+            w.write_all(b", ")
+        }
     }
     fn begin_object_value<W: ?Sized + io::Write>(&mut self, w: &mut W) -> io::Result<()> {
         w.write_all(b": ")
     }
 }
 
+/// The same value with every object's keys in sorted order. serde_json keeps keys
+/// sorted only while no crate in the build enables its `preserve_order` feature (the
+/// UI toolkit does), so the order is made explicit here.
+pub fn sorted(v: Value) -> Value {
+    match v {
+        Value::Object(m) => {
+            let mut entries: Vec<(String, Value)> = m.into_iter().collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            Value::Object(entries.into_iter().map(|(k, v)| (k, sorted(v))).collect())
+        }
+        Value::Array(a) => Value::Array(a.into_iter().map(sorted).collect()),
+        other => other,
+    }
+}
+
 /// `json.dumps(value, sort_keys=True, ensure_ascii=False)`.
 pub fn dumps<T: Serialize>(value: &T) -> String {
-    // Through Value first, so object keys come out sorted whatever the struct order.
-    let v = serde_json::to_value(value).unwrap_or(Value::Null);
+    let v = sorted(serde_json::to_value(value).unwrap_or(Value::Null));
     let mut out = Vec::new();
     let mut ser = Serializer::with_formatter(&mut out, PyFormatter);
     if v.serialize(&mut ser).is_err() {
@@ -67,7 +89,12 @@ pub fn repr(v: &Value) -> String {
         Value::String(s) => repr_str(s),
         Value::Array(a) => format!("[{}]", a.iter().map(repr).collect::<Vec<_>>().join(", ")),
         Value::Object(m) => {
-            format!("{{{}}}", m.iter().map(|(k, v)| format!("{}: {}", repr_str(k), repr(v))).collect::<Vec<_>>().join(", "))
+            let mut m: Vec<(&String, &Value)> = m.iter().collect();
+            m.sort_by(|a, b| a.0.cmp(b.0));
+            format!(
+                "{{{}}}",
+                m.iter().map(|(k, v)| format!("{}: {}", repr_str(k), repr(v))).collect::<Vec<_>>().join(", ")
+            )
         }
     }
 }

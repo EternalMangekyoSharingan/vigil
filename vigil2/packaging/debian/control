@@ -1,0 +1,17 @@
+Source: vigil
+Section: admin
+Priority: optional
+Maintainer: Ula <ulakozdoj@gmail.com>
+Build-Depends: debhelper-compat (= 13), cargo (>= 1.85), rustc (>= 1.85), pkgconf, libdbus-1-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/EternalMangekyoSharingan/vigil
+Rules-Requires-Root: no
+
+Package: vigil
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}, dbus, polkitd
+Description: watch your PC for suspicious programs and connections
+ Vigil watches this computer in the background: which program talks to which
+ address, what starts automatically, which files and packages look disguised or
+ risky. Every finding explains itself, with the evidence and commands to check,
+ fix and undo. Nothing leaves the computer unless the user switches it on.

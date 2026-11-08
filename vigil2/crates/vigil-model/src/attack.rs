@@ -20,7 +20,20 @@ pub struct AttackTag {
     pub url: String,
 }
 
-pub const TACTICS: [&str; 12] = ["initial-access", "execution", "persistence", "privilege-escalation", "defense-evasion", "credential-access", "discovery", "lateral-movement", "collection", "command-and-control", "exfiltration", "impact"];
+pub const TACTICS: [&str; 12] = [
+    "initial-access",
+    "execution",
+    "persistence",
+    "privilege-escalation",
+    "defense-evasion",
+    "credential-access",
+    "discovery",
+    "lateral-movement",
+    "collection",
+    "command-and-control",
+    "exfiltration",
+    "impact",
+];
 
 /// (id, name, tactic)
 pub const TECHNIQUES: &[(&str, &str, &str)] = &[

@@ -36,7 +36,11 @@ pub fn parse_os_release(text: &str) -> OsRelease {
 pub fn os_release(path: &Path) -> OsRelease {
     let default = path == Path::new("/etc/os-release");
     let candidates: Vec<&Path> = if default { vec![path, Path::new("/usr/lib/os-release")] } else { vec![path] };
-    candidates.into_iter().find_map(|p| std::fs::read_to_string(p).ok()).map(|t| parse_os_release(&t)).unwrap_or_default()
+    candidates
+        .into_iter()
+        .find_map(|p| std::fs::read_to_string(p).ok())
+        .map(|t| parse_os_release(&t))
+        .unwrap_or_default()
 }
 
 /// The distro family ("arch", "fedora", "suse", "debian", ...) or None when unknown.

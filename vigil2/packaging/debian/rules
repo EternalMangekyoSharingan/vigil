@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# Open Build Service (Debian, Ubuntu). Same staged tree as every other package.
+export CARGO_HOME = $(CURDIR)/debian/cargo-home
+%:
+	dh $@
+
+override_dh_auto_build:
+	cd vigil2 && cargo build --release --frozen --offline --workspace
+
+override_dh_auto_test:
+	cd vigil2 && cargo test --release --frozen --offline --workspace --exclude vigil-ui
+
+override_dh_auto_install:
+	cd vigil2 && cargo run --release --frozen --offline -p xtask -- dist --root $(CURDIR)/debian/vigil --no-build
+
+override_dh_installsystemd:
+	dh_installsystemd --name=vigild

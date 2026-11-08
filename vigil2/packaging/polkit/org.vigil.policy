@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Vigil's polkit actions. The daemon asks polkit before each call that needs one,
+     so the system's own dialog takes the password; Vigil never sees it. -->
+<policyconfig>
+  <vendor>Vigil</vendor>
+  <vendor_url>https://github.com/EternalMangekyoSharingan/vigil</vendor_url>
+  <icon_name>org.vigil.Vigil</icon_name>
+
+  <action id="org.vigil.read">
+    <description>Read what Vigil has seen on this computer</description>
+    <message>Authentication is required to read Vigil's process, network and finding history</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>yes</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.vigil.manage">
+    <description>Change Vigil's settings</description>
+    <message>Authentication is required to change Vigil's settings (Run mode, network features, retention)</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.vigil.run">
+    <description>Run a command Vigil generated</description>
+    <message>Authentication is required to run this command, which Vigil generated for a finding</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+
+  <action id="org.vigil.firewall">
+    <description>Block or unblock a program or address with Vigil's firewall rules</description>
+    <message>Authentication is required to change Vigil's firewall rules</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

@@ -8,6 +8,7 @@ publish = false
 [dependencies]
 gpui = { package = "gpui-pre", version = "=0.3.11" }
 gpui-component = "=0.9.0"
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", features = ["font-kit", "wayland", "x11"] }
 
 [profile.release]
 debug = false

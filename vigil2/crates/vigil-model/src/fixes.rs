@@ -24,13 +24,55 @@ pub struct PkgTemplates {
 }
 
 pub const PKG: &[PkgTemplates] = &[
-    PkgTemplates { family: "arch", name: "Arch Linux", install: "sudo pacman -S {pkg}", remove: "sudo pacman -Rns {pkg}", owner: "pacman -Qo {path}" },
-    PkgTemplates { family: "fedora", name: "Fedora", install: "sudo dnf install {pkg}", remove: "sudo dnf remove {pkg}", owner: "rpm -qf {path}" },
-    PkgTemplates { family: "suse", name: "openSUSE", install: "sudo zypper install {pkg}", remove: "sudo zypper remove {pkg}", owner: "rpm -qf {path}" },
-    PkgTemplates { family: "debian", name: "Debian / Ubuntu", install: "sudo apt install {pkg}", remove: "sudo apt remove {pkg}", owner: "dpkg -S {path}" },
-    PkgTemplates { family: "void", name: "Void Linux", install: "sudo xbps-install {pkg}", remove: "sudo xbps-remove -R {pkg}", owner: "xbps-query -o {path}" },
-    PkgTemplates { family: "alpine", name: "Alpine Linux", install: "doas apk add {pkg}", remove: "doas apk del {pkg}", owner: "apk info --who-owns {path}" },
-    PkgTemplates { family: "gentoo", name: "Gentoo", install: "sudo emerge --ask {pkg}", remove: "sudo emerge --ask --depclean {pkg}", owner: "equery belongs {path}" },
+    PkgTemplates {
+        family: "arch",
+        name: "Arch Linux",
+        install: "sudo pacman -S {pkg}",
+        remove: "sudo pacman -Rns {pkg}",
+        owner: "pacman -Qo {path}",
+    },
+    PkgTemplates {
+        family: "fedora",
+        name: "Fedora",
+        install: "sudo dnf install {pkg}",
+        remove: "sudo dnf remove {pkg}",
+        owner: "rpm -qf {path}",
+    },
+    PkgTemplates {
+        family: "suse",
+        name: "openSUSE",
+        install: "sudo zypper install {pkg}",
+        remove: "sudo zypper remove {pkg}",
+        owner: "rpm -qf {path}",
+    },
+    PkgTemplates {
+        family: "debian",
+        name: "Debian / Ubuntu",
+        install: "sudo apt install {pkg}",
+        remove: "sudo apt remove {pkg}",
+        owner: "dpkg -S {path}",
+    },
+    PkgTemplates {
+        family: "void",
+        name: "Void Linux",
+        install: "sudo xbps-install {pkg}",
+        remove: "sudo xbps-remove -R {pkg}",
+        owner: "xbps-query -o {path}",
+    },
+    PkgTemplates {
+        family: "alpine",
+        name: "Alpine Linux",
+        install: "doas apk add {pkg}",
+        remove: "doas apk del {pkg}",
+        owner: "apk info --who-owns {path}",
+    },
+    PkgTemplates {
+        family: "gentoo",
+        name: "Gentoo",
+        install: "sudo emerge --ask {pkg}",
+        remove: "sudo emerge --ask --depclean {pkg}",
+        owner: "equery belongs {path}",
+    },
 ];
 
 pub fn templates(family: &str) -> Option<&'static PkgTemplates> {

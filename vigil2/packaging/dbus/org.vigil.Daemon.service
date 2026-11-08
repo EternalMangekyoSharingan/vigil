@@ -1,0 +1,6 @@
+# D-Bus activation: the first call starts vigild through systemd.
+[D-BUS Service]
+Name=org.vigil.Daemon
+Exec=/bin/false
+User=vigil
+SystemdService=vigild.service

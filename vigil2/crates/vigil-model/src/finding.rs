@@ -195,7 +195,14 @@ pub struct Scored {
     pub stats: Option<Value>,
 }
 
-pub fn scored(check: &str, points: f64, reason: &str, data: Value, means: Option<&str>, stats: Option<Value>) -> Scored {
+pub fn scored(
+    check: &str,
+    points: f64,
+    reason: &str,
+    data: Value,
+    means: Option<&str>,
+    stats: Option<Value>,
+) -> Scored {
     Scored {
         check: check.into(),
         points: round_to(points, 1),
@@ -371,7 +378,8 @@ const REQUIRED: [&str; 9] = ["id", "tool", "check", "title", "summary", "severit
 
 /// Every way `f` (a finding as JSON) breaks the suite's finding rules (empty when fine).
 pub fn problems(f: &Value) -> Vec<String> {
-    let mut out: Vec<String> = REQUIRED.iter().filter(|k| f.get(**k).is_none()).map(|k| format!("missing {k}")).collect();
+    let mut out: Vec<String> =
+        REQUIRED.iter().filter(|k| f.get(**k).is_none()).map(|k| format!("missing {k}")).collect();
     if !out.is_empty() {
         return out;
     }
@@ -424,7 +432,9 @@ pub fn problems(f: &Value) -> Vec<String> {
         }
     }
     let src = &f["source"];
-    if !(src.get("tool").is_some_and(truthy) && src.get("check").is_some_and(truthy) && src.get("when").is_some_and(truthy))
+    if !(src.get("tool").is_some_and(truthy)
+        && src.get("check").is_some_and(truthy)
+        && src.get("when").is_some_and(truthy))
     {
         out.push("source must say which tool, which check and when".into());
     }
@@ -472,7 +482,11 @@ pub fn from_jsonl(text: &str, strict: bool) -> Result<Imported, FindingError> {
             continue;
         };
         let bad = if v.is_object() { problems(&v) } else { vec!["not an object".into()] };
-        let parsed = if bad.is_empty() { serde_json::from_value::<Finding>(v).map_err(|e| vec![e.to_string()]) } else { Err(bad) };
+        let parsed = if bad.is_empty() {
+            serde_json::from_value::<Finding>(v).map_err(|e| vec![e.to_string()])
+        } else {
+            Err(bad)
+        };
         match parsed {
             Ok(f) => out.push(f),
             Err(bad) if strict => return Err(FindingError(format!("line {n}: {}", bad.join("; ")))),

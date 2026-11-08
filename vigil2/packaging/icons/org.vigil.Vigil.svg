@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- The Vigil mark: an isometric cube with an orange core (from vigil/ui/static). -->
+  <rect width="64" height="64" rx="14" fill="#110e15"/>
+  <path d="M32 10 52 21.5 32 33 12 21.5Z" fill="#3a3146"/>
+  <path d="M12 21.5 32 33v22L12 43.5Z" fill="#2d2637"/>
+  <path d="M52 21.5 32 33v22l20-11.5Z" fill="#241e2c"/>
+  <circle cx="32" cy="33" r="5" fill="#ff9f43"/>
+</svg>

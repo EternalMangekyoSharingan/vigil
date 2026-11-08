@@ -16,33 +16,81 @@ pub const TITLE_MAX: usize = 60;
 /// Statistics words. Alphabetic ones match as whole words, the rest as substrings.
 pub const BANNED: [&str; 9] = ["coefficient", "variation", "cv", "±", "poll", "polls", "check-ins", "stdev", "%"];
 /// Words that make a title harder to read for a non-specialist (whole words).
-pub const JARGON: [&str; 10] = ["ioc", "ttp", "heuristic", "entropy", "regex", "payload", "exfil", "c2", "edr", "stdout"];
+pub const JARGON: [&str; 10] =
+    ["ioc", "ttp", "heuristic", "entropy", "regex", "payload", "exfil", "c2", "edr", "stdout"];
 /// Longest sentence (in words) in an explanation line.
 pub const SENTENCE_WORDS: usize = 20;
 
 /// Everyday names for common programs, by executable basename (lower case).
 pub const FRIENDLY: &[(&str, &str)] = &[
-    ("librewolf", "LibreWolf"), ("firefox", "Firefox"), ("firefox-bin", "Firefox"), ("firefox-esr", "Firefox"),
-    ("chromium", "Chromium"), ("chrome", "Chrome"), ("google-chrome", "Chrome"), ("brave", "Brave"),
-    ("floorp", "Floorp"), ("zen", "Zen"), ("zen-bin", "Zen"), ("vivaldi-bin", "Vivaldi"), ("msedge", "Edge"),
-    ("syncthing", "Syncthing"), ("networkmanager", "NetworkManager"), ("systemd-resolved", "systemd-resolved"),
-    ("systemd-timesyncd", "Time sync"), ("chronyd", "chrony"), ("discord", "Discord"), ("steam", "Steam"),
-    ("spotify", "Spotify"), ("code", "VS Code"), ("codium", "VSCodium"), ("slack", "Slack"),
-    ("signal-desktop", "Signal"), ("telegram-desktop", "Telegram"), ("thunderbird", "Thunderbird"),
-    ("dropbox", "Dropbox"), ("ssh", "SSH"), ("sshd", "SSH server"), ("packagekitd", "PackageKit"),
-    ("flatpak", "Flatpak"), ("pacman", "pacman"), ("dnf", "dnf"), ("zypper", "zypper"), ("apt", "apt"),
-    ("gnome-software", "GNOME Software"), ("plasma-discover", "Discover"), ("fwupd", "fwupd"),
-    ("tailscaled", "Tailscale"), ("ollama", "Ollama"), ("qbittorrent", "qBittorrent"),
-    ("transmission-gtk", "Transmission"), ("obs", "OBS"),
+    ("librewolf", "LibreWolf"),
+    ("firefox", "Firefox"),
+    ("firefox-bin", "Firefox"),
+    ("firefox-esr", "Firefox"),
+    ("chromium", "Chromium"),
+    ("chrome", "Chrome"),
+    ("google-chrome", "Chrome"),
+    ("brave", "Brave"),
+    ("floorp", "Floorp"),
+    ("zen", "Zen"),
+    ("zen-bin", "Zen"),
+    ("vivaldi-bin", "Vivaldi"),
+    ("msedge", "Edge"),
+    ("syncthing", "Syncthing"),
+    ("networkmanager", "NetworkManager"),
+    ("systemd-resolved", "systemd-resolved"),
+    ("systemd-timesyncd", "Time sync"),
+    ("chronyd", "chrony"),
+    ("discord", "Discord"),
+    ("steam", "Steam"),
+    ("spotify", "Spotify"),
+    ("code", "VS Code"),
+    ("codium", "VSCodium"),
+    ("slack", "Slack"),
+    ("signal-desktop", "Signal"),
+    ("telegram-desktop", "Telegram"),
+    ("thunderbird", "Thunderbird"),
+    ("dropbox", "Dropbox"),
+    ("ssh", "SSH"),
+    ("sshd", "SSH server"),
+    ("packagekitd", "PackageKit"),
+    ("flatpak", "Flatpak"),
+    ("pacman", "pacman"),
+    ("dnf", "dnf"),
+    ("zypper", "zypper"),
+    ("apt", "apt"),
+    ("gnome-software", "GNOME Software"),
+    ("plasma-discover", "Discover"),
+    ("fwupd", "fwupd"),
+    ("tailscaled", "Tailscale"),
+    ("ollama", "Ollama"),
+    ("qbittorrent", "qBittorrent"),
+    ("transmission-gtk", "Transmission"),
+    ("obs", "OBS"),
 ];
 
 /// Network owners (ASN names) and how people call them.
 pub const OWNERS: &[(&str, &str)] = &[
-    ("amazon", "Amazon AWS"), ("google", "Google"), ("cloudflare", "Cloudflare"), ("fastly", "Fastly"),
-    ("microsoft", "Microsoft"), ("akamai", "Akamai"), ("hetzner", "Hetzner"), ("digitalocean", "DigitalOcean"),
-    ("ovh", "OVH"), ("linode", "Linode"), ("facebook", "Meta"), ("apple", "Apple"), ("valve", "Valve"),
-    ("github", "GitHub"), ("oracle", "Oracle"), ("mozilla", "Mozilla"), ("anthropic", "Anthropic"),
-    ("vultr", "Vultr"), ("scaleway", "Scaleway"), ("contabo", "Contabo"),
+    ("amazon", "Amazon AWS"),
+    ("google", "Google"),
+    ("cloudflare", "Cloudflare"),
+    ("fastly", "Fastly"),
+    ("microsoft", "Microsoft"),
+    ("akamai", "Akamai"),
+    ("hetzner", "Hetzner"),
+    ("digitalocean", "DigitalOcean"),
+    ("ovh", "OVH"),
+    ("linode", "Linode"),
+    ("facebook", "Meta"),
+    ("apple", "Apple"),
+    ("valve", "Valve"),
+    ("github", "GitHub"),
+    ("oracle", "Oracle"),
+    ("mozilla", "Mozilla"),
+    ("anthropic", "Anthropic"),
+    ("vultr", "Vultr"),
+    ("scaleway", "Scaleway"),
+    ("contabo", "Contabo"),
 ];
 
 /// Python's `\w`: a Unicode letter or digit, or `_`.
@@ -115,7 +163,8 @@ pub fn title_problems(title: &str) -> Vec<String> {
     }
     let chars: Vec<char> = title.chars().collect();
     for tok in ipv6_candidates(&chars) {
-        let candidate = if tok.starts_with("::") { tok.trim_end_matches('.') } else { tok.trim_matches(|c| c == '.' || c == ':') };
+        let candidate =
+            if tok.starts_with("::") { tok.trim_end_matches('.') } else { tok.trim_matches(|c| c == '.' || c == ':') };
         if candidate.parse::<Ipv6Addr>().is_ok() {
             out.push("contains a raw IPv6 address".into());
             break;
@@ -251,7 +300,11 @@ pub fn every(seconds: f64) -> String {
         format!("every ~{} min", py_round(seconds / 60.0))
     } else {
         let h = seconds / 3600.0;
-        if h >= 1.5 { format!("every ~{} h", py_round(h)) } else { "every hour".into() }
+        if h >= 1.5 {
+            format!("every ~{} h", py_round(h))
+        } else {
+            "every hour".into()
+        }
     }
 }
 
@@ -268,7 +321,11 @@ pub fn span(seconds: f64, short: bool) -> String {
     if short || h >= 10 {
         return if h != 1 { format!("{} hours", h + i64::from(m >= 30 && short)) } else { "1 hour".into() };
     }
-    if m != 0 { format!("{h} h {m} min") } else { format!("{h} h") }
+    if m != 0 {
+        format!("{h} h {m} min")
+    } else {
+        format!("{h} h")
+    }
 }
 
 /// "~1.5 MB", "~12 kB", "~800 bytes".
@@ -420,7 +477,10 @@ mod tests {
     #[test]
     fn programs() {
         assert_eq!(friendly_program(Some("/usr/lib/librewolf/librewolf"), None, None), "LibreWolf");
-        assert_eq!(friendly_program(Some("/usr/bin/python3"), Some("/usr/bin/python3 /home/a/.cache/upd.py"), None), "upd.py");
+        assert_eq!(
+            friendly_program(Some("/usr/bin/python3"), Some("/usr/bin/python3 /home/a/.cache/upd.py"), None),
+            "upd.py"
+        );
         assert_eq!(friendly_program(Some("/opt/x/agent (deleted)"), None, None), "agent");
     }
 }

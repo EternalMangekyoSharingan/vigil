@@ -3,6 +3,20 @@
 resolver = "2"
 members = [
     "crates/vigil-model",
+    "crates/vigil-ui-core",
+    "crates/vigil-store",
+    "crates/vigil-sensor",
+    "crates/vigil-engine",
+    "crates/vigild",
+    "crates/vigil-cli",
+    "crates/vigil-ui",
+    "xtask",
+]
+# The app needs GPU and windowing libraries to build; `cargo build` at the root builds
+# everything else. Build the app with `cargo build -p vigil-ui`.
+default-members = [
+    "crates/vigil-model",
+    "crates/vigil-ui-core",
     "crates/vigil-store",
     "crates/vigil-sensor",
     "crates/vigil-engine",

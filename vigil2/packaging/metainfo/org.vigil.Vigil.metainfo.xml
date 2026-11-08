@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.vigil.Vigil</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Vigil</name>
+  <summary>Watch your PC for suspicious programs and connections</summary>
+  <description>
+    <p>
+      Vigil watches this computer in the background: which program talks to which
+      address, what starts automatically, which files and packages look disguised or
+      risky. Every finding explains itself, with the evidence, how sure Vigil is, and
+      commands to check, fix and undo.
+    </p>
+    <p>
+      Nothing leaves your computer unless you switch it on. Vigil never runs a file
+      it inspects.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.vigil.Vigil.desktop</launchable>
+  <url type="homepage">https://github.com/EternalMangekyoSharingan/vigil</url>
+  <url type="bugtracker">https://github.com/EternalMangekyoSharingan/vigil/issues</url>
+  <developer id="io.github.eternalmangekyosharingan">
+    <name>Ula</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>System</category>
+    <category>Security</category>
+  </categories>
+  <provides>
+    <binary>vigil</binary>
+    <binary>vigil-cli</binary>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-11-08">
+      <description>
+        <p>First Vigil 2 preview: the daemon, the command line and the finding format.</p>
+      </description>
+    </release>
+  </releases>
+</component>

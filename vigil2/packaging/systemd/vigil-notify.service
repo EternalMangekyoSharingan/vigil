@@ -1,0 +1,20 @@
+# Per-user helper: desktop notifications and the tray icon. Runs as you, no privileges.
+[Unit]
+Description=Vigil notifications and tray
+Documentation=https://github.com/EternalMangekyoSharingan/vigil
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/vigil-notify
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+MemoryMax=64M
+
+[Install]
+WantedBy=graphical-session.target

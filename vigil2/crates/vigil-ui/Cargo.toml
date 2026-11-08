@@ -1,0 +1,22 @@
+[package]
+name = "vigil-ui"
+description = "The Vigil app (GPUI): rail, palette, Settings, the arrival, every area"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "vigil"
+path = "src/main.rs"
+
+[dependencies]
+vigil-ui-core = { path = "../vigil-ui-core" }
+vigil-model.workspace = true
+# The toolkit chosen by the spike (docs/DECISIONS.md, D-002). Pinned exactly: pre-1.0.
+gpui = { package = "gpui-pre", version = "=0.3.11" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", features = ["font-kit", "wayland", "x11"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,10 @@
+{"toolkit": "gpui", "screen": "map", "first_frame_ms": 143.7, "frames": 87, "frame_ms_mean": 91.64, "frame_ms_p50": 95.92, "frame_ms_p95": 112.05, "frame_ms_p99": 112.11, "fps": 10.9, "cpu_ms_per_frame": 259.22, "filter_ms_mean": -0.00, "filter_ms_max": 0.00, "rss_mb": 242.3}
+{"toolkit": "gpui", "screen": "table", "first_frame_ms": 178.5, "frames": 168, "frame_ms_mean": 47.25, "frame_ms_p50": 48.00, "frame_ms_p95": 48.08, "frame_ms_p99": 48.27, "fps": 21.2, "cpu_ms_per_frame": 24.07, "filter_ms_mean": 3.99, "filter_ms_max": 6.33, "rss_mb": 196.2}
+{"toolkit": "gpui", "screen": "table", "idle_cpu_percent": 0.50, "rss_mb": 187.3}
+{"toolkit": "gpui", "first_frame_ms_best_of_5": 164.6, "first_frame_ms_all": [167.7, 190.7, 164.6, 180.2, 172.6]}
+{"toolkit": "gpui", "binary_mb": 37}
+{"toolkit": "iced", "screen": "map", "first_frame_ms": 295.0, "frames": 133, "frame_ms_mean": 57.75, "frame_ms_p50": 55.13, "frame_ms_p95": 79.18, "frame_ms_p99": 87.85, "fps": 17.3, "cpu_ms_per_frame": 197.05, "filter_ms_mean": -0.00, "filter_ms_max": 0.00, "rss_mb": 208.2}
+{"toolkit": "iced", "screen": "table", "first_frame_ms": 202.3, "frames": 981, "frame_ms_mean": 7.97, "frame_ms_p50": 7.30, "frame_ms_p95": 12.49, "frame_ms_p99": 14.61, "fps": 125.4, "cpu_ms_per_frame": 16.91, "filter_ms_mean": 3.85, "filter_ms_max": 16.20, "rss_mb": 178.8}
+{"toolkit": "iced", "screen": "table", "idle_cpu_percent": 0.00, "rss_mb": 174.9}
+{"toolkit": "iced", "first_frame_ms_best_of_5": 170.3, "first_frame_ms_all": [184.3, 181.4, 170.3, 188.1, 201.6]}
+{"toolkit": "iced", "binary_mb": 23}

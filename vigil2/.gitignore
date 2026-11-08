@@ -1,3 +1,5 @@
 /target
 /spike/*/target
 /spike/*.log
+/docs-shots
+/spike/shots
