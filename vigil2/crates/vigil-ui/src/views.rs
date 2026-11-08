@@ -4,22 +4,18 @@
 //! Processes (tree, table), Cases (the event log) show real data. Areas whose engines
 //! arrive in later milestones say so, and say what works today; none shows made-up data.
 
-use gpui::{
-    canvas, div, point, prelude::*, px, relative, AnyElement, ClickEvent, Context, MouseButton, MouseDownEvent,
-    PathBuilder, SharedString, TextAlign, TextRun,
-};
+use gpui::{div, prelude::*, px, AnyElement, ClickEvent, Context};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::f32::consts::{PI, TAU};
 use vigil_model::host::{ProcessInfo, Socket};
 use vigil_model::netaddr::scope_of;
 use vigil_model::wording;
 use vigil_ui_core::areas::AREAS;
-use vigil_ui_core::motion::{self, MarkFrame};
+use vigil_ui_core::motion;
 use vigil_ui_core::settings::View;
 use vigil_ui_core::theme::Rgba;
 
 use crate::ui::{ago, button, c, ca, card, card_title, chip, enter, id, id2, kbd, row_enter, slide_in};
-use crate::{live::Snapshot, mark, Conn, Sel, Vigil, DETAIL_W};
+use crate::{live::Snapshot, Conn, Sel, Vigil, DETAIL_W};
 
 /// "Firefox" for well-known programs, else the collector's name ("http.server (python3)").
 pub fn display_name(p: Option<&ProcessInfo>, key: &str) -> String {
@@ -31,7 +27,7 @@ pub fn display_name(p: Option<&ProcessInfo>, key: &str) -> String {
     }
 }
 
-fn program_name(d: &Snapshot, key: &str) -> String {
+pub fn program_name(d: &Snapshot, key: &str) -> String {
     let p = d
         .net
         .sockets
@@ -51,7 +47,7 @@ fn endpoint(ip: &str, port: u32) -> String {
 }
 
 /// Outbound and inbound connections that leave this machine, the ones people care about.
-fn real_connections(d: &Snapshot) -> impl Iterator<Item = &Socket> {
+pub fn real_connections(d: &Snapshot) -> impl Iterator<Item = &Socket> {
     d.net.sockets.iter().filter(|s| s.kind == "connection" && scope_of(&s.remote_ip) != "loopback")
 }
 
@@ -107,23 +103,6 @@ fn socket_matches(s: &Socket, d: &Snapshot, f: &str) -> bool {
         .contains(&f.to_lowercase())
 }
 
-// ---- the network map's layout --------------------------------------------------------------
-
-pub struct MapNode {
-    pub key: String,
-    pub label: String,
-    pub x: f32,
-    pub y: f32,
-    pub count: usize,
-}
-
-pub struct MapLayout {
-    pub progs: Vec<MapNode>,
-    pub dests: Vec<MapNode>,
-    /// (program, destination, inbound, live)
-    pub edges: Vec<(usize, usize, bool, bool)>,
-}
-
 fn hash01(s: &str) -> f32 {
     let mut h: u32 = 2166136261;
     for b in s.bytes() {
@@ -132,67 +111,59 @@ fn hash01(s: &str) -> f32 {
     (h % 10_000) as f32 / 10_000.0
 }
 
-/// Programs on an inner ring around this PC, each program's destinations fanned out on the
-/// outer ring around its angle. Positions are relative to the map's centre.
-pub fn map_layout(d: &Snapshot, w: f32, h: f32) -> MapLayout {
-    let mut per_prog: BTreeMap<String, Vec<&Socket>> = BTreeMap::new();
-    for s in real_connections(d) {
-        let key = s
-            .program
-            .clone()
-            .unwrap_or_else(|| format!("hidden:{}", s.hidden.as_ref().map_or("unknown", |h| h.reason.as_str())));
-        per_prog.entry(key).or_default().push(s);
-    }
-    let mut ranked: Vec<(String, Vec<&Socket>)> = per_prog.into_iter().collect();
-    ranked.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.0.cmp(&b.0)));
-    ranked.truncate(20);
-    let n = ranked.len().max(1) as f32;
-    let m = w.min(h);
-    let (r1, r2) = (m * 0.2, m * 0.41);
-    let mut progs = vec![];
-    let mut dests: Vec<MapNode> = vec![];
-    let mut dest_index: HashMap<String, usize> = HashMap::new();
-    let mut edges = vec![];
-    for (i, (key, socks)) in ranked.iter().enumerate() {
-        let a = -PI / 2.0 + TAU * i as f32 / n;
-        let label = if let Some(reason) = key.strip_prefix("hidden:") {
-            vigil_sensor_label(reason)
-        } else {
-            program_name(d, key)
-        };
-        progs.push(MapNode { key: key.clone(), label, x: r1 * a.cos(), y: r1 * a.sin(), count: socks.len() });
-        let mine: Vec<&&Socket> = socks.iter().collect();
-        let spread = (TAU / n * 0.8).min(1.2);
-        let uniq: Vec<String> = mine.iter().map(|s| s.remote_ip.clone()).collect::<BTreeSet<_>>().into_iter().collect();
-        for (j, ip) in uniq.iter().enumerate() {
-            let di = *dest_index.entry(ip.clone()).or_insert_with(|| {
-                let off = if uniq.len() == 1 { 0.0 } else { (j as f32 / (uniq.len() - 1) as f32 - 0.5) * spread };
-                let rr = r2 * (0.92 + 0.12 * hash01(ip));
-                dests.push(MapNode {
-                    key: ip.clone(),
-                    label: ip.clone(),
-                    x: rr * (a + off).cos(),
-                    y: rr * (a + off).sin(),
-                    count: 0,
-                });
-                dests.len() - 1
-            });
-            dests[di].count += 1;
-            let live = mine.iter().any(|s| &s.remote_ip == ip && s.state == "ESTABLISHED");
-            let inbound = mine.iter().any(|s| &s.remote_ip == ip && s.direction == "in");
-            edges.push((i, di, inbound, live));
-        }
-    }
-    MapLayout { progs, dests, edges }
+/// The service usually behind a port, for people: "HTTPS", "DNS", or "port 4242".
+pub fn service_name(proto: &str, port: u32) -> String {
+    let name = match (proto, port) {
+        (_, 443) => "HTTPS",
+        (_, 80) => "HTTP",
+        (_, 53) => "DNS",
+        (_, 853) => "DNS over TLS",
+        ("udp", 67 | 68) => "DHCP",
+        ("udp", 123) => "Time (NTP)",
+        (_, 22) => "SSH",
+        (_, 993) => "Mail (IMAP)",
+        (_, 465 | 587) => "Mail (SMTP)",
+        (_, 5228) => "Google push",
+        (_, 3478 | 19302..=19309) => "Calls (STUN)",
+        ("udp", 51820) => "WireGuard",
+        (_, 1194) => "OpenVPN",
+        (_, 8080 | 8443) => "HTTP (alt)",
+        (_, 22000 | 21027) => "Syncthing",
+        ("udp", 5353) => "mDNS",
+        ("udp", 1900) => "SSDP",
+        (_, 9418) => "Git",
+        (_, 6881..=6889) => "BitTorrent",
+        (_, 3389) => "Remote desktop",
+        (_, 5900..=5903) => "VNC",
+        _ => return format!("{} {port}", proto.to_uppercase()),
+    };
+    name.to_string()
 }
 
-fn vigil_sensor_label(reason: &str) -> String {
-    match reason {
-        "other-user" => "Hidden: other users".into(),
-        "closed" => "Closing".into(),
-        "protected" => "Hidden: protected".into(),
-        _ => "Unattributed".into(),
-    }
+/// A connection state as an icon and a word people use.
+pub fn state_view(t: &vigil_ui_core::theme::Theme, state: &str) -> gpui::Div {
+    let (icon, word, colour) = match state {
+        "ESTABLISHED" => ("tick", "Open", t.ok),
+        "SYN_SENT" | "SYN_RECV" | "NEW_SYN_RECV" => ("clock", "Connecting", t.warn),
+        "TIME_WAIT" | "FIN_WAIT1" | "FIN_WAIT2" | "CLOSING" | "LAST_ACK" | "CLOSE_WAIT" | "CLOSE" => {
+            ("clock", "Closing", t.text[2])
+        }
+        "LISTEN" => ("listen", "Listening", t.live),
+        "UNCONN" => ("listen", "Ready (UDP)", t.live),
+        other => ("activity", other, t.text[2]),
+    };
+    div()
+        .flex()
+        .items_center()
+        .gap(px(5.0))
+        .px(px(7.0))
+        .py(px(2.0))
+        .rounded(px(6.0))
+        .bg(ca(colour, 0.13))
+        .text_size(px(11.5))
+        .text_color(c(colour))
+        .child(gpui::svg().path(format!("icons/{icon}.svg")).size(px(13.0)).text_color(c(colour)))
+        .child(word.to_string())
 }
 
 impl Vigil {
@@ -208,12 +179,18 @@ impl Vigil {
             (2, 1) => {
                 d.procs.processes.iter().filter(|p| matches_filter(p, &self.filter)).map(|p| Sel::Proc(p.pid)).collect()
             }
-            (1, 0) => map_layout(d, 800.0, 600.0)
-                .progs
-                .into_iter()
-                .filter(|p| !p.key.starts_with("hidden:"))
-                .map(|p| Sel::Program(p.key))
-                .collect(),
+            (1, 0) => {
+                let (w, h) = self
+                    .map_bounds
+                    .get()
+                    .map_or((1100.0, 640.0), |b| (f32::from(b.size.width), f32::from(b.size.height)));
+                crate::netmap::geometry(d, w, h)
+                    .progs
+                    .into_iter()
+                    .filter(|p| !p.hidden)
+                    .map(|p| Sel::Program(p.key))
+                    .collect()
+            }
             (1, 1) => {
                 let mut seen = BTreeSet::new();
                 real_connections(d)
@@ -249,22 +226,33 @@ impl Vigil {
         };
         let detail = self.detail(cx);
         let pad = if self.settings.density == vigil_ui_core::settings::Density::Compact { 14.0 } else { t.pad };
+        // Home and the map are laid out to fill the window exactly; the rest scroll.
+        let fills = self.data.is_some() && matches!((self.area, self.tab[self.area]), (0, 0) | (1, 0));
+        // The detail card floats over the content: opening it never resizes anything.
         div()
             .flex_1()
             .min_h(px(0.0))
+            .relative()
             .flex()
             .child(
-                div().id(id("main", self.nav)).flex_1().min_w(px(0.0)).h_full().overflow_y_scroll().p(px(pad)).child(
-                    enter(
-                        div().flex().flex_col().gap(px(16.0)).child(main),
+                div()
+                    .id(id("main", self.nav))
+                    .flex_1()
+                    .min_w(px(0.0))
+                    .h_full()
+                    .when(!fills, |el| el.overflow_y_scroll())
+                    .p(px(pad))
+                    .child(enter(
+                        div().flex().flex_col().gap(px(16.0)).when(fills, |el| el.h_full()).child(main),
                         id("area", self.nav),
                         0.0,
                         motion::AREA_RISE_PX,
                         reduced,
-                    ),
-                ),
+                    )),
             )
-            .when_some(detail, |d, panel| d.child(panel))
+            .when_some(detail, |d, panel| {
+                d.child(div().absolute().top(px(pad)).bottom(px(pad)).right(px(pad)).w(px(DETAIL_W)).child(panel))
+            })
             .into_any_element()
     }
 
@@ -304,189 +292,6 @@ impl Vigil {
             .child(div().text_color(c(t.text[1])).pb(px(8.0)).child(body))
             .child(line("While developing", dev, 1, cx))
             .child(line("Installed package", sys, 2, cx))
-            .into_any_element()
-    }
-
-    fn tile(&self, i: usize, label: &str, value: String, sub: &str) -> AnyElement {
-        let t = &self.theme;
-        let (rise, op) = self
-            .arrived
-            .map_or((0.0, 1.0), |a| motion::card_rise(a.elapsed().as_secs_f32() * 1000.0, i, self.reduced()));
-        card(t)
-            .flex_1()
-            .min_w(px(150.0))
-            .p(px(16.0))
-            .gap(px(4.0))
-            .opacity(op)
-            .relative()
-            .top(px(rise))
-            .child(div().text_size(px(12.0)).text_color(c(t.text[2])).child(label.to_string()))
-            .child(div().text_size(px(28.0)).text_color(c(t.text[0])).child(value))
-            .child(div().text_size(px(11.5)).text_color(c(t.text[2])).child(sub.to_string()))
-            .into_any_element()
-    }
-
-    fn rise(&self, i: usize, el: gpui::Div) -> gpui::Div {
-        let (rise, op) = self
-            .arrived
-            .map_or((0.0, 1.0), |a| motion::card_rise(a.elapsed().as_secs_f32() * 1000.0, i, self.reduced()));
-        el.opacity(op).relative().top(px(rise))
-    }
-
-    fn home(&self, cx: &mut Context<Self>) -> AnyElement {
-        let t = &self.theme;
-        let Some(d) = &self.data else { return div().into_any_element() };
-        let n = |k: &str| self.counter(k).round() as i64;
-        let tiles = div()
-            .flex()
-            .flex_wrap()
-            .gap(px(12.0))
-            .child(self.tile(0, "Processes", n("procs").to_string(), "running now"))
-            .child(self.tile(1, "Connections out", n("out").to_string(), "to other machines"))
-            .child(self.tile(2, "Programs online", n("programs").to_string(), "using the network now"))
-            .child(self.tile(3, "Destinations", n("dests").to_string(), "seen since history began"))
-            .child(self.tile(
-                4,
-                "Vigil's daemon",
-                format!("{} MB", n("mem")),
-                &format!("up {}", wording::span(d.status.uptime_s, true)),
-            ));
-
-        // Talking now: programs by connection count, with bars.
-        let mut per: BTreeMap<String, usize> = BTreeMap::new();
-        for s in real_connections(d) {
-            if let Some(k) = &s.program {
-                *per.entry(k.clone()).or_insert(0) += 1;
-            }
-        }
-        let mut top: Vec<(String, usize)> = per.into_iter().collect();
-        top.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-        top.truncate(7);
-        let max = top.first().map_or(1, |x| x.1).max(1) as f32;
-        let mut rows = vec![];
-        for (i, (key, count)) in top.iter().enumerate() {
-            let key2 = key.clone();
-            let frac = *count as f32 / max;
-            rows.push(
-                div()
-                    .id(id("talk", i as u64))
-                    .py(px(7.0))
-                    .px(px(8.0))
-                    .rounded(px(t.radius_sm))
-                    .cursor_pointer()
-                    .hover(|s| s.bg(ca(Rgba(0xffffff0a), 1.0)))
-                    .flex()
-                    .flex_col()
-                    .gap(px(5.0))
-                    .child(
-                        div()
-                            .flex()
-                            .child(div().flex_1().truncate().child(program_name(d, key)))
-                            .child(div().text_color(c(t.text[2])).child(format!("{count}"))),
-                    )
-                    .child(
-                        div()
-                            .h(px(4.0))
-                            .w_full()
-                            .rounded(px(2.0))
-                            .bg(c(t.bg[3]))
-                            .child(div().h_full().rounded(px(2.0)).bg(c(t.live)).w(relative(frac))),
-                    )
-                    .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
-                        this.set_tab(1, 1);
-                        this.sel = Some(Sel::Program(key2.clone()));
-                        cx.notify();
-                    })),
-            );
-        }
-        let talking = self
-            .rise(5, card(t).p(px(16.0)).gap(px(6.0)).flex_1().min_w(px(320.0)))
-            .child(card_title(t, "Talking now"))
-            .children(rows)
-            .when(top.is_empty(), |el| {
-                el.child(
-                    div().text_color(c(t.text[2])).child("No program has a connection to another machine right now."),
-                )
-            });
-
-        let mut sources = vec![];
-        for s in &d.status.sources {
-            sources.push(
-                div()
-                    .py(px(7.0))
-                    .flex()
-                    .flex_col()
-                    .gap(px(3.0))
-                    .border_t_1()
-                    .border_color(c(t.line[0]))
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(8.0))
-                            .items_center()
-                            .child(div().w(px(90.0)).child(s.signal.clone()))
-                            .child(if s.live { chip(s.source.clone(), t.ok) } else { chip("not yet", t.text[2]) }),
-                    )
-                    .child(div().text_size(px(11.5)).text_color(c(t.text[2])).child(s.note.clone())),
-            );
-        }
-        let seeing = self
-            .rise(6, card(t).p(px(16.0)).gap(px(4.0)).flex_1().min_w(px(320.0)))
-            .child(card_title(t, "What Vigil can and cannot see"))
-            .children(sources);
-
-        let mut recent = vec![];
-        for (i, e) in d.events.iter().take(6).enumerate() {
-            recent.push(
-                div()
-                    .py(px(7.0))
-                    .flex()
-                    .gap(px(12.0))
-                    .border_t_1()
-                    .border_color(c(t.line[0]))
-                    .child(div().w(px(90.0)).text_color(c(t.text[2])).text_size(px(12.0)).child(ago(e.ts)))
-                    .child(div().flex_1().truncate().child(wording::printable(&e.summary)))
-                    .when(i == 0, |el| el),
-            );
-        }
-        let open_timeline = button(t, "open-timeline", "Open the timeline", false).on_click(cx.listener(
-            |this, _: &ClickEvent, _w, cx| {
-                this.set_tab(8, 0);
-                cx.notify();
-            },
-        ));
-        let events = self
-            .rise(7, card(t).p(px(16.0)).gap(px(4.0)))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .child(card_title(t, "What Vigil noticed"))
-                    .child(div().flex_1())
-                    .child(open_timeline),
-            )
-            .children(recent);
-
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(14.0))
-            .child(
-                self.rise(0, div().flex().flex_col().gap(px(4.0)))
-                    .child(div().text_size(px(22.0)).child("This PC, right now"))
-                    .child(div().text_color(c(t.text[2])).child(format!(
-                        "Seen by the daemon as {}, updated {}.",
-                        d.procs.viewer.user,
-                        self.last_update.map_or("never".into(), |u| if u.elapsed().as_secs() < 3 {
-                            "just now".into()
-                        } else {
-                            format!("{} s ago", u.elapsed().as_secs())
-                        })
-                    ))),
-            )
-            .child(tiles)
-            .child(div().flex().flex_wrap().gap(px(14.0)).child(talking).child(seeing))
-            .child(events)
             .into_any_element()
     }
 
@@ -570,227 +375,6 @@ impl Vigil {
             .into_any_element()
     }
 
-    fn network_map(&self, cx: &mut Context<Self>) -> AnyElement {
-        let t = self.theme.clone();
-        let Some(d) = &self.data else { return div().into_any_element() };
-        let reduced = self.reduced();
-        let bounds_cell = self.map_bounds.clone();
-        let layout_w = |b: gpui::Bounds<gpui::Pixels>| (f32::from(b.size.width), f32::from(b.size.height));
-        // Everything the painter needs, owned.
-        let progs_count = real_connections(d).count();
-        let snapshot_layout = {
-            let (w, h) = bounds_cell.get().map_or((900.0, 560.0), layout_w);
-            map_layout(d, w, h)
-        };
-        let sel_key = match &self.sel {
-            Some(Sel::Program(k)) => Some(k.clone()),
-            _ => None,
-        };
-        let start = self.started;
-        let cell = bounds_cell.clone();
-        let painter = canvas(
-            move |b, _, _| {
-                cell.set(Some(b));
-            },
-            move |b, _, w, cx| {
-                let (bw, bh) = (f32::from(b.size.width), f32::from(b.size.height));
-                let lay = &snapshot_layout;
-                let o = point(b.origin.x + px(bw / 2.0), b.origin.y + px(bh / 2.0));
-                let at = |x: f32, y: f32| point(o.x + px(x), o.y + px(y));
-                // Faint spokes from this PC to each program.
-                let mut spokes = PathBuilder::stroke(px(1.0));
-                for p in &lay.progs {
-                    spokes.move_to(at(0.0, 0.0));
-                    spokes.line_to(at(p.x, p.y));
-                }
-                if let Ok(path) = spokes.build() {
-                    w.paint_path(path, ca(t.line[2], 0.6));
-                }
-                // Program to destination edges; live ones brighter.
-                for live in [false, true] {
-                    let mut e = PathBuilder::stroke(px(if live { 1.2 } else { 1.0 }));
-                    let mut any = false;
-                    for (pi, di, _, l) in &lay.edges {
-                        if *l != live {
-                            continue;
-                        }
-                        any = true;
-                        e.move_to(at(lay.progs[*pi].x, lay.progs[*pi].y));
-                        e.line_to(at(lay.dests[*di].x, lay.dests[*di].y));
-                    }
-                    if any {
-                        if let Ok(path) = e.build() {
-                            w.paint_path(path, ca(t.live, if live { 0.45 } else { 0.18 }));
-                        }
-                    }
-                }
-                // Particles flow along open connections: outward for outbound, inward for inbound.
-                if !reduced {
-                    let secs = start.elapsed().as_secs_f32();
-                    for (k, (pi, di, inbound, live)) in lay.edges.iter().enumerate() {
-                        if !live {
-                            continue;
-                        }
-                        let (p, q) = (&lay.progs[*pi], &lay.dests[*di]);
-                        let len = ((q.x - p.x).powi(2) + (q.y - p.y).powi(2)).sqrt().max(1.0);
-                        for j in 0..2 {
-                            let mut f = (secs * 70.0 / len + k as f32 * 0.37 + j as f32 * 0.5).fract();
-                            if *inbound {
-                                f = 1.0 - f;
-                            }
-                            let (x, y) = (p.x + (q.x - p.x) * f, p.y + (q.y - p.y) * f);
-                            let a = (f * PI).sin();
-                            w.paint_quad(
-                                gpui::fill(
-                                    gpui::Bounds::new(at(x - 1.6, y - 1.6), gpui::size(px(3.2), px(3.2))),
-                                    ca(t.live_hi, a),
-                                )
-                                .corner_radii(px(1.6)),
-                            );
-                        }
-                    }
-                }
-                let font = w.text_style().font();
-                let label = |w: &mut gpui::Window,
-                             cx: &mut gpui::App,
-                             text: &str,
-                             x: f32,
-                             y: f32,
-                             col: gpui::Hsla,
-                             size: f32| {
-                    let run = TextRun {
-                        len: text.len(),
-                        font: font.clone(),
-                        color: col,
-                        background_color: None,
-                        underline: None,
-                        strikethrough: None,
-                    };
-                    let line = w.text_system().shape_line(SharedString::from(text.to_string()), px(size), &[run], None);
-                    let _ = line.paint(at(x, y), px(size + 4.0), TextAlign::Left, None, w, cx);
-                };
-                // Destinations.
-                for (i, q) in lay.dests.iter().enumerate() {
-                    let r = 3.0 + (q.count as f32).sqrt();
-                    w.paint_quad(
-                        gpui::fill(
-                            gpui::Bounds::new(at(q.x - r, q.y - r), gpui::size(px(2.0 * r), px(2.0 * r))),
-                            c(t.live),
-                        )
-                        .corner_radii(px(r)),
-                    );
-                    if i < 36 {
-                        let right = q.x >= 0.0;
-                        let tw = q.label.len() as f32 * 5.6;
-                        label(
-                            w,
-                            cx,
-                            &q.label,
-                            if right { q.x + r + 5.0 } else { q.x - r - 5.0 - tw },
-                            q.y - 7.0,
-                            ca(t.text[2], 1.0),
-                            10.5,
-                        );
-                    }
-                }
-                // Programs, with a halo on the selected one.
-                for p in &lay.progs {
-                    let hidden = p.key.starts_with("hidden:");
-                    let r = 5.0 + (p.count as f32).sqrt() * 1.6;
-                    if sel_key.as_deref() == Some(p.key.as_str()) {
-                        let hr = r + 6.0;
-                        w.paint_quad(gpui::quad(
-                            gpui::Bounds::new(at(p.x - hr, p.y - hr), gpui::size(px(2.0 * hr), px(2.0 * hr))),
-                            px(hr),
-                            gpui::Hsla::transparent_black(),
-                            px(1.5),
-                            c(t.accent),
-                            gpui::BorderStyle::Solid,
-                        ));
-                    }
-                    let col = if hidden { ca(t.text[2], 1.0) } else { c(t.accent) };
-                    w.paint_quad(
-                        gpui::fill(gpui::Bounds::new(at(p.x - r, p.y - r), gpui::size(px(2.0 * r), px(2.0 * r))), col)
-                            .corner_radii(px(r)),
-                    );
-                    let right = p.x >= -1.0;
-                    let tw = p.label.len() as f32 * 6.6;
-                    label(
-                        w,
-                        cx,
-                        &p.label,
-                        if right { p.x + r + 7.0 } else { p.x - r - 7.0 - tw },
-                        p.y - 8.0,
-                        c(t.text[0]),
-                        12.0,
-                    );
-                }
-                // This PC: the mark, at the centre.
-                mark::paint(w, o, &MarkFrame::at_rest(0.0, 0.0, 14.0));
-            },
-        )
-        .size_full();
-        let legend = div()
-            .flex()
-            .gap(px(18.0))
-            .text_size(px(12.0))
-            .text_color(c(self.theme.text[2]))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(6.0))
-                    .child(div().size(px(9.0)).rounded_full().bg(c(self.theme.accent)))
-                    .child("program"),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(6.0))
-                    .child(div().size(px(8.0)).rounded_full().bg(c(self.theme.live)))
-                    .child("address it talks to"),
-            )
-            .child(div().child("moving dots: open now, in the direction the connection was made"))
-            .child(div().flex_1())
-            .child(format!("{progs_count} connections · click a program"));
-        let mapbox = div()
-            .id("map")
-            .h(px(560.0))
-            .w_full()
-            .rounded(px(self.theme.radius))
-            .bg(c(self.theme.bg[1]))
-            .border_1()
-            .border_color(c(self.theme.line[0]))
-            .overflow_hidden()
-            .child(painter)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, ev: &MouseDownEvent, _w, cx| {
-                    let (Some(b), Some(d)) = (this.map_bounds.get(), this.data.as_ref()) else { return };
-                    let (bw, bh) = (f32::from(b.size.width), f32::from(b.size.height));
-                    let lay = map_layout(d, bw, bh);
-                    let (mx, my) = (
-                        f32::from(ev.position.x - b.origin.x) - bw / 2.0,
-                        f32::from(ev.position.y - b.origin.y) - bh / 2.0,
-                    );
-                    let hit = lay.progs.iter().filter(|p| !p.key.starts_with("hidden:")).min_by(|a, b| {
-                        let da = (a.x - mx).powi(2) + (a.y - my).powi(2);
-                        let db = (b.x - mx).powi(2) + (b.y - my).powi(2);
-                        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                    });
-                    match hit {
-                        Some(p) if (p.x - mx).powi(2) + (p.y - my).powi(2) < 26.0 * 26.0 => {
-                            this.sel = Some(Sel::Program(p.key.clone()))
-                        }
-                        _ => this.sel = None,
-                    }
-                    cx.notify();
-                }),
-            );
-        div().flex().flex_col().gap(px(12.0)).child(mapbox).child(legend).into_any_element()
-    }
-
     fn connections(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = &self.theme;
         let Some(d) = &self.data else { return div().into_any_element() };
@@ -808,7 +392,8 @@ impl Vigil {
                 }),
             )
         };
-        let mut cols = vec![("Program", 0.0), ("Address", 280.0), ("Where", 90.0), ("State", 110.0)];
+        let mut cols =
+            vec![("Program", 0.0), ("Address", 250.0), ("Service", 120.0), ("Where", 100.0), ("State", 130.0)];
         if expert {
             cols.extend([("Local", 230.0), ("uid", 60.0), ("inode", 90.0)]);
         }
@@ -821,7 +406,14 @@ impl Vigil {
                 _ => "-".into(),
             };
             let key = s.program.clone();
-            let state_col = if s.state == "ESTABLISHED" { t.ok } else { t.text[2] };
+            let service = service_name(&s.proto, if s.direction == "in" { s.local_port } else { s.remote_port });
+            let where_ = match scope_of(&s.remote_ip) {
+                "internet" => "Internet",
+                "lan" => "Local network",
+                "link-local" => "This link",
+                "loopback" => "This PC",
+                other => other,
+            };
             let mut row = div()
                 .id(id2("conn", self.nav, i as u64))
                 .h(px(34.0))
@@ -839,10 +431,15 @@ impl Vigil {
                         .items_center()
                         .gap(px(8.0))
                         .child(
-                            div()
-                                .text_color(if s.direction == "in" { c(t.warn) } else { c(t.text[2]) })
-                                .child(if s.direction == "in" { "↙" } else { "↗" }),
+                            gpui::svg()
+                                .path(if s.direction == "in" { "icons/in.svg" } else { "icons/out.svg" })
+                                .size(px(14.0))
+                                .text_color(if s.direction == "in" { c(t.warn) } else { c(t.text[2]) }),
                         )
+                        .child(match &s.program {
+                            Some(k) => self.app_icon(k, 18.0),
+                            None => div().size(px(18.0)).into_any_element(),
+                        })
                         .child(
                             div()
                                 .truncate()
@@ -850,9 +447,10 @@ impl Vigil {
                                 .child(name),
                         ),
                 )
-                .child(div().w(px(280.0)).truncate().child(endpoint(&s.remote_ip, s.remote_port)))
-                .child(div().w(px(90.0)).text_color(c(t.text[2])).child(scope_of(&s.remote_ip)))
-                .child(div().w(px(110.0)).child(chip(s.state.clone(), state_col)));
+                .child(div().w(px(250.0)).truncate().child(endpoint(&s.remote_ip, s.remote_port)))
+                .child(div().w(px(120.0)).truncate().text_color(c(t.text[1])).child(service))
+                .child(div().w(px(100.0)).text_color(c(t.text[2])).child(where_))
+                .child(div().w(px(130.0)).flex().child(state_view(t, &s.state)));
             if expert {
                 row = row
                     .child(
@@ -866,7 +464,8 @@ impl Vigil {
                     .child(div().w(px(90.0)).text_color(c(t.text[2])).child(s.inode.to_string()));
             }
             let row = row.on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
-                this.sel = key.clone().map(Sel::Program);
+                let next = key.clone().map(Sel::Program);
+                this.sel = if this.sel == next { None } else { next };
                 cx.notify();
             }));
             rows.push(row_enter(row, id2("conn-in", self.nav, i as u64), i, reduced).into_any_element());
@@ -1026,6 +625,7 @@ impl Vigil {
                         .gap(px(8.0))
                         .pl(px(indent))
                         .when(indent > 0.0, |el| el.child(div().w(px(8.0)).h(px(1.0)).bg(c(t.line[2]))))
+                        .when(p.exe.is_some(), |el| el.child(self.app_icon(p.exe.as_deref().unwrap_or(""), 16.0)))
                         .child(div().truncate().child(wording::printable(&p.name)))
                         .when(p.exe_deleted, |el| el.child(chip("deleted file", t.warn)))
                         .when(net > 0, |el| el.child(chip(format!("{net} net"), t.live))),
@@ -1231,12 +831,16 @@ impl Vigil {
     // ---- the detail panel ----------------------------------------------------------------
 
     fn detail(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        // The map shows its own callout beside the clicked node.
+        if (self.area, self.tab[self.area]) == (1, 0) {
+            return None;
+        }
         let d = self.data.as_ref()?;
         let sel = self.sel.clone()?;
         let t = &self.theme;
         let key_n = match &sel {
             Sel::Proc(p) => *p as u64,
-            Sel::Program(k) => hash01(k).to_bits() as u64,
+            Sel::Program(k) | Sel::Addr(k) => hash01(k).to_bits() as u64,
         };
         let close = div()
             .id("detail-close")
@@ -1366,7 +970,14 @@ impl Vigil {
                 let addrs: BTreeSet<String> =
                     socks.iter().filter(|s| s.kind == "connection").map(|s| s.remote_ip.clone()).collect();
                 div()
-                    .child(div().text_size(px(19.0)).child(program_name(d, key)))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .child(self.app_icon(key, 30.0))
+                            .child(div().text_size(px(19.0)).child(program_name(d, key))),
+                    )
                     .child(
                         div()
                             .pt(px(6.0))
@@ -1411,7 +1022,69 @@ impl Vigil {
                             }))
                             .child(div().flex_1().child(endpoint(&s.remote_ip, s.remote_port)))
                             .child(div().text_color(c(t.text[2])).child(scope_of(&s.remote_ip)))
-                            .child(chip(s.state.clone(), if s.state == "ESTABLISHED" { t.ok } else { t.text[2] }))
+                            .child(state_view(t, &s.state))
+                    }))
+            }
+            Sel::Addr(ip) => {
+                let socks: Vec<&Socket> = d.net.sockets.iter().filter(|s| &s.remote_ip == ip).collect();
+                let progs: BTreeSet<String> = socks.iter().filter_map(|s| s.program.clone()).collect();
+                let ports: BTreeSet<String> = socks.iter().map(|s| service_name(&s.proto, s.remote_port)).collect();
+                let mut prog_rows = vec![];
+                for (i, k) in progs.iter().enumerate() {
+                    let key = k.clone();
+                    prog_rows.push(
+                        div()
+                            .id(id("addr-prog", i as u64))
+                            .py(px(6.0))
+                            .px(px(6.0))
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .rounded(px(t.radius_sm))
+                            .cursor_pointer()
+                            .hover(|s| s.bg(ca(Rgba(0xffffff0a), 1.0)))
+                            .child(self.app_icon(k, 20.0))
+                            .child(div().flex_1().truncate().child(program_name(d, k)))
+                            .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                                this.sel = Some(Sel::Program(key.clone()));
+                                cx.notify();
+                            })),
+                    );
+                }
+                let where_ = match scope_of(ip) {
+                    "internet" => "on the internet",
+                    "lan" => "on your local network",
+                    "link-local" => "on this network link",
+                    other => other,
+                };
+                div()
+                    .child(div().text_size(px(19.0)).child(ip.clone()))
+                    .child(
+                        div()
+                            .pt(px(6.0))
+                            .flex()
+                            .gap(px(6.0))
+                            .child(chip(where_.to_string(), t.live))
+                            .child(chip(format!("{} connections", socks.len()), t.text[1])),
+                    )
+                    .child(section("SERVICES"))
+                    .child(div().child(ports.into_iter().collect::<Vec<_>>().join(", ")))
+                    .child(section("PROGRAMS TALKING TO IT"))
+                    .children(prog_rows)
+                    .when(progs.is_empty(), |el| {
+                        el.child(div().text_color(c(t.text[2])).child("Its program is hidden from this view."))
+                    })
+                    .child(section("CONNECTIONS"))
+                    .children(socks.iter().take(16).map(|s| {
+                        div()
+                            .py(px(5.0))
+                            .flex()
+                            .items_center()
+                            .gap(px(8.0))
+                            .border_t_1()
+                            .border_color(c(t.line[0]))
+                            .child(div().flex_1().child(format!("{} → {}", s.local_port, s.remote_port)))
+                            .child(state_view(t, &s.state))
                     }))
             }
         };
@@ -1419,10 +1092,11 @@ impl Vigil {
             .id(id("detail", key_n))
             .w(px(DETAIL_W))
             .h_full()
-            .flex_none()
-            .bg(c(t.bg[1]))
-            .border_l_1()
+            .rounded(px(t.radius + 2.0))
+            .bg(c(t.bg[2]))
+            .border_1()
             .border_color(c(t.line[1]))
+            .shadow_lg()
             .overflow_y_scroll()
             .p(px(20.0))
             .child(div().flex().justify_end().child(close))
@@ -1450,6 +1124,8 @@ mod tests {
             parent: None,
             ancestry: vec![],
             started: None,
+            rss_kb: None,
+            cpu_pct: None,
         }
     }
 

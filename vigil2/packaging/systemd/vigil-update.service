@@ -1,0 +1,9 @@
+[Unit]
+Description=Install a newer Vigil release, if any
+Documentation=https://github.com/EternalMangekyoSharingan/vigil
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/vigil/vigil-update

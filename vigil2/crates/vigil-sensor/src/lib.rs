@@ -7,5 +7,6 @@
 //! (docs/RUST_REWRITE.md section 4). Milestone 2 has the /proc polling sources; the
 //! others arrive with milestone 3, behind the same functions.
 
+pub mod device;
 pub mod procfs;
 pub mod visibility;

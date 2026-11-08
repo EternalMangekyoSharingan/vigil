@@ -4,7 +4,7 @@
 # this file and .SRCINFO to the AUR. Review it like any AUR package: it downloads
 # one tarball from the project's own GitHub releases and copies files; nothing runs.
 pkgname=vigil-bin
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Watch your PC for suspicious programs and connections (daemon, app and CLI)"
 arch=('x86_64' 'aarch64')

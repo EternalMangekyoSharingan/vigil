@@ -1,0 +1,32 @@
+#!/bin/sh
+# Install a newer Vigil release if there is one. Run daily by vigil-update.timer, as root.
+# Only talks to github.com (the release list and the release's files). Refuses a download
+# whose SHA-256 does not match the published one, or, when /usr/share/vigil/release.pub
+# exists, whose minisign signature does not verify.
+set -eu
+. /etc/vigil/update.conf
+current=$(cat /usr/lib/vigil/VERSION)
+arch=$(uname -m)
+auth=""; [ -n "${GITHUB_TOKEN:-}" ] && auth="Authorization: Bearer $GITHUB_TOKEN"
+api() { curl -fsSL --proto '=https' ${auth:+-H "$auth"} -H "Accept: application/vnd.github+json" "$1"; }
+latest=$(api "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1)
+[ -n "$latest" ] || { echo "vigil-update: no release found for $REPO"; exit 0; }
+newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)
+if [ "$latest" = "$current" ] || [ "$newest" = "$current" ]; then
+  echo "vigil-update: $current is the latest"; exit 0
+fi
+echo "vigil-update: $current -> $latest"
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+name="vigil-$latest-$arch-linux.tar.gz"
+base="https://github.com/$REPO/releases/download/v$latest"
+fetch() { curl -fsSL --proto '=https' ${auth:+-H "$auth"} -o "$work/$1" "$base/$1"; }
+fetch "$name"; fetch "$name.sha256"
+( cd "$work" && sha256sum -c "$name.sha256" ) || { echo "vigil-update: checksum mismatch, not installing"; exit 1; }
+if [ -f /usr/share/vigil/release.pub ]; then
+  command -v minisign >/dev/null || { echo "vigil-update: minisign is needed to verify releases"; exit 1; }
+  fetch "$name.minisig"
+  minisign -Vm "$work/$name" -p /usr/share/vigil/release.pub || { echo "vigil-update: bad signature, not installing"; exit 1; }
+fi
+tar -xzf "$work/$name" -C "$work"
+"$work/vigil-$latest/install.sh" --update
+echo "vigil-update: installed $latest"

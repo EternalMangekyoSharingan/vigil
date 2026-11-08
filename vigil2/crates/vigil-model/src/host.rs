@@ -35,6 +35,12 @@ pub struct ProcessInfo {
     pub ancestry: Vec<Ancestor>,
     /// Start time, seconds since the epoch.
     pub started: Option<f64>,
+    /// Resident memory, filled in by the daemon (not by Vigil 1's collector).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rss_kb: Option<u64>,
+    /// Share of one CPU core used since the daemon's previous look, in percent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cpu_pct: Option<f32>,
 }
 
 /// Why a socket has no process attached, in plain words.

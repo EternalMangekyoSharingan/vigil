@@ -191,7 +191,18 @@ impl ProcRoot {
             parent: ancestry.first().map(|a| a.name.clone()),
             ancestry,
             started: self.start_time(pid, btime),
+            rss_kb: None,
+            cpu_pct: None,
         })
+    }
+
+    /// CPU time used so far (clock ticks, user + system) and resident memory (kB).
+    pub fn usage(&self, pid: u32) -> Option<(u64, u64)> {
+        let stat = self.read(&format!("{pid}/stat")).ok()?;
+        let f: Vec<&str> = stat.get(stat.rfind(')')? + 2..)?.split_whitespace().collect();
+        let ticks = f.get(11)?.parse::<u64>().ok()? + f.get(12)?.parse::<u64>().ok()?;
+        let pages: u64 = self.read(&format!("{pid}/statm")).ok()?.split_whitespace().nth(1)?.parse().ok()?;
+        Some((ticks, pages * 4))
     }
 
     /// Map socket inodes to the pids holding them: (every pid, {inode: pids}, the pids

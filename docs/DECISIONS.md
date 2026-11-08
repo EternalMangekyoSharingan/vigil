@@ -189,3 +189,47 @@ The app talks to the daemon on a background thread with its own small async runt
 reads the latest snapshot from a channel a few times a second. The UI never blocks on the bus,
 and a slow or missing daemon only changes the status in the top bar. The app finds the daemon on
 the system bus first, then on the session bus (development), unless `--bus` says otherwise.
+
+## D-018 The mark is built from squares (2026-11-09)
+
+The owner liked the cube's shape but wanted more to it, and an arrival that does more with
+squares than a circle turning into a hexagon. Each face is now a 2 × 2 grid of tiles in slightly
+different shades (light from the upper left), with a light rim on the top edges and a core with a
+darker rim and a highlight. The arrival lays the twelve tiles out flat, then folds each face into
+place by interpolating its 2 × 2 matrix (a shear and rotation), traces the outline, lights the
+core and glides onto the rail logo (D-016's flight and hand-off are kept). Tests check that the
+folded faces tile the hexagon exactly, that flat faces are true squares, continuity, and the exact
+landing.
+
+## D-019 Installing: a tarball with an installer and daily updates (2026-11-09)
+
+The owner wants a package that installs in one step and updates itself. `cargo run -p xtask --
+package` builds `vigil-<version>-<arch>-linux.tar.gz`; `sudo ./install.sh` copies the files, creates
+the `vigil` account, starts the daemon, trusts the three programs in fapolicyd when it is running,
+restores SELinux labels, and asks whether to turn on automatic updates. The release workflow builds
+the same tarball on a `v*` tag (on Ubuntu 22.04, so it runs on any current distro) and publishes it
+with its SHA-256.
+
+Updates: `vigil-update.timer` runs `vigil-update` daily. It asks GitHub for the latest release,
+downloads the tarball, checks it against the published SHA-256 and, once a signing key is installed
+at `/usr/share/vigil/release.pub`, against its minisign signature, then runs the new installer. It
+never replaces binaries from inside the app. **Open item for the owner:** the SHA-256 only proves the
+download matches what GitHub serves. For real tamper resistance, create a minisign key, keep the
+secret off GitHub, sign each release, and ship the public key; the updater then refuses anything
+unsigned. Until then the trust anchor is the GitHub account. Automatic updates are a network
+feature, so the installer asks first (rule 5); a private repository needs a token in
+`/etc/vigil/update.conf`.
+
+## D-020 Selecting never resizes the page; clicking again closes (2026-11-09)
+
+Detail cards float over the content (lists) or sit beside the clicked node (the map). Every
+selectable thing toggles: click to open, click again to close. Popups have a titled header and a
+close button; Settings is a popover beside its gear, which stays highlighted while it is open, and
+slides back behind the rail when it closes.
+
+## D-021 Pointing out a program (2026-11-09)
+
+Clicking a program on the map flags its windows in the taskbar. On KDE Plasma the app loads a
+three-line KWin script over the session bus that sets `demandsAttention` on windows owned by the
+program's processes; elsewhere it posts a desktop notification naming the program. Both stay on the
+local session bus. GNOME offers no equivalent for another application's windows.

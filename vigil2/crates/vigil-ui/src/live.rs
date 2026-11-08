@@ -26,11 +26,19 @@ pub enum Msg {
     Failed(String),
     Data(Box<Snapshot>),
     At(f64, Vec<StoredConnection>),
+    /// Connections open per minute over the last hour, oldest first.
+    History(Vec<f32>),
+    /// What happened when asked to point out a program's window.
+    Attention(String),
 }
 
 pub enum Req {
     /// The time machine: what was open at this moment.
     At(f64),
+    /// Connections per minute over the last hour.
+    History,
+    /// Point out a program's windows: flag them in the taskbar (KDE), or post a notification.
+    Attention { pids: Vec<u32>, name: String, icon: Option<String> },
 }
 
 pub fn spawn(bus: Option<String>) -> (Receiver<Msg>, Sender<Req>) {
@@ -159,6 +167,17 @@ async fn run(pref: Option<String>, tx: Sender<Msg>, req: Receiver<Req>) {
                                 }
                             }
                         }
+                        Req::History => {
+                            let now = vigil_model::finding::now();
+                            if let Ok(text) = call(&conn, IFACE_NETWORK, "Between", &(now - 3600.0, now)).await {
+                                if let Ok(rows) = parse::<Vec<StoredConnection>>(&text) {
+                                    let _ = tx.send(Msg::History(per_minute(&rows, now)));
+                                }
+                            }
+                        }
+                        Req::Attention { pids, name, icon } => {
+                            let _ = tx.send(Msg::Attention(attention(&pids, &name, icon.as_deref()).await));
+                        }
                     }
                 }
                 let tick = tokio::time::sleep(Duration::from_millis(150));
@@ -179,4 +198,83 @@ async fn run(pref: Option<String>, tx: Sender<Msg>, req: Receiver<Req>) {
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
+}
+
+/// Connections open in each minute of the last hour (60 values, oldest first).
+pub fn per_minute(rows: &[StoredConnection], now: f64) -> Vec<f32> {
+    (0..60)
+        .map(|m| {
+            let t = now - 3600.0 + 60.0 * (m as f64 + 0.5);
+            rows.iter().filter(|c| c.first_seen <= t && c.last_seen + 2.5 >= t).count() as f32
+        })
+        .collect()
+}
+
+/// Flag a program's windows in the taskbar. On KDE Plasma a tiny KWin script sets
+/// `demandsAttention` on every window owned by one of `pids` (the taskbar entry pulses
+/// until you look at it). Elsewhere, a desktop notification names the program instead.
+/// Both stay on this machine (the session bus).
+async fn attention(pids: &[u32], name: &str, icon: Option<&str>) -> String {
+    let Ok(session) = zbus::Connection::session().await else {
+        return "no desktop session bus to talk to".into();
+    };
+    if has_name(&session, "org.kde.KWin").await {
+        let list = pids.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
+        let script = format!(
+            "const pids = [{list}];\nconst wins = workspace.windowList ? workspace.windowList() : workspace.clientList();\n\
+             for (const w of wins) {{ if (pids.includes(w.pid)) {{ w.demandsAttention = true; }} }}\n"
+        );
+        let dir = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir);
+        let path = dir.join("vigil-attention.js");
+        if std::fs::write(&path, script).is_ok() {
+            let plugin = "vigil-attention";
+            let scripting = |m: &'static str| (Some("org.kde.KWin"), "/Scripting", Some("org.kde.kwin.Scripting"), m);
+            let (d, p, i, m) = scripting("unloadScript");
+            let _ = session.call_method(d, p, i, m, &(plugin,)).await;
+            let (d, p, i, m) = scripting("loadScript");
+            if let Ok(reply) = session.call_method(d, p, i, m, &(path.to_string_lossy().as_ref(), plugin)).await {
+                if let Ok(id) = reply.body().deserialize::<i32>() {
+                    for obj in [format!("/Scripting/Script{id}"), format!("/{id}")] {
+                        if session
+                            .call_method(Some("org.kde.KWin"), obj.as_str(), Some("org.kde.kwin.Script"), "run", &())
+                            .await
+                            .is_ok()
+                        {
+                            return format!("{name} is flagged in your taskbar");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let hints: std::collections::HashMap<&str, zbus::Variant<'_>> = std::collections::HashMap::new();
+    let actions: Vec<&str> = vec![];
+    let sent = session
+        .call_method(
+            Some("org.freedesktop.Notifications"),
+            "/org/freedesktop/Notifications",
+            Some("org.freedesktop.Notifications"),
+            "Notify",
+            &(
+                "Vigil",
+                0u32,
+                icon.unwrap_or("org.vigil.Vigil"),
+                name,
+                "Selected in Vigil's network view",
+                actions,
+                hints,
+                4000i32,
+            ),
+        )
+        .await;
+    match sent {
+        Ok(_) => format!("Sent a notification for {name}"),
+        Err(e) => format!("Could not point out {name}: {e}"),
+    }
+}
+
+async fn has_name(conn: &zbus::Connection, name: &str) -> bool {
+    let Ok(dbus) = zbus::fdo::DBusProxy::new(conn).await else { return false };
+    let Ok(n) = name.try_into() else { return false };
+    dbus.name_has_owner(n).await.unwrap_or(false)
 }

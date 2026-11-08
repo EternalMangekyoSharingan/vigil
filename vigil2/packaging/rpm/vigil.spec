@@ -1,7 +1,7 @@
 # Fedora (COPR via Packit) and openSUSE (OBS). Builds from the release source tarball,
 # which carries vendored crates (`cargo vendor`), so the build needs no network.
 Name:           vigil
-Version:        0.1.0
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        Watch your PC for suspicious programs and connections
 License:        MIT

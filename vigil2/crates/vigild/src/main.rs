@@ -63,6 +63,9 @@ struct Args {
     once: bool,
 }
 
+/// CPU ticks per (pid, start time), and when they were read.
+pub type TickMap = (std::collections::HashMap<(u32, u64), u64>, Instant);
+
 /// Everything the bus handlers read. The sensor thread is the only writer.
 pub struct Shared {
     pub net: RwLock<Option<Arc<NetSnapshot>>>,
@@ -72,6 +75,8 @@ pub struct Shared {
     pub started: f64,
     pub retention_days: u32,
     pub polls: Mutex<PollStats>,
+    /// CPU ticks per (pid, start time) at the previous look, for CPU percentages.
+    pub ticks: Mutex<TickMap>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -134,6 +139,23 @@ pub(crate) fn poll(shared: &Shared, root: &ProcRoot, viewer: u32) {
     let ts = now();
     let mut net = root.net_snapshot(ts, viewer);
     let mut procs = root.process_list(ts, viewer);
+    // CPU and memory per process: CPU as the share of one core since the previous look.
+    {
+        let mut prev = shared.ticks.lock().unwrap_or_else(|e| e.into_inner());
+        let dt = prev.1.elapsed().as_secs_f64().max(0.001);
+        let mut next = std::collections::HashMap::new();
+        for p in procs.processes.iter_mut() {
+            if let Some((ticks, rss)) = root.usage(p.pid) {
+                let key = (p.pid, p.started.map_or(0, |s| (s * 100.0) as u64));
+                p.rss_kb = Some(rss);
+                if let Some(before) = prev.0.get(&key) {
+                    p.cpu_pct = Some(((ticks.saturating_sub(*before)) as f64 / 100.0 / dt * 100.0) as f32);
+                }
+                next.insert(key, ticks);
+            }
+        }
+        *prev = (next, Instant::now());
+    }
     if viewer == 0 && !nix::unistd::geteuid().is_root() {
         let who = format!(
             "{} (with CAP_SYS_PTRACE)",
@@ -211,6 +233,7 @@ fn main() -> std::process::ExitCode {
         started: now(),
         retention_days: args.retention_days,
         polls: Mutex::new(PollStats::default()),
+        ticks: Mutex::new((std::collections::HashMap::new(), Instant::now())),
     });
     let root = ProcRoot::at(&args.proc_root);
     let viewer = if ptrace { 0 } else { euid };

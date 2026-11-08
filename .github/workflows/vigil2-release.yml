@@ -1,0 +1,35 @@
+# Vigil 2 releases: push a tag like v0.2.0 and this builds the tarball and publishes it,
+# with its SHA-256, as a GitHub release. Installed copies pick it up through
+# vigil-update.timer. Built on Ubuntu 22.04 so the binaries run on any current distro
+# (glibc 2.35 or newer: Arch, Fedora, openSUSE Tumbleweed and Leap 16, Debian 12+, Ubuntu 22.04+).
+name: vigil2-release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: vigil2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libegl-dev libgl-dev libdbus-1-dev libssl-dev
+      - name: Version matches the tag
+        run: |
+          v=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          test "v$v" = "${GITHUB_REF_NAME}" || { echo "Cargo.toml says $v, tag is ${GITHUB_REF_NAME}"; exit 1; }
+      - run: cargo test --workspace --exclude vigil-ui
+      - run: cargo run --release -p xtask -- package
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd target/package
+          gh release create "${GITHUB_REF_NAME}" --title "Vigil ${GITHUB_REF_NAME#v}" \
+            --notes "Install: download the tarball, then: tar -xzf vigil-*.tar.gz && cd vigil-${GITHUB_REF_NAME#v} && sudo ./install.sh" \
+            vigil-*-linux.tar.gz vigil-*-linux.tar.gz.sha256

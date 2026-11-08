@@ -15,6 +15,7 @@ path = "src/main.rs"
 vigil-ui-core = { path = "../vigil-ui-core" }
 vigil-model.workspace = true
 vigil-store.workspace = true
+vigil-sensor.workspace = true
 zbus.workspace = true
 tokio.workspace = true
 serde.workspace = true

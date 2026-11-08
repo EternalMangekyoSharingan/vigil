@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for a new Vigil release once a day
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1d
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

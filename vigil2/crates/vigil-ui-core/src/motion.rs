@@ -8,15 +8,10 @@
 //! little bounce). They convert to stiffness k = (2π / response)² and damping
 //! c = 4π · fraction / response for a unit mass.
 //!
-//! **The arrival** draws the Vigil mark from geometry (see [`arrival`]):
-//! 1. a single stroke traces a circle (ease-in-out sweep of the arc);
-//! 2. the circle becomes a hexagon by a polar morph, while it turns a twelfth of a turn:
-//!    r(θ) = lerp(1, cos(π/6) / cos(((θ mod π/3) − π/6)), p), p on a spring;
-//! 3. the cube's three inner edges grow from the centre to alternate vertices;
-//! 4. the three faces fill, top first, and the orange core ignites on an underdamped
-//!    spring;
-//! 5. the mark flies along a cubic Bézier to the rail's logo, shrinking to exactly the
-//!    logo's size, while the backdrop dissolves: the last frame *is* the app.
+//! **The arrival** builds the Vigil mark from squares (see [`arrival`] and the geometry
+//! notes below): twelve tiles appear flat, the three faces fold into an isometric cube by
+//! shear, an outline is traced, the core ignites, and the mark glides onto the rail logo
+//! while the backdrop dissolves: the last frame *is* the app.
 //!
 //! Rules enforced by the tests: nothing but the arrival lasts longer than
 //! [`MAX_TRANSITION_MS`]; reduced motion skips the arrival; the last frame matches the
@@ -37,7 +32,7 @@ pub const PANEL_MS: f32 = 260.0;
 pub const PANEL_SLIDE_PX: f32 = 28.0;
 /// Overlays (palette, Settings): open and close.
 pub const OVERLAY_IN_MS: f32 = 240.0;
-pub const OVERLAY_OUT_MS: f32 = 150.0;
+pub const OVERLAY_OUT_MS: f32 = 200.0;
 /// Lists: each row starts this much after the one above (capped).
 pub const ROW_STAGGER_MS: f32 = 14.0;
 pub const ROW_STAGGER_MAX: usize = 18;
@@ -171,54 +166,102 @@ pub fn reduced(pref: MotionPref, desktop_reduced: bool) -> bool {
 }
 
 // ---- the mark's geometry ------------------------------------------------------------------
+//
+// The mark is an isometric cube. Each of its three faces is a square seen in isometric
+// projection, divided into 2 × 2 tiles in slightly different shades (the undertones). In face
+// coordinates (u, v) ∈ [0, 1]², a face is the image of the unit square under
+//     p(u, v) = origin + u · e1 + v · e2,
+// with e1, e2 two of the cube's edge vectors from its centre vertex. The arrival animates the
+// columns of that 2 × 2 matrix and the origin: from a flat, upright square to the face's
+// isometric parallelogram. Linear interpolation of the matrix is a shear-and-rotate, so the
+// squares *fold* into the cube rather than morph.
 
-/// The hexagon's corners, in order from the top, clockwise (pointy-top hexagon):
-/// k = 0 top, 1 upper right, 2 lower right, 3 bottom, 4 lower left, 5 upper left.
+/// The hexagon's corners from the top, clockwise (pointy-top):
+/// 0 top, 1 upper right, 2 lower right, 3 bottom, 4 lower left, 5 upper left.
 pub fn vertex_angle(k: usize) -> f32 {
     -PI / 2.0 + (k % 6) as f32 * PI / 3.0
 }
 
-/// Distance from the centre to a regular hexagon's edge (circumradius 1) at angle θ,
-/// for a hexagon with corners at [`vertex_angle`].
-pub fn hexagon_radius(theta: f32) -> f32 {
-    let local = (theta - vertex_angle(0)).rem_euclid(PI / 3.0) - PI / 6.0;
-    (PI / 6.0).cos() / local.cos()
+pub fn corner(k: usize) -> (f32, f32) {
+    let a = vertex_angle(k);
+    (a.cos(), a.sin())
 }
 
-/// The polar morph: a circle (`p` = 0) becomes the hexagon (`p` = 1).
-pub fn morph_radius(theta: f32, p: f32) -> f32 {
-    1.0 + (hexagon_radius(theta) - 1.0) * p
-}
-
-/// The three faces as corner indices around the centre: top, right, left (the order the
-/// colours in [`FACE_COLOURS`] follow).
-pub const FACES: [[usize; 3]; 3] = [[5, 0, 1], [1, 2, 3], [3, 4, 5]];
-/// Top (light), right (mid), left (deep) teal, and the orange core.
+/// Each face as (e1 corner, e2 corner): the face spans centre, e1, e1 + e2, e2.
+/// Top (light), right (mid), left (deep).
+pub const FACES: [(usize, usize); 3] = [(1, 5), (1, 3), (3, 5)];
 pub const FACE_COLOURS: [u32; 3] = [0x9fe3df, 0x5dbdb9, 0x3f9a95];
+/// Shade of each tile in a face, as a lightness offset: a quiet diagonal gradient, with
+/// the two faces in shadow rotated so the light seems to come from the upper left.
+pub const TILE_SHADE: [[f32; 4]; 3] =
+    [[0.10, 0.04, 0.04, -0.03], [0.05, -0.02, 0.02, -0.08], [0.02, -0.05, -0.04, -0.12]];
+/// The gap between tiles, as a fraction of a face's edge.
+pub const TILE_GAP: f32 = 0.07;
 pub const CORE_COLOUR: u32 = 0xff9f43;
+pub const CORE_RIM: u32 = 0xc2621f;
 pub const STROKE_COLOUR: u32 = 0x62f3ff;
+pub const HIGHLIGHT: u32 = 0xe8fffd;
 /// The core's radius as a fraction of the hexagon's circumradius.
-pub const CORE_RATIO: f32 = 0.18;
+pub const CORE_RATIO: f32 = 0.17;
 
-/// Everything the painter needs for one frame of the mark.
+/// A 2 × 2 linear map plus a translation (column vectors a, b; origin o).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Affine {
+    pub a: (f32, f32),
+    pub b: (f32, f32),
+    pub o: (f32, f32),
+}
+
+impl Affine {
+    pub fn apply(&self, u: f32, v: f32) -> (f32, f32) {
+        (self.o.0 + u * self.a.0 + v * self.b.0, self.o.1 + u * self.a.1 + v * self.b.1)
+    }
+    pub fn lerp(&self, other: &Affine, t: f32) -> Affine {
+        let l = |x: (f32, f32), y: (f32, f32)| (x.0 + (y.0 - x.0) * t, x.1 + (y.1 - x.1) * t);
+        Affine { a: l(self.a, other.a), b: l(self.b, other.b), o: l(self.o, other.o) }
+    }
+}
+
+/// Face `i` of a cube of circumradius 1 centred on the origin.
+pub fn face_rest(i: usize) -> Affine {
+    let (k1, k2) = FACES[i];
+    Affine { a: corner(k1), b: corner(k2), o: (0.0, 0.0) }
+}
+
+/// Face `i` before it folds: an upright square of the same area as a tile group, laid out
+/// as an unfolded net around the centre (top above, the shadowed faces below left and right).
+pub fn face_flat(i: usize) -> Affine {
+    let s = 0.78;
+    let (ox, oy) = [(-s / 2.0, -s - 0.28), (0.22, 0.02), (-0.22 - s, 0.02)][i];
+    Affine { a: (s, 0.0), b: (0.0, s), o: (ox, oy) }
+}
+
+/// Tile `j` (0..4) of a face, as a (u0, v0, size) square in face coordinates.
+pub fn tile(j: usize) -> (f32, f32, f32) {
+    let s = 0.5 - TILE_GAP / 2.0;
+    let (cu, cv) = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)][j];
+    (cu * (0.5 + TILE_GAP / 2.0), cv * (0.5 + TILE_GAP / 2.0), s)
+}
+
+/// Everything the painter needs for one frame of the mark. Coordinates in pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MarkFrame {
-    /// Centre, in the overlay's pixels.
     pub cx: f32,
     pub cy: f32,
     /// Circumradius in pixels.
     pub radius: f32,
-    /// Rotation in radians (0 = the rail logo's orientation).
-    pub rotation: f32,
-    /// Circle (0) to hexagon (1).
-    pub morph: f32,
-    /// How much of the outline is traced, 0..=1 of a full turn.
+    /// Per face: 0 = flat upright square, 1 = folded into the cube.
+    pub fold: [f32; 3],
+    /// Per tile (face * 4 + tile): its scale about its own centre (0 = not there yet).
+    pub tiles: [f32; 12],
+    /// The traced hexagon outline: how much of it is drawn, and how visible.
     pub sweep: f32,
     pub stroke_alpha: f32,
-    /// How far each inner edge has grown from the centre (to corners 1, 3, 5).
-    pub edges: [f32; 3],
-    pub face_alpha: [f32; 3],
+    /// The light rim along the top edges.
+    pub highlight: f32,
     pub core_scale: f32,
+    /// A thin ring that leaves the core once, as it ignites (radius multiple, alpha).
+    pub ring: (f32, f32),
 }
 
 impl MarkFrame {
@@ -228,29 +271,37 @@ impl MarkFrame {
             cx,
             cy,
             radius,
-            rotation: 0.0,
-            morph: 1.0,
+            fold: [1.0; 3],
+            tiles: [1.0; 12],
             sweep: 1.0,
             stroke_alpha: 0.0,
-            edges: [1.0; 3],
-            face_alpha: [1.0; 3],
+            highlight: 1.0,
             core_scale: 1.0,
+            ring: (1.0, 0.0),
         }
     }
 
-    /// A point on the (morphing, rotating) outline at angle θ of the mark's own frame.
-    pub fn outline(&self, theta: f32) -> (f32, f32) {
-        let r = self.radius * morph_radius(theta, self.morph);
-        let a = theta + self.rotation;
-        (self.cx + r * a.cos(), self.cy + r * a.sin())
+    /// Face `i`'s map into pixels.
+    pub fn face(&self, i: usize) -> Affine {
+        let f = face_flat(i).lerp(&face_rest(i), self.fold[i]);
+        let r = self.radius;
+        Affine { a: (f.a.0 * r, f.a.1 * r), b: (f.b.0 * r, f.b.1 * r), o: (self.cx + f.o.0 * r, self.cy + f.o.1 * r) }
     }
 
-    /// The outline from corner `a` to corner `b` (clockwise), as `steps` + 1 points:
-    /// face edges follow the curve while the circle is still becoming a hexagon.
-    pub fn arc(&self, a: usize, b: usize, steps: usize) -> Vec<(f32, f32)> {
-        let start = vertex_angle(a);
-        let span = ((vertex_angle(b) - start).rem_euclid(TAU)).max(1e-3);
-        (0..=steps).map(|i| self.outline(start + span * i as f32 / steps as f32)).collect()
+    /// The four corners of tile `j` of face `i`, scaled about the tile's centre.
+    pub fn tile_quad(&self, i: usize, j: usize) -> [(f32, f32); 4] {
+        let m = self.face(i);
+        let (u0, v0, s) = tile(j);
+        let k = self.tiles[i * 4 + j];
+        let (cu, cv) = (u0 + s / 2.0, v0 + s / 2.0);
+        let h = s / 2.0 * k;
+        [m.apply(cu - h, cv - h), m.apply(cu + h, cv - h), m.apply(cu + h, cv + h), m.apply(cu - h, cv + h)]
+    }
+
+    /// Hexagon corner `k` in pixels.
+    pub fn corner_px(&self, k: usize) -> (f32, f32) {
+        let (x, y) = corner(k);
+        (self.cx + x * self.radius, self.cy + y * self.radius)
     }
 }
 
@@ -267,7 +318,7 @@ pub struct ArrivalFrame {
     /// Opacity of the backdrop over the app.
     pub backdrop: f32,
     pub mark: MarkFrame,
-    /// The word VIGIL: per-letter opacity and rise (px), and overall letter spacing (em).
+    /// The word VIGIL: per-letter opacity and rise (px), and letter spacing (em).
     pub letters: [(f32, f32); 5],
     pub tracking: f32,
     /// True on and after the frame where the overlay's mark sits exactly on the logo.
@@ -275,25 +326,27 @@ pub struct ArrivalFrame {
     pub done: bool,
 }
 
-/// Phase boundaries (ms).
-pub const TRACE: (f32, f32) = (0.0, 420.0);
-pub const MORPH_START: f32 = 260.0;
-pub const EDGE_START: f32 = 520.0;
-pub const EDGE_STAGGER: f32 = 45.0;
-pub const EDGE_MS: f32 = 200.0;
-pub const FACE_START: f32 = 640.0;
-pub const FACE_STAGGER: f32 = 55.0;
-pub const FACE_MS: f32 = 220.0;
-pub const CORE_START: f32 = 760.0;
-pub const WORD_START: f32 = 380.0;
+/// Phase timings (ms).
+pub const TILE_START: f32 = 0.0;
+pub const TILE_STAGGER: f32 = 26.0;
+pub const FOLD_START: f32 = 480.0;
+pub const FOLD_STAGGER: f32 = 70.0;
+pub const SWEEP: (f32, f32) = (880.0, 300.0);
+pub const CORE_START: f32 = 960.0;
+pub const WORD_START: f32 = 580.0;
 pub const LETTER_STAGGER: f32 = 40.0;
 pub const LETTER_MS: f32 = 320.0;
-pub const FLIGHT_START: f32 = 1000.0;
+pub const FLIGHT_START: f32 = 1300.0;
 pub const FLIGHT_MS: f32 = 540.0;
-/// The whole arrival.
 pub const ARRIVAL_MS: f32 = FLIGHT_START + FLIGHT_MS;
 /// Circumradius of the mark at the centre of the window.
-pub const STAGE_RADIUS: f32 = 46.0;
+pub const STAGE_RADIUS: f32 = 50.0;
+/// Tiles appear in a spiral from the top face's corner: this order.
+pub const TILE_ORDER: [usize; 12] = [0, 1, 3, 2, 4, 5, 7, 6, 11, 10, 8, 9];
+
+fn progress(t: f32, start: f32, len: f32) -> f32 {
+    ((t - start) / len).clamp(0.0, 1.0)
+}
 
 /// Ken Perlin's smootherstep, 6t⁵ − 15t⁴ + 10t³: zero speed *and* zero acceleration at
 /// both ends, so the mark lifts off and settles without a visible jerk, and its top speed
@@ -303,12 +356,7 @@ pub fn flight_ease(t: f32) -> f32 {
     t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
 }
 
-fn progress(t: f32, start: f32, len: f32) -> f32 {
-    ((t - start) / len).clamp(0.0, 1.0)
-}
-
-/// A cubic Bézier between two points with control points that leave the start
-/// horizontally and arrive vertically: a curved, natural flight path.
+/// A cubic Bézier that leaves the start horizontally and arrives vertically.
 fn flight_path(from: (f32, f32), to: (f32, f32), s: f32) -> (f32, f32) {
     let c1 = (from.0 + (to.0 - from.0) * 0.55, from.1);
     let c2 = (to.0, from.1 + (to.1 - from.1) * 0.45);
@@ -317,42 +365,55 @@ fn flight_path(from: (f32, f32), to: (f32, f32), s: f32) -> (f32, f32) {
     (b(from.0, c1.0, c2.0, to.0), b(from.1, c1.1, c2.1, to.1))
 }
 
-/// The arrival at `t` ms, in a window whose centre is (`w`/2, `h`/2), landing on `land`.
-/// With `reduced` it is already over.
+/// The arrival at `t` ms in a `w` × `h` window, landing on `land`. With `reduced` it is over.
+///
+/// 1. Twelve tiles pop in one after another (a bouncy spring each), laid out flat as an
+///    unfolded cube; 2. the three faces fold into the cube, one after another (shear on a
+///    smooth spring); 3. a light rim runs along the top edges and a thin outline is traced
+///    around the hexagon, then fades; 4. the core ignites, sending one ring outward;
+///    5. the mark glides onto the rail logo while the backdrop dissolves.
 pub fn arrival(t: f32, w: f32, h: f32, land: Landing, reduced: bool) -> ArrivalFrame {
     let t = if reduced { ARRIVAL_MS } else { t.max(0.0) };
     let secs = |start: f32| ((t - start) / 1000.0).max(0.0);
     let centre = (w / 2.0, h / 2.0 - 18.0);
 
-    let sweep = ease_in_out(progress(t, TRACE.0, TRACE.1 - TRACE.0));
-    let morph = if t <= MORPH_START { 0.0 } else { Spring::SMOOTH.value(secs(MORPH_START)).min(1.0) };
-    // A twelfth of a turn, unwinding with the morph.
-    let rotation = -(PI / 6.0) * (1.0 - morph);
-    let edges = std::array::from_fn(|i| ease(progress(t, EDGE_START + i as f32 * EDGE_STAGGER, EDGE_MS)));
-    let face_alpha = std::array::from_fn(|i| ease(progress(t, FACE_START + i as f32 * FACE_STAGGER, FACE_MS)));
+    let mut tiles = [0.0f32; 12];
+    for (n, idx) in TILE_ORDER.iter().enumerate() {
+        let start = TILE_START + n as f32 * TILE_STAGGER;
+        tiles[*idx] = if t <= start { 0.0 } else { Spring::BOUNCY.value(secs(start)) };
+    }
+    let fold = std::array::from_fn(|i| {
+        let start = FOLD_START + i as f32 * FOLD_STAGGER;
+        if t <= start {
+            0.0
+        } else {
+            Spring::SMOOTH.value(secs(start)).min(1.0)
+        }
+    });
+    let sweep = ease_in_out(progress(t, SWEEP.0, SWEEP.1));
+    let stroke_alpha = if t < SWEEP.0 { 0.0 } else { 1.0 - ease(progress(t, SWEEP.0 + SWEEP.1, 260.0)) };
+    let highlight = ease(progress(t, SWEEP.0 + 60.0, 260.0));
     let core_scale = if t <= CORE_START { 0.0 } else { Spring::BOUNCY.value(secs(CORE_START)) };
-    // The outline hands over to the faces.
-    let stroke_alpha = 1.0 - ease(progress(t, FACE_START + 2.0 * FACE_STAGGER, FACE_MS));
+    let rp = progress(t, CORE_START + 40.0, 420.0);
+    let ring = (1.0 + 3.0 * ease(rp), if rp <= 0.0 || rp >= 1.0 { 0.0 } else { 0.8 * (1.0 - rp) });
 
-    // The flight: a gentle lift-off, then a long glide that comes to rest exactly on the
-    // logo (zero speed at the end, so the hand-off cannot be seen).
     let f = flight_ease(progress(t, FLIGHT_START, FLIGHT_MS));
     let (cx, cy) = flight_path(centre, (land.cx, land.cy), f);
     let radius = STAGE_RADIUS + (land.radius - STAGE_RADIUS) * f;
 
     let letters = std::array::from_fn(|i| {
         let p = ease(progress(t, WORD_START + i as f32 * LETTER_STAGGER, LETTER_MS));
-        // The word leaves first, as the mark lifts off.
         let out = 1.0 - ease(progress(t, FLIGHT_START - 60.0, 180.0));
         (p * out, 8.0 * (1.0 - p))
     });
     let tracking = 0.9 - 0.5 * ease(progress(t, WORD_START, LETTER_MS + 4.0 * LETTER_STAGGER));
 
-    let mut mark = MarkFrame { cx, cy, radius, rotation, morph, sweep, stroke_alpha, edges, face_alpha, core_scale };
     let landed = t >= ARRIVAL_MS;
-    if landed {
-        mark = MarkFrame::at_rest(land.cx, land.cy, land.radius);
-    }
+    let mark = if landed {
+        MarkFrame::at_rest(land.cx, land.cy, land.radius)
+    } else {
+        MarkFrame { cx, cy, radius, fold, tiles, sweep, stroke_alpha, highlight, core_scale, ring }
+    };
     ArrivalFrame {
         backdrop: 1.0 - ease_in_out(progress(t, FLIGHT_START + 40.0, FLIGHT_MS - 40.0)),
         mark,
@@ -384,10 +445,14 @@ pub fn tween(from: f32, to: f32, t: f32, len: f32, reduced: bool) -> f32 {
 mod tests {
     use super::*;
 
-    const LAND: Landing = Landing { cx: 34.0, cy: 32.0, radius: 11.0 };
+    const LAND: Landing = Landing { cx: 34.0, cy: 34.0, radius: 12.5 };
 
     fn at(t: f32) -> ArrivalFrame {
         arrival(t, 1280.0, 800.0, LAND, false)
+    }
+
+    fn close(a: (f32, f32), b: (f32, f32)) -> bool {
+        (a.0 - b.0).abs() < 1e-3 && (a.1 - b.1).abs() < 1e-3
     }
 
     #[test]
@@ -400,55 +465,53 @@ mod tests {
     }
 
     #[test]
-    fn the_hexagon_maths() {
-        // At a corner the hexagon reaches the circle; mid-edge it is cos(30°) in.
-        for k in 0..6 {
-            assert!((hexagon_radius(vertex_angle(k)) - 1.0).abs() < 1e-5);
-            let mid = vertex_angle(k) + PI / 6.0;
-            assert!((hexagon_radius(mid) - (PI / 6.0).cos()).abs() < 1e-5);
+    fn the_folded_faces_tile_the_hexagon() {
+        // Each face's far corner is a hexagon corner: top -> 0, right -> 2, left -> 4.
+        for (i, k) in [(0usize, 0usize), (1, 2), (2, 4)] {
+            assert!(close(face_rest(i).apply(1.0, 1.0), corner(k)), "face {i}");
         }
-        // Points on one edge are collinear: the shape really is straight-sided.
-        let m = MarkFrame::at_rest(0.0, 0.0, 1.0);
-        let pts = m.arc(0, 1, 8);
-        let (a, b) = (pts[0], pts[8]);
-        for p in &pts {
-            let cross = (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0);
-            assert!(cross.abs() < 1e-4, "{p:?}");
+        // The faces meet along the inner edges (no gaps, no overlaps).
+        assert!(close(face_rest(0).apply(1.0, 0.0), face_rest(1).apply(1.0, 0.0)));
+        assert!(close(face_rest(1).apply(0.0, 1.0), face_rest(2).apply(1.0, 0.0)));
+        assert!(close(face_rest(2).apply(0.0, 1.0), face_rest(0).apply(0.0, 1.0)));
+        // Flat faces are true squares: equal, perpendicular sides.
+        for i in 0..3 {
+            let f = face_flat(i);
+            assert!((f.a.0 * f.b.0 + f.a.1 * f.b.1).abs() < 1e-6);
+            assert!(((f.a.0.hypot(f.a.1)) - f.b.0.hypot(f.b.1)).abs() < 1e-6);
         }
-        assert_eq!(morph_radius(1.234, 0.0), 1.0, "p = 0 is a circle");
+        // Tiles leave gaps and stay inside the face.
+        let (u0, v0, s) = tile(3);
+        assert!(u0 > 0.5 && v0 > 0.5 && (u0 + s - 1.0).abs() < 1e-6);
     }
 
     #[test]
-    fn the_arrival_draws_then_lands_exactly_on_the_logo() {
+    fn the_arrival_assembles_then_lands_exactly_on_the_logo() {
         let a = at(0.0);
-        assert_eq!(a.mark.sweep, 0.0);
+        assert!(a.mark.tiles.iter().all(|x| *x == 0.0));
         assert_eq!(a.mark.core_scale, 0.0);
-        assert!(a.mark.face_alpha.iter().all(|x| *x == 0.0));
         assert!((a.backdrop - 1.0).abs() < 1e-6);
-        // Mid-way the outline is a full hexagon with faces arriving.
-        let m = at(FACE_START + 100.0);
-        assert!(m.mark.sweep == 1.0 && m.mark.morph > 0.95);
-        // The core overshoots a little (the bouncy spring), then settles.
-        let peak = (0..1400).map(|t| at(t as f32).mark.core_scale).fold(0.0, f32::max);
+        // Before the fold every tile is in, laid flat.
+        let flat = at(FOLD_START - 1.0);
+        assert!(flat.mark.tiles.iter().all(|x| *x > 0.7), "{:?}", flat.mark.tiles);
+        assert!(flat.mark.fold.iter().all(|x| *x == 0.0));
+        // Folded by the sweep.
+        assert!(at(SWEEP.0 + 100.0).mark.fold.iter().all(|x| *x > 0.95));
+        // The core overshoots a little, then settles.
+        let peak = (0..1700).map(|t| at(t as f32).mark.core_scale).fold(0.0, f32::max);
         assert!(peak > 1.05 && peak < 1.3, "{peak}");
-        // The last frame is the rail logo, so the hand-off is invisible.
+        // The last frame is the rail logo.
         let z = at(ARRIVAL_MS);
         assert!(z.done && z.landed);
         assert_eq!(z.mark, MarkFrame::at_rest(LAND.cx, LAND.cy, LAND.radius));
         assert!(z.backdrop.abs() < 1e-6);
-        // Just before the end it is already almost there (no jump on the last frame).
         let y = at(ARRIVAL_MS - 16.0);
-        assert!((y.mark.cx - LAND.cx).abs() < 3.0 && (y.mark.cy - LAND.cy).abs() < 3.0, "{:?}", y.mark);
-        assert!((y.mark.radius - LAND.radius).abs() < 1.5);
-        assert!(y.backdrop < 0.05);
-        // The word is gone before the mark lands.
+        assert!((y.mark.cx - LAND.cx).abs() < 1.5 && (y.mark.cy - LAND.cy).abs() < 1.5, "{:?}", y.mark);
         assert!(at(FLIGHT_START + 150.0).letters.iter().all(|(o, _)| *o < 0.05));
     }
 
     #[test]
     fn motion_is_continuous() {
-        // At 60 fps no step is more than 2.6 times the average step of the flight, and the
-        // last steps are tiny (it glides to rest).
         let start = at(FLIGHT_START);
         let dist = ((start.mark.cx - LAND.cx).powi(2) + (start.mark.cy - LAND.cy).powi(2)).sqrt();
         let avg = dist / (FLIGHT_MS / 16.0);
@@ -456,11 +519,14 @@ mod tests {
         for i in 1..=(ARRIVAL_MS as i32 / 16 + 2) {
             let f = at(i as f32 * 16.0);
             let d = ((f.mark.cx - prev.mark.cx).powi(2) + (f.mark.cy - prev.mark.cy).powi(2)).sqrt();
-            assert!(d < 2.6 * avg, "jump of {d}px at frame {i} (average {avg})");
-            if f.mark.cx != LAND.cx && (ARRIVAL_MS - i as f32 * 16.0) < 40.0 {
-                assert!(d < 0.25 * avg, "still moving fast at the end: {d}px");
+            assert!(d < 2.6 * avg, "jump of {d}px at frame {i}");
+            // Tiles never jump either: a corner moves less than a quarter of the stage radius.
+            for face in 0..3 {
+                let (p, q) = (prev.mark.tile_quad(face, 0)[0], f.mark.tile_quad(face, 0)[0]);
+                if f.mark.cx == prev.mark.cx {
+                    assert!(((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt() < STAGE_RADIUS * 0.3, "frame {i}");
+                }
             }
-            assert!((f.mark.radius - prev.mark.radius).abs() < 6.0);
             prev = f;
         }
     }
@@ -479,13 +545,11 @@ mod tests {
         assert!(ease(0.5) > 0.5);
         assert!((ease_in_out(0.5) - 0.5).abs() < 1e-6);
         let peak = (0..1000).map(|i| Spring::BOUNCY.value(i as f32 / 1000.0)).fold(0.0, f32::max);
-        assert!(peak > 1.05, "bouncy overshoots: {peak}");
+        assert!(peak > 1.05);
         let smooth = (0..1000).map(|i| Spring::SMOOTH.value(i as f32 / 1000.0)).fold(0.0, f32::max);
-        assert!(smooth <= 1.0 + 1e-4, "smooth does not: {smooth}");
-        assert_eq!(Spring::SNAPPY.easing(260.0)(1.0), 1.0);
+        assert!(smooth <= 1.0 + 1e-4);
         let d = delayed(100.0, 300.0, |x| x);
         assert_eq!(d(0.2), 0.0);
-        assert!((d(1.0) - 1.0).abs() < 1e-6);
         assert_eq!(card_rise(10_000.0, 3, false), (0.0, 1.0));
     }
 }

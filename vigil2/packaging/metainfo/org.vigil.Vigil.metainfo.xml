@@ -33,6 +33,11 @@
     <binary>vigil-cli</binary>
   </provides>
   <releases>
+    <release version="0.2.0" date="2026-11-09">
+      <description>
+        <p>The app on live data, a new Home and network map, and a tarball with an installer and automatic updates.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-11-08">
       <description>
         <p>First Vigil 2 preview: the daemon, the command line and the finding format.</p>

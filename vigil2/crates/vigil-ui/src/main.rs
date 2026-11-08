@@ -11,15 +11,18 @@
 //! Flags: `--bus system|session|address=...` (default: find the daemon), `--no-arrival`,
 //! `--measure-startup` (print the time to the first frame and exit).
 
+mod appicons;
+mod home;
 mod icons;
 mod live;
 mod mark;
+mod netmap;
 mod ui;
 mod views;
 
 use gpui::{
-    canvas, div, prelude::*, px, size, AnimationExt, App, Bounds, ClickEvent, ClipboardItem, Context, FocusHandle,
-    Hsla, KeyDownEvent, Pixels, Render, Window, WindowBounds, WindowOptions,
+    canvas, div, prelude::*, px, size, App, Bounds, ClickEvent, ClipboardItem, Context, FocusHandle, Hsla,
+    KeyDownEvent, Pixels, Render, Window, WindowBounds, WindowOptions,
 };
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -58,6 +61,7 @@ pub enum Conn {
 pub enum Sel {
     Proc(u32),
     Program(String),
+    Addr(String),
 }
 
 pub struct Vigil {
@@ -73,6 +77,19 @@ pub struct Vigil {
     pub nav: u64,
     pub overlay: Overlay,
     pub overlay_n: u64,
+    overlay_since: Instant,
+    pub hover: Option<&'static str>,
+    pub mouse: (f32, f32),
+    pub icons: Option<std::sync::Arc<appicons::AppIcons>>,
+    icons_rx: Receiver<appicons::AppIcons>,
+    /// Connections open per minute over the last hour (from the daemon's history).
+    pub hist: Vec<f32>,
+    asked_history: Option<Instant>,
+    /// This session's looks: processes, programs online, outbound connections.
+    pub series: std::collections::VecDeque<[f32; 3]>,
+    device_read: Instant,
+    pub shine_at: Instant,
+    pub device: vigil_sensor::device::Device,
     closing: Option<(Overlay, Instant)>,
     pub query: String,
     pub pick: usize,
@@ -168,6 +185,23 @@ impl Vigil {
             nav: 0,
             overlay: Overlay::None,
             overlay_n: 0,
+            overlay_since: Instant::now(),
+            hover: None,
+            mouse: (0.0, 0.0),
+            icons: None,
+            icons_rx: {
+                let (tx, rx) = std::sync::mpsc::channel();
+                std::thread::spawn(move || {
+                    let _ = tx.send(appicons::AppIcons::load());
+                });
+                rx
+            },
+            hist: vec![],
+            asked_history: None,
+            series: std::collections::VecDeque::new(),
+            device_read: Instant::now(),
+            shine_at: Instant::now(),
+            device: vigil_sensor::device::Device::read(std::path::Path::new("/")),
             closing: None,
             query: String::new(),
             pick: 0,
@@ -356,6 +390,7 @@ impl Vigil {
         }
         self.overlay = o;
         self.overlay_n += 1;
+        self.overlay_since = Instant::now();
         if o == Overlay::Palette {
             self.query.clear();
             self.pick = 0;
@@ -417,7 +452,13 @@ impl Vigil {
 
     pub fn act(&mut self, a: Action) {
         match a {
-            Action::Palette => self.open_overlay(Overlay::Palette),
+            Action::Palette => {
+                if self.overlay == Overlay::Palette {
+                    self.close_overlay()
+                } else {
+                    self.open_overlay(Overlay::Palette)
+                }
+            }
             Action::GoArea(i) => self.go(i),
             Action::Arrival => {
                 self.close_overlay();
@@ -534,6 +575,10 @@ impl Vigil {
                     self.set_tab(2, 1);
                     self.sel = pid.map(Sel::Proc);
                 }
+                Some(Sel::Addr(ip)) => {
+                    self.set_tab(1, 1);
+                    self.filter = ip;
+                }
                 None => self.say("Select a process or a program first, then press p to pivot"),
             },
             Action::Copy | Action::Run | Action::SetAside | Action::AddToCase => {
@@ -607,12 +652,30 @@ impl Vigil {
                 Some((p.cmdline.join(" "), "the command line".into()))
             }
             Sel::Program(key) => Some((key.clone(), "the program path".into())),
+            Sel::Addr(ip) => Some((ip.clone(), "the address".into())),
         }
     }
 
     /// Pull whatever the bus thread sent. Returns true if anything changed.
     fn drain(&mut self) -> bool {
         let mut changed = false;
+        if self.icons.is_none() {
+            if let Ok(i) = self.icons_rx.try_recv() {
+                self.icons = Some(std::sync::Arc::new(i));
+                changed = true;
+            }
+        }
+        if self.device_read.elapsed() > Duration::from_secs(30) {
+            self.device = vigil_sensor::device::Device::read(std::path::Path::new("/"));
+            self.device_read = Instant::now();
+            changed = true;
+        }
+        if matches!(self.conn, Conn::Connected(_))
+            && self.asked_history.is_none_or(|t| t.elapsed() > Duration::from_secs(60))
+        {
+            self.asked_history = Some(Instant::now());
+            let _ = self.req.send(live::Req::History);
+        }
         while let Ok(m) = self.rx.try_recv() {
             changed = true;
             match m {
@@ -620,12 +683,27 @@ impl Vigil {
                 live::Msg::Failed(e) => self.conn = Conn::Failed(e),
                 live::Msg::Data(s) => {
                     if !self.paused {
+                        let out =
+                            s.net.sockets.iter().filter(|x| x.kind == "connection" && x.direction == "out").count();
+                        let online: std::collections::BTreeSet<_> = s
+                            .net
+                            .sockets
+                            .iter()
+                            .filter(|x| x.kind == "connection")
+                            .filter_map(|x| x.program.clone())
+                            .collect();
+                        self.series.push_back([s.procs.processes.len() as f32, online.len() as f32, out as f32]);
+                        while self.series.len() > 150 {
+                            self.series.pop_front();
+                        }
                         self.data = Some(*s);
                         self.updates += 1;
                         self.last_update = Some(Instant::now());
                     }
                 }
                 live::Msg::At(t, rows) => self.at = Some((t, rows)),
+                live::Msg::History(h) => self.hist = h,
+                live::Msg::Attention(text) => self.say(text),
             }
         }
         changed
@@ -762,8 +840,16 @@ impl Vigil {
                     .items_center()
                     .justify_center()
                     .cursor_pointer()
-                    .hover(|s| s.opacity(0.75))
-                    .child(gpui::svg().path("icons/keys.svg").size(px(19.0)).text_color(c(t.text[2])))
+                    .mx(px(10.0))
+                    .rounded(px(t.radius_sm))
+                    .when(self.overlay == Overlay::Shortcuts, |el| el.bg(c(t.accent_soft)))
+                    .hover(|s| s.bg(ca(Rgba(0xffffff0d), 1.0)))
+                    .child(
+                        gpui::svg()
+                            .path("icons/keys.svg")
+                            .size(px(19.0))
+                            .text_color(if self.overlay == Overlay::Shortcuts { c(t.accent) } else { c(t.text[2]) }),
+                    )
                     .on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
                         this.act(Action::Shortcuts);
                         cx.notify();
@@ -777,8 +863,16 @@ impl Vigil {
                     .items_center()
                     .justify_center()
                     .cursor_pointer()
-                    .hover(|s| s.opacity(0.75))
-                    .child(gpui::svg().path("icons/gear.svg").size(px(19.0)).text_color(c(t.text[1])))
+                    .mx(px(10.0))
+                    .rounded(px(t.radius_sm))
+                    .when(self.overlay == Overlay::Settings, |el| el.bg(c(t.accent_soft)))
+                    .hover(|s| s.bg(ca(Rgba(0xffffff0d), 1.0)))
+                    .child(
+                        gpui::svg()
+                            .path("icons/gear.svg")
+                            .size(px(20.0))
+                            .text_color(if self.overlay == Overlay::Settings { c(t.accent) } else { c(t.text[1]) }),
+                    )
                     .on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
                         this.act(Action::Settings);
                         cx.notify();
@@ -930,9 +1024,104 @@ impl Vigil {
         match o {
             Overlay::Palette => self.palette_view(cx).into_any_element(),
             Overlay::Settings => self.settings_view(cx).into_any_element(),
-            Overlay::Shortcuts => self.shortcuts_view().into_any_element(),
+            Overlay::Shortcuts => self.shortcuts_view(cx).into_any_element(),
             Overlay::None => div().into_any_element(),
         }
+    }
+
+    /// One overlay at progress `d` (0 hidden, 1 open). Settings is a popover beside its gear
+    /// that slides out from behind the rail (and back behind it on close); the palette and the
+    /// shortcut sheet are centred cards. Clicking outside closes; the rail stays usable.
+    fn overlay_layer(&self, o: Overlay, d: f32, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let t = &self.theme;
+        let content = self.overlay_view(o, cx);
+        let catcher = |el: gpui::Stateful<gpui::Div>, cx: &mut Context<Self>| {
+            el.on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
+                this.close_overlay();
+                cx.notify();
+            }))
+        };
+        if o == Overlay::Settings {
+            let w = 400.0;
+            let layer = div()
+                .id(id("overlay", o as u64))
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .left(px(t.rail_width))
+                .overflow_hidden()
+                .bg(Hsla { a: 0.18 * d, ..c(Rgba::rgb(0x000000)) });
+            return catcher(layer, cx)
+                .child(
+                    div()
+                        .id("popover")
+                        .absolute()
+                        .bottom(px(16.0))
+                        .left(px(10.0 - (w + 20.0) * (1.0 - d)))
+                        .w(px(w))
+                        .opacity(d.clamp(0.0, 1.0))
+                        .on_click(|_, _, cx| cx.stop_propagation())
+                        .child(content),
+                )
+                .into_any_element();
+        }
+        let layer = div()
+            .id(id("overlay", o as u64))
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .bg(Hsla { a: 0.45 * d, ..c(Rgba::rgb(0x000000)) })
+            .flex()
+            .justify_center()
+            .items_start()
+            .pt(px(90.0));
+        catcher(layer, cx)
+            .child(
+                div()
+                    .id("overlay-content")
+                    .relative()
+                    .top(px(-14.0 * (1.0 - d)))
+                    .opacity(d.clamp(0.0, 1.0))
+                    .on_click(|_, _, cx| cx.stop_propagation())
+                    .child(content),
+            )
+            .into_any_element()
+    }
+
+    /// The title row every popup has: icon, name, what it is for, and how to close it.
+    fn popup_header(&self, icon: &str, title: &str, hint: &str, cx: &mut Context<Self>) -> gpui::Div {
+        let t = &self.theme;
+        div()
+            .h(px(46.0))
+            .px(px(16.0))
+            .flex()
+            .items_center()
+            .gap(px(10.0))
+            .border_b_1()
+            .border_color(c(t.line[0]))
+            .child(gpui::svg().path(format!("icons/{icon}.svg")).size(px(17.0)).text_color(c(t.accent)))
+            .child(div().text_size(px(14.0)).text_color(c(t.text[0])).child(title.to_string()))
+            .child(div().text_size(px(12.0)).text_color(c(t.text[2])).child(hint.to_string()))
+            .child(div().flex_1())
+            .child(ui::kbd(t, "Esc"))
+            .child(
+                div()
+                    .id("popup-close")
+                    .size(px(26.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(t.radius_sm))
+                    .cursor_pointer()
+                    .hover(|s| s.bg(ca(Rgba(0xffffff12), 1.0)))
+                    .child(gpui::svg().path("icons/close.svg").size(px(14.0)).text_color(c(t.text[1])))
+                    .on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
+                        this.close_overlay();
+                        cx.notify();
+                    })),
+            )
     }
 
     fn palette_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -979,18 +1168,21 @@ impl Vigil {
         }
         let empty = hits.is_empty();
         modal(t, 660.0)
+            .child(self.popup_header("search", "Jump to", "areas, tabs, processes, addresses, settings", cx))
             .child(
                 div()
-                    .h(px(52.0))
-                    .px(px(16.0))
+                    .h(px(48.0))
+                    .mx(px(10.0))
+                    .mt(px(10.0))
+                    .px(px(12.0))
                     .flex()
                     .items_center()
-                    .gap(px(12.0))
-                    .border_b_1()
-                    .border_color(c(t.line[0]))
-                    .child(gpui::svg().path("icons/search.svg").size(px(18.0)).text_color(c(t.text[1])))
+                    .rounded(px(t.radius_sm))
+                    .bg(c(t.bg[1]))
+                    .border_1()
+                    .border_color(c(t.accent))
                     .child(if self.query.is_empty() {
-                        div().text_color(c(t.text[2])).child("Areas, tabs, processes, addresses, settings…")
+                        div().text_color(c(t.text[2])).child("Type to search…")
                     } else {
                         div().text_size(px(15.0)).text_color(c(t.text[0])).child(format!("{}▏", self.query))
                     }),
@@ -1016,43 +1208,39 @@ impl Vigil {
                     opts.push(
                         div()
                             .id(ui::id2("seg", name.len() as u64, i as u64))
-                            .px(px(11.0))
-                            .h(px(26.0))
+                            .flex_1()
+                            .h(px(28.0))
                             .flex()
                             .items_center()
+                            .justify_center()
                             .rounded(px(6.0))
                             .cursor_pointer()
                             .text_size(px(12.0))
                             .bg(if on { c(t.bg[4]) } else { ca(t.bg[4], 0.0) })
                             .text_color(if on { c(t.text[0]) } else { c(t.text[2]) })
-                            .hover(|s| s.opacity(0.85))
+                            .hover(|s| s.bg(ca(Rgba(0xffffff0d), 1.0)))
                             .child(*label)
                             .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                                // Settings change in place: the popover stays open.
+                                let keep = this.overlay;
                                 this.choose(&target);
-                                this.open_overlay(Overlay::Settings);
+                                this.overlay = keep;
+                                this.closing = None;
                                 cx.notify();
                             })),
                     );
                 }
-                div().p(px(3.0)).rounded(px(8.0)).bg(c(t.bg[3])).flex().gap(px(2.0)).children(opts)
+                div().w_full().p(px(3.0)).rounded(px(8.0)).bg(c(t.bg[1])).flex().gap(px(2.0)).children(opts)
             };
-        let row = |title: &str, help: &str, control: gpui::AnyElement| {
+        let row = |title: &str, control: gpui::AnyElement| {
             div()
-                .py(px(14.0))
+                .px(px(16.0))
+                .py(px(10.0))
                 .flex()
                 .flex_col()
-                .gap(px(6.0))
-                .border_b_1()
-                .border_color(c(t.line[0]))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .child(div().text_color(c(t.text[0])).child(title.to_string()))
-                        .child(div().flex_1())
-                        .child(control),
-                )
-                .child(div().text_size(px(12.0)).text_color(c(t.text[2])).child(help.to_string()))
+                .gap(px(7.0))
+                .child(div().text_size(px(12.0)).text_color(c(t.text[2])).child(title.to_string()))
+                .child(control)
         };
         let motion = match self.settings.motion {
             MotionPref::System => "system",
@@ -1062,45 +1250,47 @@ impl Vigil {
         let density = if self.settings.density == Density::Compact { "compact" } else { "comfortable" };
         let theme_name = self.settings.theme.clone();
         let theme_seg =
-            seg("theme", &[("dark", "Dark"), ("light", "Light"), ("high-contrast", "High contrast")], &theme_name, cx);
+            seg("theme", &[("dark", "Dark"), ("light", "Light"), ("high-contrast", "Contrast")], &theme_name, cx);
         let motion_seg = seg("motion", &[("system", "System"), ("full", "Full"), ("reduced", "Reduced")], motion, cx);
         let density_seg = seg("density", &[("comfortable", "Comfortable"), ("compact", "Compact")], density, cx);
-        let close =
-            ui::button(t, "settings-close", "Done", false).on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
-                this.close_overlay();
-                cx.notify();
-            }));
         div()
-            .w(px(460.0))
-            .h_full()
+            .w_full()
+            .rounded(px(t.radius + 2.0))
             .bg(c(t.bg[2]))
-            .border_l_1()
+            .border_1()
             .border_color(c(t.line[1]))
-            .p(px(t.pad))
+            .shadow_lg()
             .flex()
             .flex_col()
-            .child(div().flex().items_center().pb(px(8.0)).child(div().text_size(px(18.0)).text_color(c(t.text[0])).child("Settings")).child(div().flex_1()).child(close))
-            .child(row("Theme", "A theme.toml next to ui.toml can change single colours; Vigil reloads it as you save.", theme_seg.into_any_element()))
-            .child(row(
-                "Motion",
-                &format!("System follows your desktop ({} now). Reduced skips the arrival and every slide.", if self.desktop_reduced { "reduced" } else { "full" }),
-                motion_seg.into_any_element(),
-            ))
-            .child(row("Density", "Spacing in every view.", density_seg.into_any_element()))
-            .child(row(
-                "Run mode",
-                "Run mode, network features and history are the daemon's settings, changed through your system's password dialog (polkit). Arrives with milestone 5.",
-                ui::chip("Daemon", t.text[2]).into_any_element(),
-            ))
-            .child(row(
-                "Keyboard",
-                "Rebind any key in ~/.config/vigil/keys.toml, for example \"ctrl-p\" = \"palette\".",
-                ui::kbd(t, "?").into_any_element(),
-            ))
-            .children(self.notes.iter().map(|n| div().pt(px(10.0)).text_size(px(12.0)).text_color(c(t.warn)).child(n.clone())))
+            .child(self.popup_header("gear", "Settings", "this app", cx))
+            .child(row("Theme", theme_seg.into_any_element()))
+            .child(row("Motion", motion_seg.into_any_element()))
+            .child(row("Density", density_seg.into_any_element()))
+            .child(
+                div()
+                    .mx(px(16.0))
+                    .my(px(10.0))
+                    .pt(px(10.0))
+                    .border_t_1()
+                    .border_color(c(t.line[0]))
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .text_size(px(12.0))
+                    .text_color(c(t.text[2]))
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(8.0))
+                            .child(div().text_color(c(t.text[1])).child("Run mode"))
+                            .child(ui::chip("in the daemon · milestone 5", t.text[2])),
+                    )
+                    .child(div().child("Keys: ~/.config/vigil/keys.toml · Colours: theme.toml"))
+                    .children(self.notes.iter().map(|n| div().text_color(c(t.warn)).child(n.clone()))),
+            )
     }
 
-    fn shortcuts_view(&self) -> impl IntoElement {
+    fn shortcuts_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let t = &self.theme;
         let mut seen = vec![];
         let mut rows = vec![];
@@ -1119,14 +1309,9 @@ impl Vigil {
                     .child(div().text_color(c(t.text[1])).truncate().child(a.describe())),
             );
         }
-        modal(t, 740.0).child(
-            div()
-                .p(px(t.pad))
-                .flex()
-                .flex_col()
-                .child(div().text_size(px(18.0)).text_color(c(t.text[0])).pb(px(10.0)).child("Keyboard"))
-                .children(rows),
-        )
+        modal(t, 740.0)
+            .child(self.popup_header("keys", "Keyboard shortcuts", "every action, without the mouse", cx))
+            .child(div().px(px(t.pad)).py(px(12.0)).flex().flex_col().children(rows))
     }
 }
 
@@ -1158,6 +1343,10 @@ impl Render for Vigil {
             }
         }
         self.drain();
+        // Keys only reach a focused element; some compositors start the window unfocused.
+        if !self.focus.is_focused(window) {
+            self.focus.focus(window, cx);
+        }
         let t = self.theme.clone();
         let reduced = self.reduced();
         // Animate only while something moves: never repaint at frame rate while idle.
@@ -1173,8 +1362,8 @@ impl Render for Vigil {
             self.closing = None;
         }
         let counting = self.tick_counters();
-        let map_live = !reduced && self.area == 1 && self.tab[1] == 0 && self.data.is_some();
-        if marker_moving || self.arrival.is_some() || cards_rising || self.closing.is_some() || counting || map_live {
+        let shining = !reduced && self.area == 0 && self.arrival.is_none() && self.shine_phase() < home::SHINE_MS;
+        if marker_moving || self.arrival.is_some() || cards_rising || self.closing.is_some() || counting || shining {
             window.request_animation_frame();
         }
         let toast_live = self.toast.as_ref().is_some_and(|(_, at)| at.elapsed() < Duration::from_millis(3200));
@@ -1190,53 +1379,69 @@ impl Render for Vigil {
             .font_family(t.ui_fonts[1])
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _w, cx| this.on_key(ev, cx)))
+            .on_mouse_down(
+                gpui::MouseButton::Left,
+                cx.listener(|this, _: &gpui::MouseDownEvent, w, cx| this.focus.focus(w, cx)),
+            )
+            .on_mouse_move(cx.listener(|this, ev: &gpui::MouseMoveEvent, _w, cx| {
+                this.mouse = (f32::from(ev.position.x), f32::from(ev.position.y));
+                if this.hover.is_some() {
+                    cx.notify();
+                }
+            }))
             .child(self.rail(cx))
             .child(div().flex_1().h_full().min_w(px(0.0)).flex().flex_col().child(self.top_bar(cx)).child(body));
 
-        // Overlays: the one opening (keyed animation), and the one closing (reverse, by hand).
-        let layer = |o: Overlay, d: f32, content: gpui::AnyElement, cx: &mut Context<Self>| {
-            let sheet = o == Overlay::Settings;
-            div()
-                .id(id("overlay", o as u64))
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
-                .bg(Hsla { a: 0.5 * d, ..c(Rgba::rgb(0x000000)) })
-                .flex()
-                .when(sheet, |el| el.justify_end())
-                .when(!sheet, |el| el.justify_center().items_start().pt(px(92.0)))
-                .on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
-                    this.close_overlay();
-                    cx.notify();
-                }))
-                .child(
-                    div()
-                        .id("overlay-content")
-                        .when(sheet, |el| el.h_full())
-                        .opacity(d)
-                        .relative()
-                        .when(sheet, |el| el.left(px(40.0 * (1.0 - d))))
-                        .when(!sheet, |el| el.top(px(-10.0 * (1.0 - d))))
-                        .on_click(|_, _, cx| cx.stop_propagation())
-                        .child(content),
-                )
-        };
+        // Overlays: the one opening and the one closing, both by hand so they mirror each other.
         if let Some((o, _)) = self.closing {
-            let d = 1.0 - motion::ease((closing_ms.unwrap_or(0.0) / motion::OVERLAY_OUT_MS).clamp(0.0, 1.0));
-            let content = self.overlay_view(o, cx);
-            root = root.child(layer(o, d, content, cx));
+            let d = 1.0 - motion::ease_in_out((closing_ms.unwrap_or(0.0) / motion::OVERLAY_OUT_MS).clamp(0.0, 1.0));
+            root = root.child(self.overlay_layer(o, d, cx));
         }
         if self.overlay != Overlay::None {
-            let o = self.overlay;
-            let content = self.overlay_view(o, cx);
-            let spring = Spring::SNAPPY.easing(motion::OVERLAY_IN_MS);
-            let anim =
-                gpui::Animation::new(Duration::from_millis(if reduced { 1 } else { motion::OVERLAY_IN_MS as u64 }))
-                    .with_easing(spring);
-            let base = layer(o, 1.0, content, cx);
-            root = root
-                .child(base.with_animation(id("open", self.overlay_n), anim, |el, d| el.opacity(d.clamp(0.0, 1.0))));
+            let ms = self.overlay_since.elapsed().as_secs_f32() * 1000.0;
+            let d = if reduced {
+                1.0
+            } else {
+                Spring::SNAPPY.easing(motion::OVERLAY_IN_MS)((ms / motion::OVERLAY_IN_MS).min(1.0))
+            };
+            if ms < motion::OVERLAY_IN_MS {
+                window.request_animation_frame();
+            }
+            root = root.child(self.overlay_layer(self.overlay, d, cx));
+        }
+        // A hover tip follows the mouse (device name source, the shield, coverage ...).
+        if let Some(key) = self.hover {
+            let lines = self.tip_lines(key);
+            if !lines.is_empty() {
+                let (mx, my) = self.mouse;
+                let width = 340.0;
+                let x = if mx + 16.0 + width > f32::from(window.viewport_size().width) {
+                    mx - width - 12.0
+                } else {
+                    mx + 16.0
+                };
+                root =
+                    root.child(
+                        div()
+                            .absolute()
+                            .left(px(x))
+                            .top(px(my + 18.0))
+                            .w(px(width))
+                            .p(px(12.0))
+                            .rounded(px(t.radius_sm))
+                            .bg(c(t.bg[3]))
+                            .border_1()
+                            .border_color(c(t.line[1]))
+                            .shadow_lg()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .text_size(px(12.0))
+                            .children(lines.into_iter().enumerate().map(|(i, l)| {
+                                div().text_color(if i == 0 { c(t.text[0]) } else { c(t.text[1]) }).child(l)
+                            })),
+                    );
+            }
         }
         let pending = self.keymap.pending().iter().map(|k| k.to_string()).collect::<Vec<_>>().join(" ");
         if !pending.is_empty() {
@@ -1342,7 +1547,9 @@ fn main() {
                         if expired {
                             v.toast = None;
                         }
-                        if data || theme_changed || expired {
+                        // The shield's shine starts on its own every few seconds.
+                        let shine = v.area == 0 && !v.reduced() && v.shine_phase() < 130.0;
+                        if data || theme_changed || expired || shine {
                             cx.notify();
                         }
                     });

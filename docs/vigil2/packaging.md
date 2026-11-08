@@ -1,5 +1,18 @@
 # Packaging, installing and the policy checks
 
+## Installing a release
+
+```bash
+tar -xzf vigil-0.2.0-x86_64-linux.tar.gz
+cd vigil-0.2.0
+sudo ./install.sh
+```
+
+`install.sh` lists at its top exactly what it changes. It asks whether to turn on automatic updates
+(a daily check of GitHub releases, `vigil-update.timer`). Remove everything with
+`sudo /usr/lib/vigil/uninstall.sh` (add `--purge` to delete history too). Build the same tarball
+yourself with `cargo run --release -p xtask -- package` (it lands in `vigil2/target/package/`).
+
 ## One install tree for every package
 
 `cargo run -p xtask -- dist` builds and stages:

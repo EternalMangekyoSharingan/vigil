@@ -457,6 +457,8 @@ mod tests {
             parent: None,
             ancestry: vec![],
             started: None,
+            rss_kb: None,
+            cpu_pct: None,
         };
         assert_eq!(display_name(Some(&p), &p.key), "http.server (python3)");
         let ff = vigil_model::host::ProcessInfo { exe: Some("/usr/lib/firefox/firefox".into()), ..p };

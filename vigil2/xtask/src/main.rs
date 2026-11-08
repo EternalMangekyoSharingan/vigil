@@ -2,6 +2,8 @@
 //!
 //! - `dist [--root DIR] [--no-build]`: stage the install tree every package uses
 //!   (`usr/bin/vigil`, `usr/lib/vigil/vigild`, units, D-Bus and polkit files ...).
+//! - `package [--no-build]`: the release tarball, `target/package/vigil-<version>-<arch>-
+//!   linux.tar.gz`, with install.sh, uninstall.sh and a .sha256 file next to it.
 //! - `check-deps`: every direct dependency of every crate is on the allowlist in
 //!   docs/RUST_REWRITE.md section 9. Anything else needs the owner's yes first.
 //! - `check-packaging`: the packaging files agree with each other and with the code,
@@ -62,6 +64,10 @@ const ALLOWED_PREFIX: &[&str] = &["netlink-packet-", "vigil-"];
 const FILES: &[(&str, &str, u32)] = &[
     ("systemd/vigild.service", "usr/lib/systemd/system/vigild.service", 0o644),
     ("systemd/vigil-notify.service", "usr/lib/systemd/user/vigil-notify.service", 0o644),
+    ("systemd/vigil-update.service", "usr/lib/systemd/system/vigil-update.service", 0o644),
+    ("systemd/vigil-update.timer", "usr/lib/systemd/system/vigil-update.timer", 0o644),
+    ("tarball/vigil-update", "usr/lib/vigil/vigil-update", 0o755),
+    ("tarball/uninstall.sh", "usr/lib/vigil/uninstall.sh", 0o755),
     ("dbus/org.vigil.Daemon.conf", "usr/share/dbus-1/system.d/org.vigil.Daemon.conf", 0o644),
     ("dbus/org.vigil.Daemon.service", "usr/share/dbus-1/system-services/org.vigil.Daemon.service", 0o644),
     ("polkit/org.vigil.policy", "usr/share/polkit-1/actions/org.vigil.policy", 0o644),
@@ -82,6 +88,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("dist") => dist(&args[1..]),
+        Some("package") => package(&args[1..]),
         Some("check-deps") => check_deps(),
         Some("check-packaging") => check_packaging(),
         _ => Err("usage: cargo run -p xtask -- dist [--root DIR] [--no-build] | check-deps | check-packaging".into()),
@@ -139,6 +146,47 @@ fn dist(args: &[String]) -> Result<(), String> {
         copy(&l, "usr/share/licenses/vigil/LICENSE", 0o644)?;
     }
     println!("staged {}", stage.display());
+    Ok(())
+}
+
+fn package(args: &[String]) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let version = env!("CARGO_PKG_VERSION");
+    let arch = std::env::consts::ARCH;
+    let out = root().join("target/package");
+    let name = format!("vigil-{version}");
+    let dir = out.join(&name);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut dist_args = vec!["--root".to_string(), dir.to_string_lossy().into_owned()];
+    dist_args.extend(args.iter().filter(|a| *a == "--no-build").cloned());
+    dist(&dist_args)?;
+    std::fs::write(dir.join("usr/lib/vigil/VERSION"), format!("{version}\n")).map_err(|e| e.to_string())?;
+    for f in ["install.sh", "uninstall.sh"] {
+        let dst = dir.join(f);
+        std::fs::copy(root().join("packaging/tarball").join(f), &dst).map_err(|e| e.to_string())?;
+        std::fs::set_permissions(&dst, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(
+        dir.join("README.txt"),
+        format!(
+            "Vigil {version}\n\nInstall:    sudo ./install.sh\nRemove:     sudo /usr/lib/vigil/uninstall.sh\nCheck:      vigil-cli doctor\n\n\
+             install.sh lists exactly what it changes at its top.\n"
+        ),
+    )
+    .map_err(|e| e.to_string())?;
+    let tarball = format!("{name}-{arch}-linux.tar.gz");
+    let ok = Command::new("tar")
+        .args(["--owner=0", "--group=0", "--sort=name", "-czf", &tarball, &name])
+        .current_dir(&out)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if !ok.success() {
+        return Err("tar failed".into());
+    }
+    let sum = Command::new("sha256sum").arg(&tarball).current_dir(&out).output().map_err(|e| e.to_string())?;
+    std::fs::write(out.join(format!("{tarball}.sha256")), &sum.stdout).map_err(|e| e.to_string())?;
+    println!("built {}", out.join(&tarball).display());
     Ok(())
 }
 

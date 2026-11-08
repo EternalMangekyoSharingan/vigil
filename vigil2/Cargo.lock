@@ -5624,7 +5624,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vigil-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "nix",
@@ -5639,11 +5639,11 @@ dependencies = [
 
 [[package]]
 name = "vigil-engine"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "vigil-model"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5652,7 +5652,7 @@ dependencies = [
 
 [[package]]
 name = "vigil-sensor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "nix",
  "serde_json",
@@ -5661,7 +5661,7 @@ dependencies = [
 
 [[package]]
 name = "vigil-store"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -5673,7 +5673,7 @@ dependencies = [
 
 [[package]]
 name = "vigil-ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "gpui-pre",
  "gpui-pre-platform",
@@ -5682,6 +5682,7 @@ dependencies = [
  "time",
  "tokio",
  "vigil-model",
+ "vigil-sensor",
  "vigil-store",
  "vigil-ui-core",
  "zbus 6.2.1",
@@ -5689,7 +5690,7 @@ dependencies = [
 
 [[package]]
 name = "vigil-ui-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -5698,7 +5699,7 @@ dependencies = [
 
 [[package]]
 name = "vigild"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "nix",
@@ -6748,7 +6749,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "toml 0.9.12+spec-1.1.0",
 ]

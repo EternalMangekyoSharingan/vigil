@@ -186,3 +186,39 @@ container against the system daemon (polkit, user `vigil`) and taking screenshot
   Measured cost on a real GPU is still to be checked against the budgets.
 - Findings, DNS, Autostart, Files, Software, Guard and Canaries still need their engines
   (milestones 3 to 6).
+
+---
+
+## The owner's review, round 2 (2026-11-09)
+
+### Built
+- **The mark and arrival from squares** (D-018).
+- **Settings and popups** (D-020): Settings is a labelled popover beside the Android-style gear
+  (Material "settings"), toggled by the gear or `,`; it slides out from behind the rail and back.
+  Palette and shortcuts have titled headers and close buttons. Keyboard focus is kept on the app
+  (some compositors started it unfocused, so no key worked).
+- **Home** fills the window: the device's name (hover shows the file it came from), model and
+  system, laptop or desktop, the battery (laptops) or driver health from the kernel's age and taint
+  flags (desktops), and a quartered shield whose border catches a light every few seconds; live
+  numbers with their recent history; network activity with program icons; the busiest programs
+  (the daemon now reports CPU and memory per process); traffic by service and place; activity;
+  coverage with hover details.
+- **Network map**: still columns (this PC, programs with icons, the addresses they talk to), curved
+  links, a dot grid, no moving parts, no overlaps; the selected program's links light up and a callout
+  opens beside it; the map never resizes. Clicking a program points it out in the taskbar (D-021).
+  The connections list shows each program's icon, the service (HTTPS, DNS ...), the place and the
+  state with an icon (a tick for open).
+- **Program icons** from `.desktop` files and the icon theme (system, user, Flatpak, Snap).
+- **Packaging** (D-019): the tarball, installer, uninstaller, daily updater and the release workflow.
+
+### Tests
+51 pass. New: the square geometry and folding, device facts (name, model, battery, kernel age,
+taint), launcher parsing for icons. Clippy clean; `check-deps` and `check-packaging` pass.
+
+### Limits
+- Driver health is an offline estimate (kernel age and taint flags); it cannot see vendor driver
+  versions.
+- Tested in the container on X with software rendering; KDE Wayland focus behaviour and the KWin
+  attention script still need a run on the owner's laptop.
+- The installer and updater were syntax-checked and the tarball's layout checked; a full install and
+  an update cycle need a machine with systemd running (the container has none).

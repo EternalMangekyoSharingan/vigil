@@ -6,19 +6,20 @@ out=${1:-docs-shots}; mkdir -p "$out"
 export HOME=$(mktemp -d)
 ./target/release/vigil >/dev/null 2>&1 &
 pid=$!
-n=0; w=""; while [ -z "$w" ] && [ $n -lt 300 ]; do w=$(xdotool search --onlyvisible --pid $pid 2>/dev/null | tail -1); n=$((n+1)); done; [ -n "$w" ] || { echo "no window"; exit 1; }
+w=$(timeout 30 sh -c "until xdotool search --onlyvisible --pid $pid 2>/dev/null | tail -1 | grep . ; do :; done") || { echo "no window"; exit 1; }
 shot() { eval $(xdotool getwindowgeometry --shell "$w"); import -window root -crop ${WIDTH}x${HEIGHT}+${X}+${Y} +repage "$out/$1.png"; }
-# The arrival plays on launch: catch it on the way.
-sleep 0.25; shot arrival-1
-sleep 0.25; shot arrival-2
-sleep 0.3; shot arrival-3
+sleep 0.2; shot arrival-1
+sleep 0.3; shot arrival-2
+sleep 0.35; shot arrival-3
 sleep 0.4; shot arrival-4
-sleep 1.2; shot home
-xdotool key 2; sleep 1.0; shot network-map
-xdotool key bracketright; sleep 0.6; xdotool key j; sleep 0.6; shot connections-detail
-xdotool key Escape; xdotool key 3; sleep 0.8; xdotool key j j j; sleep 0.6; shot processes-tree
-xdotool key ctrl+k; sleep 0.15; shot palette-opening; xdotool type --delay 50 "time"; sleep 0.4; shot palette
-xdotool key Escape; sleep 0.3; xdotool key comma; sleep 0.5; shot settings
-xdotool key Escape; xdotool key 9; sleep 0.8; shot timeline
-xdotool key 4; sleep 0.6; shot autostart
+sleep 0.5; shot arrival-5
+sleep 1.6; shot home
+xdotool key 2; sleep 1.2; shot network-map
+xdotool key j; sleep 0.8; shot network-map-selected
+xdotool key j; sleep 0.8; shot network-map-selected-2
+xdotool key Escape; xdotool key bracketright; sleep 0.9; shot connections
+xdotool key comma; sleep 0.12; shot settings-opening; sleep 0.5; shot settings
+xdotool key comma; sleep 0.09; shot settings-closing; sleep 0.4
+xdotool key ctrl+k; sleep 0.4; xdotool type --delay 40 "proc"; sleep 0.3; shot palette
+xdotool key Escape; sleep 0.3; xdotool key 3; sleep 0.9; xdotool key j j; sleep 0.7; shot processes
 kill $pid
