@@ -1,0 +1,13 @@
+[package]
+name = "spike-gpui"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Toolkit spike (docs/RUST_REWRITE.md 5.1). Not part of the product workspace.
+[dependencies]
+gpui = { package = "gpui-pre", version = "=0.3.11" }
+gpui-component = "=0.9.0"
+
+[profile.release]
+debug = false

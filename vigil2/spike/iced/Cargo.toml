@@ -1,0 +1,12 @@
+[package]
+name = "spike-iced"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Toolkit spike (docs/RUST_REWRITE.md 5.1). Not part of the product workspace.
+[dependencies]
+iced = { version = "=0.14.0", features = ["canvas", "tokio"] }
+
+[profile.release]
+debug = false

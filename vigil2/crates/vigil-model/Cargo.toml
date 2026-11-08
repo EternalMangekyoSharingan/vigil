@@ -1,0 +1,16 @@
+[package]
+name = "vigil-model"
+description = "The finding format, wording rules, command tokens and ATT&CK map every part of Vigil shares"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

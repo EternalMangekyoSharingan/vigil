@@ -1,0 +1,55 @@
+# Vigil 2: the native rewrite (docs/RUST_REWRITE.md). Vigil 1 (Python) stays in ../vigil.
+[workspace]
+resolver = "2"
+members = [
+    "crates/vigil-model",
+    "crates/vigil-store",
+    "crates/vigil-sensor",
+    "crates/vigil-engine",
+    "crates/vigild",
+    "crates/vigil-cli",
+    "xtask",
+]
+# The toolkit spike (section 5.1) builds on its own, so its heavy dependencies never
+# reach the product until the decision in docs/DECISIONS.md is made.
+exclude = ["spike"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/EternalMangekyoSharingan/vigil"
+publish = false
+
+# Every external crate is listed once here, pinned, and must be on the allowlist in
+# docs/RUST_REWRITE.md section 9 (enforced by deny.toml and tests/allowlist.rs).
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+toml = "0.9"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "signal", "net"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+nix = { version = "0.30", features = ["user", "socket", "fs", "process"] }
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+time = { version = "0.3", features = ["formatting", "local-offset", "macros"] }
+
+vigil-model = { path = "crates/vigil-model" }
+vigil-store = { path = "crates/vigil-store" }
+vigil-sensor = { path = "crates/vigil-sensor" }
+vigil-engine = { path = "crates/vigil-engine" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
