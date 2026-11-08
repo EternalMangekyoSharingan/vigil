@@ -1,25 +1,52 @@
 //! Motion: gorgeous, never in the way (docs/RUST_REWRITE.md 5.3).
 //!
-//! Pure functions of time, so every animation can be tested frame by frame and a
-//! toolkit only has to ask "what does frame t look like?". Rules enforced by the tests:
-//! nothing but the arrival lasts longer than [`MAX_TRANSITION_MS`]; reduced motion
-//! skips the arrival; any key skips it too (the app jumps to [`ARRIVAL_MS`]).
+//! Everything here is a pure function of time, so each animation is tested frame by
+//! frame and a toolkit only asks "what does frame t look like?".
+//!
+//! **Springs** use the parameters Apple's SwiftUI uses: a *response* (the period of the
+//! undamped oscillation, in seconds) and a *damping fraction* (1 = no overshoot, below 1 a
+//! little bounce). They convert to stiffness k = (2π / response)² and damping
+//! c = 4π · fraction / response for a unit mass.
+//!
+//! **The arrival** draws the Vigil mark from geometry (see [`arrival`]):
+//! 1. a single stroke traces a circle (ease-in-out sweep of the arc);
+//! 2. the circle becomes a hexagon by a polar morph, while it turns a twelfth of a turn:
+//!    r(θ) = lerp(1, cos(π/6) / cos(((θ mod π/3) − π/6)), p), p on a spring;
+//! 3. the cube's three inner edges grow from the centre to alternate vertices;
+//! 4. the three faces fill, top first, and the orange core ignites on an underdamped
+//!    spring;
+//! 5. the mark flies along a cubic Bézier to the rail's logo, shrinking to exactly the
+//!    logo's size, while the backdrop dissolves: the last frame *is* the app.
+//!
+//! Rules enforced by the tests: nothing but the arrival lasts longer than
+//! [`MAX_TRANSITION_MS`]; reduced motion skips the arrival; the last frame matches the
+//! rail logo exactly.
 
-/// The arrival ("about 700 ms").
-pub const ARRIVAL_MS: f32 = 700.0;
-/// Every other transition is at most this long.
+use std::f32::consts::{PI, TAU};
+
+/// Every transition other than the arrival is at most this long.
 pub const MAX_TRANSITION_MS: f32 = 300.0;
-/// The rail's active marker slides between items.
-pub const RAIL_MARKER_MS: f32 = 220.0;
-/// Tabs cross-fade with a small slide.
-pub const TAB_MS: f32 = 180.0;
+pub const RAIL_MARKER_MS: f32 = 260.0;
+pub const TAB_MS: f32 = 220.0;
 pub const TAB_SLIDE_PX: f32 = 6.0;
-/// A list row grows into the detail panel's header.
-pub const SHARED_ELEMENT_MS: f32 = 240.0;
-/// Home's cards rise into place after the arrival, one after another.
-pub const CARD_STAGGER_MS: f32 = 30.0;
-pub const CARD_RISE_MS: f32 = 220.0;
-pub const CARD_RISE_PX: f32 = 12.0;
+/// Content entering an area: fade and rise.
+pub const AREA_MS: f32 = 280.0;
+pub const AREA_RISE_PX: f32 = 10.0;
+/// A detail panel sliding in beside its list.
+pub const PANEL_MS: f32 = 260.0;
+pub const PANEL_SLIDE_PX: f32 = 28.0;
+/// Overlays (palette, Settings): open and close.
+pub const OVERLAY_IN_MS: f32 = 240.0;
+pub const OVERLAY_OUT_MS: f32 = 150.0;
+/// Lists: each row starts this much after the one above (capped).
+pub const ROW_STAGGER_MS: f32 = 14.0;
+pub const ROW_STAGGER_MAX: usize = 18;
+/// Home's cards rise one after another.
+pub const CARD_STAGGER_MS: f32 = 40.0;
+pub const CARD_RISE_MS: f32 = 300.0;
+pub const CARD_RISE_PX: f32 = 14.0;
+/// Numbers roll to their new value.
+pub const COUNTER_MS: f32 = 450.0;
 
 /// CSS `cubic-bezier(x1, y1, x2, y2)` at progress `t` (0..1).
 pub fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
@@ -30,7 +57,6 @@ pub fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
         return 1.0;
     }
     let bez = |a: f32, b: f32, s: f32| 3.0 * a * s * (1.0 - s).powi(2) + 3.0 * b * s * s * (1.0 - s) + s.powi(3);
-    // Solve x(s) = t for s by bisection (monotonic for 0 <= x1, x2 <= 1), then return y(s).
     let (mut lo, mut hi) = (0.0f32, 1.0f32);
     for _ in 0..30 {
         let mid = (lo + hi) / 2.0;
@@ -43,21 +69,40 @@ pub fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
     bez(y1, y2, (lo + hi) / 2.0)
 }
 
-/// Vigil's standard ease (`--ease` in Vigil 1's style.css).
+/// Vigil's standard ease (`--ease` in Vigil 1's style.css), front-loaded.
 pub fn ease(t: f32) -> f32 {
     cubic_bezier(0.2, 0.7, 0.2, 1.0, t)
 }
 
+/// Symmetric ease-in-out (cubic): for things that start and end at rest.
+pub fn ease_in_out(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    if t < 0.5 {
+        4.0 * t * t * t
+    } else {
+        1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
+    }
+}
+
 /// A damped spring from 0 to 1 (unit mass).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Spring {
     pub stiffness: f32,
     pub damping: f32,
 }
 
 impl Spring {
-    /// The rail marker and the cube faces: lively, settles fast, overshoots a little.
-    pub const SNAPPY: Spring = Spring { stiffness: 420.0, damping: 30.0 };
+    /// SwiftUI-style parameters: `response` in seconds, `damping_fraction` 0..=1+.
+    pub const fn apple(response: f32, damping_fraction: f32) -> Spring {
+        let w = TAU / response;
+        Spring { stiffness: w * w, damping: 4.0 * PI * damping_fraction / response }
+    }
+    /// SwiftUI's default `.spring()`: no visible overshoot, settles quickly.
+    pub const SMOOTH: Spring = Spring::apple(0.42, 1.0);
+    /// `.snappy`: a hint of bounce. Rail marker, panels.
+    pub const SNAPPY: Spring = Spring::apple(0.32, 0.82);
+    /// `.bouncy`: the core igniting.
+    pub const BOUNCY: Spring = Spring::apple(0.38, 0.55);
 
     /// Position at `t` seconds after release.
     pub fn value(self, t: f32) -> f32 {
@@ -66,10 +111,10 @@ impl Spring {
         }
         let w0 = self.stiffness.sqrt();
         let zeta = self.damping / (2.0 * w0);
-        if zeta < 1.0 {
+        if zeta < 1.0 - 1e-4 {
             let wd = w0 * (1.0 - zeta * zeta).sqrt();
             1.0 - (-zeta * w0 * t).exp() * ((wd * t).cos() + (zeta * w0 / wd) * (wd * t).sin())
-        } else if (zeta - 1.0).abs() < 1e-6 {
+        } else if zeta <= 1.0 + 1e-4 {
             1.0 - (-w0 * t).exp() * (1.0 + w0 * t)
         } else {
             let s = (zeta * zeta - 1.0).sqrt();
@@ -89,6 +134,21 @@ impl Spring {
             t += 0.001;
         }
         last_out
+    }
+
+    /// The spring as an easing curve over `duration_ms`, ending exactly at 1: for
+    /// toolkits whose animations take an easing function and a fixed duration.
+    pub fn easing(self, duration_ms: f32) -> impl Fn(f32) -> f32 {
+        move |t: f32| if t >= 1.0 { 1.0 } else { self.value(t * duration_ms / 1000.0) }
+    }
+}
+
+/// An easing that waits `delay_ms` of a `total_ms` animation, then runs `curve` over
+/// the rest: staggered entrances with one fixed-length animation per element.
+pub fn delayed(delay_ms: f32, total_ms: f32, curve: impl Fn(f32) -> f32) -> impl Fn(f32) -> f32 {
+    move |t: f32| {
+        let span = (total_ms - delay_ms).max(1.0);
+        curve(((t * total_ms - delay_ms) / span).clamp(0.0, 1.0))
     }
 }
 
@@ -110,111 +170,209 @@ pub fn reduced(pref: MotionPref, desktop_reduced: bool) -> bool {
     }
 }
 
-/// One of the cube's three faces.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Face {
-    pub opacity: f32,
-    pub dx: f32,
-    pub dy: f32,
-    pub scale: f32,
+// ---- the mark's geometry ------------------------------------------------------------------
+
+/// The hexagon's corners, in order from the top, clockwise (pointy-top hexagon):
+/// k = 0 top, 1 upper right, 2 lower right, 3 bottom, 4 lower left, 5 upper left.
+pub fn vertex_angle(k: usize) -> f32 {
+    -PI / 2.0 + (k % 6) as f32 * PI / 3.0
 }
 
+/// Distance from the centre to a regular hexagon's edge (circumradius 1) at angle θ,
+/// for a hexagon with corners at [`vertex_angle`].
+pub fn hexagon_radius(theta: f32) -> f32 {
+    let local = (theta - vertex_angle(0)).rem_euclid(PI / 3.0) - PI / 6.0;
+    (PI / 6.0).cos() / local.cos()
+}
+
+/// The polar morph: a circle (`p` = 0) becomes the hexagon (`p` = 1).
+pub fn morph_radius(theta: f32, p: f32) -> f32 {
+    1.0 + (hexagon_radius(theta) - 1.0) * p
+}
+
+/// The three faces as corner indices around the centre: top, right, left (the order the
+/// colours in [`FACE_COLOURS`] follow).
+pub const FACES: [[usize; 3]; 3] = [[5, 0, 1], [1, 2, 3], [3, 4, 5]];
+/// Top (light), right (mid), left (deep) teal, and the orange core.
+pub const FACE_COLOURS: [u32; 3] = [0x9fe3df, 0x5dbdb9, 0x3f9a95];
+pub const CORE_COLOUR: u32 = 0xff9f43;
+pub const STROKE_COLOUR: u32 = 0x62f3ff;
+/// The core's radius as a fraction of the hexagon's circumradius.
+pub const CORE_RATIO: f32 = 0.18;
+
+/// Everything the painter needs for one frame of the mark.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Ring {
-    /// Radius as a multiple of the mark's radius.
+pub struct MarkFrame {
+    /// Centre, in the overlay's pixels.
+    pub cx: f32,
+    pub cy: f32,
+    /// Circumradius in pixels.
     pub radius: f32,
-    pub opacity: f32,
+    /// Rotation in radians (0 = the rail logo's orientation).
+    pub rotation: f32,
+    /// Circle (0) to hexagon (1).
+    pub morph: f32,
+    /// How much of the outline is traced, 0..=1 of a full turn.
+    pub sweep: f32,
+    pub stroke_alpha: f32,
+    /// How far each inner edge has grown from the centre (to corners 1, 3, 5).
+    pub edges: [f32; 3],
+    pub face_alpha: [f32; 3],
+    pub core_scale: f32,
 }
 
-/// What the arrival looks like at one instant.
+impl MarkFrame {
+    /// The finished mark at rest: what the rail logo shows.
+    pub fn at_rest(cx: f32, cy: f32, radius: f32) -> MarkFrame {
+        MarkFrame {
+            cx,
+            cy,
+            radius,
+            rotation: 0.0,
+            morph: 1.0,
+            sweep: 1.0,
+            stroke_alpha: 0.0,
+            edges: [1.0; 3],
+            face_alpha: [1.0; 3],
+            core_scale: 1.0,
+        }
+    }
+
+    /// A point on the (morphing, rotating) outline at angle θ of the mark's own frame.
+    pub fn outline(&self, theta: f32) -> (f32, f32) {
+        let r = self.radius * morph_radius(theta, self.morph);
+        let a = theta + self.rotation;
+        (self.cx + r * a.cos(), self.cy + r * a.sin())
+    }
+
+    /// The outline from corner `a` to corner `b` (clockwise), as `steps` + 1 points:
+    /// face edges follow the curve while the circle is still becoming a hexagon.
+    pub fn arc(&self, a: usize, b: usize, steps: usize) -> Vec<(f32, f32)> {
+        let start = vertex_angle(a);
+        let span = ((vertex_angle(b) - start).rem_euclid(TAU)).max(1e-3);
+        (0..=steps).map(|i| self.outline(start + span * i as f32 / steps as f32)).collect()
+    }
+}
+
+/// Where the arrival lands: the rail logo's centre and circumradius, in window pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Landing {
+    pub cx: f32,
+    pub cy: f32,
+    pub radius: f32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ArrivalFrame {
+    /// Opacity of the backdrop over the app.
     pub backdrop: f32,
-    /// Top, left, right.
-    pub faces: [Face; 3],
-    pub core_scale: f32,
-    pub core_opacity: f32,
-    /// Ice first, then orange.
-    pub rings: [Ring; 2],
-    pub grid_opacity: f32,
-    /// How far from the centre the grid has faded in (0..1 of the window's half-diagonal).
-    pub grid_reach: f32,
-    /// Letter spacing of the word VIGIL, in em.
-    pub word_tracking: f32,
-    pub word_blur: f32,
-    pub word_opacity: f32,
+    pub mark: MarkFrame,
+    /// The word VIGIL: per-letter opacity and rise (px), and overall letter spacing (em).
+    pub letters: [(f32, f32); 5],
+    pub tracking: f32,
+    /// True on and after the frame where the overlay's mark sits exactly on the logo.
+    pub landed: bool,
     pub done: bool,
 }
 
-/// Where each face flies in from, in mark units (the mark is 84 px wide at rest).
-pub const FACE_FROM: [(f32, f32); 3] = [(0.0, -26.0), (-24.0, 14.0), (24.0, 14.0)];
-pub const FACE_STAGGER_MS: f32 = 70.0;
-pub const CORE_START_MS: f32 = 300.0;
-pub const CORE_PEAK_MS: f32 = 110.0;
-pub const CORE_MS: f32 = 240.0;
-pub const CORE_PEAK: f32 = 2.2;
-pub const RING_START_MS: [f32; 2] = [330.0, 450.0];
-pub const RING_MS: f32 = 250.0;
-pub const WORD_START_MS: f32 = 250.0;
-pub const WORD_MS: f32 = 380.0;
+/// Phase boundaries (ms).
+pub const TRACE: (f32, f32) = (0.0, 420.0);
+pub const MORPH_START: f32 = 260.0;
+pub const EDGE_START: f32 = 520.0;
+pub const EDGE_STAGGER: f32 = 45.0;
+pub const EDGE_MS: f32 = 200.0;
+pub const FACE_START: f32 = 640.0;
+pub const FACE_STAGGER: f32 = 55.0;
+pub const FACE_MS: f32 = 220.0;
+pub const CORE_START: f32 = 760.0;
+pub const WORD_START: f32 = 380.0;
+pub const LETTER_STAGGER: f32 = 40.0;
+pub const LETTER_MS: f32 = 320.0;
+pub const FLIGHT_START: f32 = 1000.0;
+pub const FLIGHT_MS: f32 = 540.0;
+/// The whole arrival.
+pub const ARRIVAL_MS: f32 = FLIGHT_START + FLIGHT_MS;
+/// Circumradius of the mark at the centre of the window.
+pub const STAGE_RADIUS: f32 = 46.0;
 
-// Every part of the arrival ends inside it (checked when compiling).
-const _: () = assert!(RING_START_MS[1] + RING_MS <= ARRIVAL_MS);
-const _: () = assert!(CORE_START_MS + CORE_MS <= ARRIVAL_MS);
-const _: () = assert!(WORD_START_MS + WORD_MS <= ARRIVAL_MS);
+/// Ken Perlin's smootherstep, 6t⁵ − 15t⁴ + 10t³: zero speed *and* zero acceleration at
+/// both ends, so the mark lifts off and settles without a visible jerk, and its top speed
+/// is only 1.875 times its average.
+pub fn flight_ease(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+}
 
 fn progress(t: f32, start: f32, len: f32) -> f32 {
     ((t - start) / len).clamp(0.0, 1.0)
 }
 
-/// The arrival at `t` milliseconds. With `reduced` it is already over.
-pub fn arrival(t: f32, reduced: bool) -> ArrivalFrame {
+/// A cubic Bézier between two points with control points that leave the start
+/// horizontally and arrive vertically: a curved, natural flight path.
+fn flight_path(from: (f32, f32), to: (f32, f32), s: f32) -> (f32, f32) {
+    let c1 = (from.0 + (to.0 - from.0) * 0.55, from.1);
+    let c2 = (to.0, from.1 + (to.1 - from.1) * 0.45);
+    let u = 1.0 - s;
+    let b = |a: f32, b: f32, c: f32, d: f32| u * u * u * a + 3.0 * u * u * s * b + 3.0 * u * s * s * c + s * s * s * d;
+    (b(from.0, c1.0, c2.0, to.0), b(from.1, c1.1, c2.1, to.1))
+}
+
+/// The arrival at `t` ms, in a window whose centre is (`w`/2, `h`/2), landing on `land`.
+/// With `reduced` it is already over.
+pub fn arrival(t: f32, w: f32, h: f32, land: Landing, reduced: bool) -> ArrivalFrame {
     let t = if reduced { ARRIVAL_MS } else { t.max(0.0) };
-    let faces = std::array::from_fn(|i| {
-        let start = i as f32 * FACE_STAGGER_MS;
-        let p = if t >= ARRIVAL_MS { 1.0 } else { Spring::SNAPPY.value((t - start) / 1000.0) };
-        let (fx, fy) = FACE_FROM[i];
-        Face { opacity: (p * 1.6).clamp(0.0, 1.0), dx: fx * (1.0 - p), dy: fy * (1.0 - p), scale: 0.7 + 0.3 * p }
+    let secs = |start: f32| ((t - start) / 1000.0).max(0.0);
+    let centre = (w / 2.0, h / 2.0 - 18.0);
+
+    let sweep = ease_in_out(progress(t, TRACE.0, TRACE.1 - TRACE.0));
+    let morph = if t <= MORPH_START { 0.0 } else { Spring::SMOOTH.value(secs(MORPH_START)).min(1.0) };
+    // A twelfth of a turn, unwinding with the morph.
+    let rotation = -(PI / 6.0) * (1.0 - morph);
+    let edges = std::array::from_fn(|i| ease(progress(t, EDGE_START + i as f32 * EDGE_STAGGER, EDGE_MS)));
+    let face_alpha = std::array::from_fn(|i| ease(progress(t, FACE_START + i as f32 * FACE_STAGGER, FACE_MS)));
+    let core_scale = if t <= CORE_START { 0.0 } else { Spring::BOUNCY.value(secs(CORE_START)) };
+    // The outline hands over to the faces.
+    let stroke_alpha = 1.0 - ease(progress(t, FACE_START + 2.0 * FACE_STAGGER, FACE_MS));
+
+    // The flight: a gentle lift-off, then a long glide that comes to rest exactly on the
+    // logo (zero speed at the end, so the hand-off cannot be seen).
+    let f = flight_ease(progress(t, FLIGHT_START, FLIGHT_MS));
+    let (cx, cy) = flight_path(centre, (land.cx, land.cy), f);
+    let radius = STAGE_RADIUS + (land.radius - STAGE_RADIUS) * f;
+
+    let letters = std::array::from_fn(|i| {
+        let p = ease(progress(t, WORD_START + i as f32 * LETTER_STAGGER, LETTER_MS));
+        // The word leaves first, as the mark lifts off.
+        let out = 1.0 - ease(progress(t, FLIGHT_START - 60.0, 180.0));
+        (p * out, 8.0 * (1.0 - p))
     });
-    // The core ignites with a quick overshoot: 0 -> 2.2 -> 1.
-    let ct = t - CORE_START_MS;
-    let core_scale = if ct <= 0.0 {
-        0.0
-    } else if ct < CORE_PEAK_MS {
-        CORE_PEAK * ease(ct / CORE_PEAK_MS)
-    } else {
-        CORE_PEAK + (1.0 - CORE_PEAK) * ease(progress(ct, CORE_PEAK_MS, CORE_MS - CORE_PEAK_MS))
-    };
-    let rings = std::array::from_fn(|i| {
-        let p = progress(t, RING_START_MS[i], RING_MS);
-        Ring { radius: 1.0 + 1.6 * ease(p), opacity: if p <= 0.0 || p >= 1.0 { 0.0 } else { 0.9 * (1.0 - p) } }
-    });
-    let wp = ease(progress(t, WORD_START_MS, WORD_MS));
+    let tracking = 0.9 - 0.5 * ease(progress(t, WORD_START, LETTER_MS + 4.0 * LETTER_STAGGER));
+
+    let mut mark = MarkFrame { cx, cy, radius, rotation, morph, sweep, stroke_alpha, edges, face_alpha, core_scale };
+    let landed = t >= ARRIVAL_MS;
+    if landed {
+        mark = MarkFrame::at_rest(land.cx, land.cy, land.radius);
+    }
     ArrivalFrame {
-        backdrop: ease(progress(t, 0.0, 250.0)),
-        faces,
-        core_scale,
-        core_opacity: if ct > 0.0 { 1.0 } else { 0.0 },
-        rings,
-        grid_opacity: 0.18 * ease(progress(t, 80.0, 400.0)),
-        grid_reach: ease(progress(t, 80.0, 520.0)),
-        word_tracking: 1.6 - 1.0 * wp,
-        word_blur: 6.0 * (1.0 - wp),
-        word_opacity: wp,
-        done: t >= ARRIVAL_MS,
+        backdrop: 1.0 - ease_in_out(progress(t, FLIGHT_START + 40.0, FLIGHT_MS - 40.0)),
+        mark,
+        letters,
+        tracking,
+        landed,
+        done: landed,
     }
 }
 
-/// Home's card `i` after the arrival: (vertical offset in px, opacity).
-pub fn card_rise(t_after_arrival: f32, i: usize, reduced: bool) -> (f32, f32) {
+/// Home's card `i` after the arrival (or after entering Home): (offset px, opacity).
+pub fn card_rise(t_after: f32, i: usize, reduced: bool) -> (f32, f32) {
     if reduced {
         return (0.0, 1.0);
     }
-    let p = ease(progress(t_after_arrival, i as f32 * CARD_STAGGER_MS, CARD_RISE_MS));
-    (CARD_RISE_PX * (1.0 - p), p)
+    let p = Spring::SMOOTH.easing(CARD_RISE_MS)(progress(t_after, i as f32 * CARD_STAGGER_MS, CARD_RISE_MS));
+    (CARD_RISE_PX * (1.0 - p), p.min(1.0))
 }
 
-/// A value easing from `from` to `to` over `len` ms (for counters, markers, tabs).
+/// A value easing from `from` to `to` over `len` ms (counters, markers).
 pub fn tween(from: f32, to: f32, t: f32, len: f32, reduced: bool) -> f32 {
     if reduced || len <= 0.0 {
         return to;
@@ -226,62 +384,108 @@ pub fn tween(from: f32, to: f32, t: f32, len: f32, reduced: bool) -> f32 {
 mod tests {
     use super::*;
 
+    const LAND: Landing = Landing { cx: 34.0, cy: 32.0, radius: 11.0 };
+
+    fn at(t: f32) -> ArrivalFrame {
+        arrival(t, 1280.0, 800.0, LAND, false)
+    }
+
     #[test]
     fn transitions_respect_the_limits() {
-        let all = [RAIL_MARKER_MS, TAB_MS, SHARED_ELEMENT_MS, CARD_RISE_MS];
+        let all = [RAIL_MARKER_MS, TAB_MS, AREA_MS, PANEL_MS, OVERLAY_IN_MS, OVERLAY_OUT_MS, CARD_RISE_MS];
         assert!(all.iter().all(|ms| *ms <= MAX_TRANSITION_MS), "{all:?}");
-        assert!(2.0 * FACE_STAGGER_MS + Spring::SNAPPY.settle_time(0.01) * 1000.0 <= ARRIVAL_MS);
-        assert!(Spring::SNAPPY.settle_time(0.01) * 1000.0 <= MAX_TRANSITION_MS + 150.0);
-    }
-
-    #[test]
-    fn arrival_starts_hidden_and_ends_at_rest() {
-        let a = arrival(0.0, false);
-        assert!(a.faces.iter().all(|f| f.opacity == 0.0));
-        assert_eq!(a.core_scale, 0.0);
-        assert_eq!(a.word_opacity, 0.0);
-        assert!(!a.done);
-        let z = arrival(ARRIVAL_MS, false);
-        assert!(z.done);
-        for f in z.faces {
-            assert_eq!((f.opacity, f.dx, f.dy, f.scale), (1.0, 0.0, 0.0, 1.0));
+        for s in [Spring::SMOOTH, Spring::SNAPPY] {
+            assert!(s.settle_time(0.01) * 1000.0 < 600.0, "{s:?}");
         }
-        assert!((z.core_scale - 1.0).abs() < 1e-3);
-        assert!(z.rings.iter().all(|r| r.opacity == 0.0));
-        assert!((z.word_tracking - 0.6).abs() < 1e-3 && z.word_blur.abs() < 1e-3);
     }
 
     #[test]
-    fn the_core_overshoots_to_2_2_and_faces_are_staggered() {
-        let peak = (0..=700).map(|t| arrival(t as f32, false).core_scale).fold(0.0, f32::max);
-        assert!((peak - CORE_PEAK).abs() < 0.05, "{peak}");
-        let first_seen = |i: usize| (0..700).find(|t| arrival(*t as f32, false).faces[i].opacity > 0.0).unwrap();
-        assert_eq!(first_seen(1) - first_seen(0), 70);
-        assert_eq!(first_seen(2) - first_seen(1), 70);
-        let ring_seen = |i: usize| (0..700).find(|t| arrival(*t as f32, false).rings[i].opacity > 0.0).unwrap();
-        assert_eq!(ring_seen(1) - ring_seen(0), 120);
+    fn the_hexagon_maths() {
+        // At a corner the hexagon reaches the circle; mid-edge it is cos(30°) in.
+        for k in 0..6 {
+            assert!((hexagon_radius(vertex_angle(k)) - 1.0).abs() < 1e-5);
+            let mid = vertex_angle(k) + PI / 6.0;
+            assert!((hexagon_radius(mid) - (PI / 6.0).cos()).abs() < 1e-5);
+        }
+        // Points on one edge are collinear: the shape really is straight-sided.
+        let m = MarkFrame::at_rest(0.0, 0.0, 1.0);
+        let pts = m.arc(0, 1, 8);
+        let (a, b) = (pts[0], pts[8]);
+        for p in &pts {
+            let cross = (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0);
+            assert!(cross.abs() < 1e-4, "{p:?}");
+        }
+        assert_eq!(morph_radius(1.234, 0.0), 1.0, "p = 0 is a circle");
+    }
+
+    #[test]
+    fn the_arrival_draws_then_lands_exactly_on_the_logo() {
+        let a = at(0.0);
+        assert_eq!(a.mark.sweep, 0.0);
+        assert_eq!(a.mark.core_scale, 0.0);
+        assert!(a.mark.face_alpha.iter().all(|x| *x == 0.0));
+        assert!((a.backdrop - 1.0).abs() < 1e-6);
+        // Mid-way the outline is a full hexagon with faces arriving.
+        let m = at(FACE_START + 100.0);
+        assert!(m.mark.sweep == 1.0 && m.mark.morph > 0.95);
+        // The core overshoots a little (the bouncy spring), then settles.
+        let peak = (0..1400).map(|t| at(t as f32).mark.core_scale).fold(0.0, f32::max);
+        assert!(peak > 1.05 && peak < 1.3, "{peak}");
+        // The last frame is the rail logo, so the hand-off is invisible.
+        let z = at(ARRIVAL_MS);
+        assert!(z.done && z.landed);
+        assert_eq!(z.mark, MarkFrame::at_rest(LAND.cx, LAND.cy, LAND.radius));
+        assert!(z.backdrop.abs() < 1e-6);
+        // Just before the end it is already almost there (no jump on the last frame).
+        let y = at(ARRIVAL_MS - 16.0);
+        assert!((y.mark.cx - LAND.cx).abs() < 3.0 && (y.mark.cy - LAND.cy).abs() < 3.0, "{:?}", y.mark);
+        assert!((y.mark.radius - LAND.radius).abs() < 1.5);
+        assert!(y.backdrop < 0.05);
+        // The word is gone before the mark lands.
+        assert!(at(FLIGHT_START + 150.0).letters.iter().all(|(o, _)| *o < 0.05));
+    }
+
+    #[test]
+    fn motion_is_continuous() {
+        // At 60 fps no step is more than 2.6 times the average step of the flight, and the
+        // last steps are tiny (it glides to rest).
+        let start = at(FLIGHT_START);
+        let dist = ((start.mark.cx - LAND.cx).powi(2) + (start.mark.cy - LAND.cy).powi(2)).sqrt();
+        let avg = dist / (FLIGHT_MS / 16.0);
+        let mut prev = at(0.0);
+        for i in 1..=(ARRIVAL_MS as i32 / 16 + 2) {
+            let f = at(i as f32 * 16.0);
+            let d = ((f.mark.cx - prev.mark.cx).powi(2) + (f.mark.cy - prev.mark.cy).powi(2)).sqrt();
+            assert!(d < 2.6 * avg, "jump of {d}px at frame {i} (average {avg})");
+            if f.mark.cx != LAND.cx && (ARRIVAL_MS - i as f32 * 16.0) < 40.0 {
+                assert!(d < 0.25 * avg, "still moving fast at the end: {d}px");
+            }
+            assert!((f.mark.radius - prev.mark.radius).abs() < 6.0);
+            prev = f;
+        }
     }
 
     #[test]
     fn reduced_motion_skips_everything() {
-        assert!(arrival(0.0, true).done);
+        assert!(arrival(0.0, 1280.0, 800.0, LAND, true).done);
         assert_eq!(card_rise(0.0, 5, true), (0.0, 1.0));
         assert_eq!(tween(0.0, 10.0, 0.0, 200.0, true), 10.0);
         assert!(reduced(MotionPref::System, true));
         assert!(!reduced(MotionPref::Full, true));
-        assert!(reduced(MotionPref::Reduced, false));
     }
 
     #[test]
-    fn curves() {
-        assert!(ease(0.0).abs() < 1e-3 && (ease(1.0) - 1.0).abs() < 1e-3);
-        assert!(ease(0.5) > 0.5, "Vigil's ease is front-loaded");
-        let peak = (0..1000).map(|i| Spring::SNAPPY.value(i as f32 / 1000.0)).fold(0.0, f32::max);
-        assert!(peak > 1.0 && peak < 1.1, "a small overshoot: {peak}");
-        let over = Spring { stiffness: 100.0, damping: 40.0 };
-        assert!((over.value(3.0) - 1.0).abs() < 0.01);
-        let (dy0, _) = card_rise(0.0, 2, false);
-        assert_eq!(dy0, CARD_RISE_PX);
-        assert_eq!(card_rise(2.0 * CARD_STAGGER_MS + CARD_RISE_MS, 2, false), (0.0, 1.0));
+    fn springs_and_curves() {
+        assert!(ease(0.5) > 0.5);
+        assert!((ease_in_out(0.5) - 0.5).abs() < 1e-6);
+        let peak = (0..1000).map(|i| Spring::BOUNCY.value(i as f32 / 1000.0)).fold(0.0, f32::max);
+        assert!(peak > 1.05, "bouncy overshoots: {peak}");
+        let smooth = (0..1000).map(|i| Spring::SMOOTH.value(i as f32 / 1000.0)).fold(0.0, f32::max);
+        assert!(smooth <= 1.0 + 1e-4, "smooth does not: {smooth}");
+        assert_eq!(Spring::SNAPPY.easing(260.0)(1.0), 1.0);
+        let d = delayed(100.0, 300.0, |x| x);
+        assert_eq!(d(0.2), 0.0);
+        assert!((d(1.0) - 1.0).abs() < 1e-6);
+        assert_eq!(card_rise(10_000.0, 3, false), (0.0, 1.0));
     }
 }

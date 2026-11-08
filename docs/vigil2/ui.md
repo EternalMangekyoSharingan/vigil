@@ -13,16 +13,46 @@
 
 ## vigil-ui (GPUI)
 
-`src/main.rs` draws the shell; `src/icons.rs` serves Vigil 1's line icons as SVG.
+| file | what it does |
+| --- | --- |
+| `main.rs` | State, keyboard, the rail (spring marker), top bar, palette, Settings sheet, shortcut sheet, overlays that animate in *and* out, the arrival on launch |
+| `live.rs` | The link to the daemon: a background thread finds `org.vigil.Daemon` (system bus, then session bus, or `--bus`), follows its `Changed` signal and hands snapshots to the UI; the UI never waits on the bus |
+| `views.rs` | The areas: Home, Network (live map, connections, time machine), Processes (tree, table), Cases (timeline), the detail panel, and honest empty states for areas whose engines come later |
+| `mark.rs` | One painter for the mark: every arrival frame and the rail logo, so the hand-off is pixel-exact |
+| `ui.rs` | Cards, chips, buttons with hover and press states, and the enter animations |
+| `icons.rs` | Vigil 1's line icons as SVG |
 
-- **Rail**: the mark (click: the arrival), nine areas with icon and label, a marker that slides
-  on a spring, Settings and your initial at the bottom.
-- **Top bar**: area title, its tabs, Guided/Expert, the daemon's status, Jump to… (Ctrl K).
-- **Palette** (Ctrl K): areas, tabs, actions and settings; arrows and Enter; matches in orange.
-- **Settings** (,) and **shortcuts** (?): read from the keymap, so they are always right.
-- **The arrival** (the mark, or g h): drawn on a canvas from `motion::arrival(t)`. Any key skips
-  it; reduced motion skips it.
-- It repaints only while something moves, and checks `theme.toml` once a second.
-- Areas say what they will show and which milestone brings it; no area shows made-up data.
+### What is live
 
-`vigil --measure-startup` prints the time to the first frame and exits.
+- **Home**: processes, outbound connections, programs online, destinations seen and the
+  daemon's memory, as numbers that roll to new values; "Talking now" (programs by connection
+  count, click to open them); what Vigil can and cannot see; the latest events.
+  "Since you last looked": programs that used the network for the first time in 24 hours.
+- **Network**: a live map (this PC at the centre, programs on an inner ring, the addresses each
+  talks to fanned out around it, dots flowing along open connections in the direction they were
+  made; click a program); the connections list with a filter and a detail panel; the time machine
+  (what was open 5 minutes, an hour, 6 hours, a day or a week ago).
+- **Processes**: the tree (parents and children) and the table, filter with `/`, a detail panel
+  with the command line, program file, start time, the clickable parent chain and the process's
+  connections. `x` switches to Expert columns (uid, inode, full command line).
+- **Cases → Timeline**: everything Vigil noticed or did, grouped by day.
+- Autostart, Files, Software, Guard, Canaries, DNS, LAN, Secrets and Storylines say what they
+  will do, in which milestone, and which Vigil 1 command does it today (with Copy).
+
+### Motion
+
+- **The arrival** (launch, the mark, `g h`): a stroke traces a circle; the circle becomes a
+  hexagon by a polar morph while turning a twelfth of a turn; the cube's three inner edges grow
+  from the centre; the faces fill and the core ignites on a bouncy spring; the word VIGIL resolves
+  letter by letter; then the mark flies along a Bézier curve (smootherstep: zero speed and zero
+  acceleration at both ends) and shrinks onto the rail logo while the backdrop dissolves, and
+  Home's cards rise. The last frame is the logo itself. Any key skips it.
+- **Everywhere else**: SwiftUI-style springs (response and damping fraction). Areas and tabs
+  fade and rise in; list rows follow one another by 14 ms; the detail panel slides in; the
+  palette and the Settings sheet animate in and out; the rail marker springs between areas;
+  numbers roll; buttons and rows have hover and press states.
+- Reduced motion (Settings, or the desktop's setting) turns all of it off. The app repaints at
+  frame rate only while something moves (the map's dots count as moving).
+
+Flags: `vigil --bus system|session|address=...`, `--no-arrival`, `--measure-startup`.
+Screens: `docs/vigil2/screens/app-*.png`.

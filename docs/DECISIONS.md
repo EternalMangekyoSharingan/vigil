@@ -170,3 +170,22 @@ desktop portal crates), plus `paste`, `rustybuzz` and `ttf-parser`, which are al
 unmaintained (no known vulnerability). They reach only the unprivileged app. Each is listed in
 `deny.toml` with its reason; re-check at every GPUI update, and drop the exception as soon as GPUI
 moves on.
+
+## D-016 The arrival, redrawn from geometry (2026-11-08)
+
+The owner found the first arrival (faces flying in, rings, a grid) poor and asked for real
+shape mathematics, clean and minimal, ending cleanly in the app. The new one is built from:
+an ease-in-out arc sweep; a polar morph from circle to hexagon, r(θ) = lerp(1,
+cos(π/6)/cos(((θ mod π/3) − π/6)), p), with p on a spring; inner edges growing from the centre;
+an underdamped spring for the core; and a smootherstep flight along a cubic Bézier onto the rail
+logo. It lasts 1.54 s instead of the prompt's "about 700 ms": the owner asked for the motion to
+look good, and any key skips it. Tests check the geometry (straight hexagon edges, corners on
+the circle), continuity (no step faster than 2.6 times the flight's average at 60 fps, a glide at
+the end) and the hand-off (the last frame equals the rail logo exactly).
+
+## D-017 The app reads the daemon on its own thread (2026-11-08)
+
+The app talks to the daemon on a background thread with its own small async runtime, and the UI
+reads the latest snapshot from a channel a few times a second. The UI never blocks on the bus,
+and a slow or missing daemon only changes the status in the top bar. The app finds the daemon on
+the system bus first, then on the session bus (development), unless `--bus` says otherwise.

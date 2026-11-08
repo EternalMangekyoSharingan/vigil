@@ -14,6 +14,12 @@ path = "src/main.rs"
 [dependencies]
 vigil-ui-core = { path = "../vigil-ui-core" }
 vigil-model.workspace = true
+vigil-store.workspace = true
+zbus.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
 # The toolkit chosen by the spike (docs/DECISIONS.md, D-002). Pinned exactly: pre-1.0.
 gpui = { package = "gpui-pre", version = "=0.3.11" }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.11", features = ["font-kit", "wayland", "x11"] }

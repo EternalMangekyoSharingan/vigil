@@ -149,3 +149,40 @@ mode), and `vigil-cli` run as the normal user `ula`:
 1. D-003: allow the `regex` crate before porting Pkg and Files (milestone 4)?
 2. D-010: allow the `caps` crate so the daemon can drop unused capabilities at run time?
 3. D-002: run `vigil2/spike/run-bench.sh` on the laptop to confirm GPUI.
+
+---
+
+## The app on live data, and the new arrival (2026-11-08, start of milestone 3)
+
+The owner asked for a better arrival, real data instead of placeholders, clickable controls
+everywhere, and Apple-like transitions.
+
+### Built
+- **The arrival**, redrawn from geometry (D-016): traced circle → hexagon morph → inner edges →
+  faces and core → a flight that lands exactly on the rail logo while the app appears. Plays on
+  launch, on the mark and on `g h`; any key skips it.
+- **Live data** (`live.rs`, D-017): the app finds the daemon by itself and refreshes on its
+  `Changed` signal. Home, Network (map, connections, time machine), Processes (tree, table) and
+  Cases → Timeline show what the daemon sees; a detail panel opens beside lists; the palette
+  also finds processes and addresses.
+- **Clickable everything**: rail, tabs, Guided/Expert, the live status (pause), Jump to…, palette
+  rows, Settings controls (theme, motion, density take effect at once), map nodes, table rows,
+  the parent chain, Copy buttons, Done, clicking outside an overlay to close it.
+- **Motion** on SwiftUI-style springs: area and tab entrances, staggered rows, sliding detail
+  panel, overlays in and out, rolling numbers, spring rail marker, hover and press states.
+- When no daemon is running, the app says so and shows the two commands to start one, with Copy.
+
+### Tests
+48 pass (`cargo test --workspace`): new motion tests (hexagon geometry, continuity, exact
+landing, springs) and the process-tree order. Clippy clean. Checked by running the app in the
+container against the system daemon (polkit, user `vigil`) and taking screenshots
+(`tools/ui-shots.sh`, `docs/vigil2/screens/app-*.png`).
+
+### Limits
+- The map draws up to 20 programs and labels up to 36 addresses; a busy machine needs grouping
+  (milestone 7's Expert work).
+- Text in the app is not selectable yet (GPUI); Copy buttons and `c` cover command lines.
+- The map repaints continuously while it is on screen (its dots show open connections).
+  Measured cost on a real GPU is still to be checked against the budgets.
+- Findings, DNS, Autostart, Files, Software, Guard and Canaries still need their engines
+  (milestones 3 to 6).

@@ -13,7 +13,7 @@ install -Dm644 "$here/packaging/dbus/org.vigil.Daemon.conf" /usr/share/dbus-1/sy
 install -Dm644 "$here/packaging/polkit/org.vigil.policy" /usr/share/polkit-1/actions/org.vigil.policy
 install -d -o vigil -g vigil -m 0750 /var/lib/vigil
 mkdir -p /run/dbus
-[ -S /run/dbus/system_bus_socket ] || dbus-daemon --system --fork
+pgrep -x dbus-daemon >/dev/null || { rm -f /run/dbus/pid /run/dbus/system_bus_socket; dbus-daemon --system --fork; }
 pgrep -x polkitd >/dev/null || (/usr/lib/polkit-1/polkitd --no-debug >/tmp/polkitd.log 2>&1 &)
 sleep 1
 setpriv --reuid=vigil --regid=vigil --init-groups \
