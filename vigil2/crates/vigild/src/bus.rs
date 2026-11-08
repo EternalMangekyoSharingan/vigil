@@ -212,16 +212,15 @@ pub async fn serve(
         "session" => connection::Builder::session(),
         a if a.starts_with("address=") => connection::Builder::address(&a["address=".len()..]),
         other => return Err(format!("unknown --bus {other} (system, session or address=...)")),
-    }
-    .map_err(|e| format!("cannot reach the {bus} bus: {e}"))?;
+    };
+    // zbus 6 collects builder errors and reports them from build().
     let conn = builder
         .name(BUS_NAME)
-        .and_then(|b| b.serve_at(OBJECT_PATH, DaemonIface { shared: shared.clone(), auth: auth.clone() }))
-        .and_then(|b| b.serve_at(OBJECT_PATH, ProcessesIface { shared: shared.clone(), auth: auth.clone() }))
-        .and_then(|b| b.serve_at(OBJECT_PATH, NetworkIface { shared: shared.clone(), auth: auth.clone() }))
-        .and_then(|b| b.serve_at(OBJECT_PATH, EventsIface { shared: shared.clone(), auth: auth.clone() }))
-        .and_then(|b| b.serve_at(OBJECT_PATH, FindingsIface { shared: shared.clone(), auth: auth.clone() }))
-        .map_err(|e| e.to_string())?
+        .serve_at(OBJECT_PATH, DaemonIface { shared: shared.clone(), auth: auth.clone() })
+        .serve_at(OBJECT_PATH, ProcessesIface { shared: shared.clone(), auth: auth.clone() })
+        .serve_at(OBJECT_PATH, NetworkIface { shared: shared.clone(), auth: auth.clone() })
+        .serve_at(OBJECT_PATH, EventsIface { shared: shared.clone(), auth: auth.clone() })
+        .serve_at(OBJECT_PATH, FindingsIface { shared: shared.clone(), auth: auth.clone() })
         .build()
         .await
         .map_err(|e| format!("cannot take the name {BUS_NAME} on the {bus} bus: {e}"))?;

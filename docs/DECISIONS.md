@@ -160,3 +160,13 @@ With CAP_SYS_PTRACE the daemon can read every process's open files, so it builds
 with root's view. Otherwise an unattributed socket of another user would be explained as "the
 kernel hides other users' sockets", which would be false. `viewer.user` then reads
 "vigil (with CAP_SYS_PTRACE)".
+
+## D-015 zbus 6 for the daemon; GPUI's unmaintained crates accepted for the app (2026-11-08)
+
+`cargo deny` reported that zbus 5's `zvariant`, `zvariant_derive` and `zbus_names` are no longer
+maintained (merged into zbus 6). The privileged daemon must sit on maintained code, so vigild and
+vigil-cli use zbus 6 (four small API changes). GPUI still pulls zbus 5 (through AccessKit and the
+desktop portal crates), plus `paste`, `rustybuzz` and `ttf-parser`, which are also flagged
+unmaintained (no known vulnerability). They reach only the unprivileged app. Each is listed in
+`deny.toml` with its reason; re-check at every GPUI update, and drop the exception as soon as GPUI
+moves on.

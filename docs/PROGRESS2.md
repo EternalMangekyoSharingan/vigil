@@ -133,6 +133,18 @@ mode), and `vigil-cli` run as the normal user `ula`:
   (milestone 3).
 - Byte counts per socket (sock_diag, which Vigil 1 had) are not ported yet.
 
+### Supply chain (section 10, "More dependencies")
+- The daemon's dependency tree is 83 crates (zbus 6, tokio, rusqlite with bundled SQLite, nix,
+  serde, clap and what they need). The app's is about 570: GPUI brings a full GPU stack (wgpu),
+  font shaping, and image codecs including an AV1 encoder. All 692 crates in the lock file are
+  under licences on the `deny.toml` list. `cargo deny check` passes (advisories, bans, licences,
+  sources); `cargo audit` runs in CI.
+- `cargo deny` flagged zbus 5's `zvariant` and `zbus_names` as unmaintained (merged into zbus 6),
+  so the daemon and CLI moved to zbus 6 and the polkit check was repeated against real polkit.
+  Six unmaintained crates remain, all inside GPUI's tree and none in the daemon's; each is an
+  explained exception in `deny.toml` (D-015).
+- The privileged part (vigild) does not link GPUI or anything graphical: only the app does.
+
 ### Questions for the owner
 1. D-003: allow the `regex` crate before porting Pkg and Files (milestone 4)?
 2. D-010: allow the `caps` crate so the daemon can drop unused capabilities at run time?

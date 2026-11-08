@@ -70,10 +70,7 @@ async fn connect(bus: &str) -> Result<zbus::Connection, String> {
     let r = match bus {
         "system" => zbus::Connection::system().await,
         "session" => zbus::Connection::session().await,
-        a if a.starts_with("address=") => match zbus::connection::Builder::address(&a["address=".len()..]) {
-            Ok(b) => b.build().await,
-            Err(e) => Err(e),
-        },
+        a if a.starts_with("address=") => zbus::connection::Builder::address(&a["address=".len()..]).build().await,
         other => return Err(format!("unknown --bus {other}")),
     };
     r.map_err(|e| format!("cannot reach the {bus} D-Bus: {e}"))

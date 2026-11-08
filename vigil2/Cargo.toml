@@ -45,7 +45,7 @@ thiserror = "2"
 anyhow = "1"
 toml = "0.9"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "signal", "net"] }
-zbus = { version = "5.19", default-features = false, features = ["tokio"] }
+zbus = "6.2"
 rusqlite = { version = "0.41", features = ["bundled"] }
 nix = { version = "0.30", features = ["user", "socket", "fs", "process", "signal"] }
 clap = { version = "4", features = ["derive"] }

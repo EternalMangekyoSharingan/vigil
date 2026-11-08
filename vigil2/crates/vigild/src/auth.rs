@@ -13,8 +13,8 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use zbus::fdo;
 use zbus::message::Header;
-use zbus::zvariant::Value;
 use zbus::Connection;
+use zbus::Variant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
@@ -84,8 +84,8 @@ impl Authorizer {
 
 /// org.freedesktop.PolicyKit1.Authority.CheckAuthorization for a bus-name subject.
 async fn polkit_check(conn: &Connection, caller: &Caller, action: &str, interactive: bool) -> fdo::Result<()> {
-    let mut subject_details: HashMap<&str, Value<'_>> = HashMap::new();
-    subject_details.insert("name", Value::from(caller.bus_name.as_str()));
+    let mut subject_details: HashMap<&str, Variant<'_>> = HashMap::new();
+    subject_details.insert("name", Variant::from(caller.bus_name.as_str()));
     let subject = ("system-bus-name", subject_details);
     let details: HashMap<&str, &str> = HashMap::new();
     let flags: u32 = u32::from(interactive); // 1 = AllowUserInteraction

@@ -93,7 +93,7 @@ fn serves_the_api_on_a_private_bus() {
 
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     rt.block_on(async {
-        let conn = zbus::connection::Builder::address(address.as_str()).unwrap().build().await.unwrap();
+        let conn = zbus::connection::Builder::address(address.as_str()).build().await.unwrap();
         let dbus = zbus::fdo::DBusProxy::new(&conn).await.unwrap();
         let t = Instant::now();
         while !dbus.name_has_owner(BUS_NAME.try_into().unwrap()).await.unwrap() {
@@ -121,11 +121,11 @@ fn serves_the_api_on_a_private_bus() {
         let rule = zbus::MatchRule::builder()
             .msg_type(zbus::message::Type::Signal)
             .interface("org.vigil.Events")
-            .unwrap()
             .member("Changed")
-            .unwrap()
-            .build();
-        let mut stream = zbus::MessageStream::for_match_rule(rule, &conn, Some(4)).await.unwrap();
+            .build()
+            .unwrap();
+        let mut stream =
+            zbus::MessageStream::for_match_rule(rule, &conn, std::num::NonZeroUsize::new(4)).await.unwrap();
         let got = tokio::time::timeout(Duration::from_secs(5), async {
             use zbus::export::futures_core::Stream;
             std::future::poll_fn(|cx| std::pin::Pin::new(&mut stream).poll_next(cx)).await
