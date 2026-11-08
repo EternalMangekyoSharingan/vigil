@@ -74,7 +74,10 @@ function renderStatus() {
 async function tick() {
   try {
     status = await api.get("/api/status");
-    appState.sudoMode = !!status.sudo_mode;
+    if (appState.runMode !== !!status.sudo_mode) {   // switched in another tool's Settings
+      appState.sudoMode = appState.runMode = !!status.sudo_mode;
+      window.dispatchEvent(new CustomEvent("vigil:settings"));
+    }
     for (const v of Object.values(views)) v.setStatus?.(status);
   } catch (e) {
     status = { last_error: `cannot reach Vigil (${e.message})`, interval: "?" };

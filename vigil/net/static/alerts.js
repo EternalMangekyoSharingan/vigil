@@ -158,11 +158,10 @@ export class AlertsView {
       }
     }
     clear(box);
-    box.append(el("p", { class: "note" },
-      el("strong", { text: appState.sudoMode ? "Sudo mode is on. " : "Vigil does not run these. " }),
-      appState.sudoMode ? "Read each command first. Run asks before it starts, and your system asks for your password for admin commands. "
-        : "Read each command, copy it, and run it yourself in a terminal (or switch on sudo mode in Settings). ",
-      f.distro.known ? `Commands are for ${f.distro.name || f.distro.id}` : "", f.firewall ? ` · firewall: ${f.firewall}` : ""));
+    box.append(el("p", { class: "fix-intro" }, "Read each command first. ",
+      appState.runMode ? "Run asks before it starts, and your system asks for your password for admin commands. "
+        : "Copy it, or press Run after switching on Run mode in Settings. ",
+      el("span", { class: "faint", text: [f.distro.known ? `For ${f.distro.name || f.distro.id}` : "", f.firewall ? `firewall: ${f.firewall}` : ""].filter(Boolean).join(" · ") })));
     if (f.note) box.append(el("p", { class: "muted", text: f.note }));
     const section = (title, list, kind) => {
       box.append(el("h3", { text: title }));

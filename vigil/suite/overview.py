@@ -117,7 +117,7 @@ def verdict(total, ran):
         return {"word": "Not checked yet", "cls": "", "text": "Run a check-up: it reads what is running, what starts "
                 "by itself and what is in Downloads. Nothing is changed, sent or deleted."}
     if total["High"]:
-        return {"word": f"{total['High']} thing{'s' if total['High'] != 1 else ''} need a look", "cls": "danger",
+        return {"word": f"{total['High']} thing{'s need' if total['High'] != 1 else ' needs'} a look", "cls": "danger",
                 "text": "Start with the High items below; each one says why and what to check."}
     if total["Medium"]:
         return {"word": "Mostly normal", "cls": "warn", "text": "A few Medium items are worth reading when you have a minute."}

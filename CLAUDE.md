@@ -64,7 +64,17 @@ asked for: the Network Map has background themes (Grid: hexagons and shapes; Nig
 a drifting starfield; Plain), and the File Inspector report follows VirusTotal's layout (score box with
 a small ring, summary card, tabs, a two-column grid of analyzer results).
 
-## Sudo mode (owner's decision, 2026-10-31)
+Updated 2026-11-08 at the owner's request: more professional and less cramped, without long
+mouse travel. One shell on every page (vigil/ui/static/suite.js): a left icon rail, Settings
+behind a gear top right, a command palette (Ctrl+K), keyboard shortcuts, and a short arrival
+animation on the Vigil mark (the one decorative motion; skipped with reduced motion). No boxes
+inside boxes: a card is the only surface, sections inside it are divided by hairlines.
+
+## Run mode, formerly sudo mode (owner's decision, 2026-10-31; widened 2026-11-08)
+Run sits next to Copy on every command, greyed out with the reason unless Run mode is on.
+One switch for every tool (data/settings.json, key "sudo_mode"). Run works wherever the server
+can re-check the command (Net, and finding Fix panels in Tasks, Persist, Files, Pkg); Cases
+stays copy-only because its findings may be imported from elsewhere.
 The owner asked for a sudo mode: Vigil may run its own generated fix, cleanup and scan
 commands when the user presses Run, off by default. Keep these rules: only commands
 Vigil generated (re-generated server-side), no shell, admin rights only through pkexec

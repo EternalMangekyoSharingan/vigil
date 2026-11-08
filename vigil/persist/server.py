@@ -4,7 +4,7 @@ import os
 import threading
 from pathlib import Path
 
-from ..core import system, web
+from ..core import runner, system, web
 from ..core.store import FindingStore
 from ..core.web import _json_body
 from . import scan as scanner
@@ -15,6 +15,8 @@ STATIC = Path(__file__).resolve().parent / "static"
 class App:
     def __init__(self, data_dir, home=None, root="/", proc="/proc", os_release_path=None):
         self.store = FindingStore("persist", data_dir)
+        self.tool_id = "persist"
+        self.data_root = Path(self.store.dir).parent
         self.home = home or os.path.expanduser("~")
         self.root, self.proc = root, proc
         self.os_release_path = os_release_path or (os.path.join(root, "etc/os-release") if root != "/" else "/etc/os-release")
@@ -52,6 +54,12 @@ class App:
         ts, base = self.store.baseline(scanner.BASELINE)
         return {"tool": "persist", "home": self.home, "baseline_at": ts, "baseline_entries": len(base or {}),
                 "runs": self.store.runs(20)}
+
+    # Run mode: only commands in a finding this tool produced and stored itself.
+    def run_allowed(self, source, ref):
+        if source != "finding" or not ref:
+            return set()
+        return runner.commands_in(self.store.finding(ref))
 
     def routes(self):
         return {("GET", "/api/status"): self.api_status,

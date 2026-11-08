@@ -1,5 +1,5 @@
 // Vigil Home: how the PC is doing, what needs a look, the one-click check-up, every tool.
-import "./suite.js";
+import { icon } from "./suite.js";
 import { api, el, clear, put, fmtClock, fmtAgo } from "./ui.js";
 import { toast } from "./fx.js";
 import { SEV_CLASS, DECISIONS, decisionBox } from "./findings.js";
@@ -105,12 +105,12 @@ function tools(o) {
   clear($("tools")).append(...o.tools.map((t) => {
     const c = t.counts || {};
     return el("div", { class: "tool-card" },
-      el("div", { class: "head" }, el("b", { text: t.name }), t.running ? el("span", { class: "tag live", text: "running" }) : el("span", { class: "tag", text: "not started" })),
+      el("div", { class: "head" }, icon(t.id), el("b", { text: t.name }), t.running ? el("span", { class: "tag live", text: "running" }) : el("span", { class: "tag", text: "not started" })),
       el("div", { class: "q", text: t.question }),
       el("div", { class: "stat" }, t.last ? `Last run ${fmtAgo(t.last, o.now)}` : "Never run",
         ...["High", "Medium"].filter((s) => c[s]).map((s) => el("span", { class: `tag ${SEV_CLASS[s]}`, text: `${c[s]} ${s}` }))),
       t.hint ? el("div", { class: "faint", text: t.hint }) : (t.top.length ? el("div", { class: "faint", text: t.top[0].title }) : null),
-      el("div", { class: "actions" }, el("a", { class: "btn", href: t.url, text: `Open ${t.name}` })));
+      el("div", { class: "actions" }, el("a", { class: "btn small", href: t.url, text: `Open ${t.name}` })));
   }));
 }
 

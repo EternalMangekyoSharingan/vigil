@@ -96,6 +96,13 @@ class FindingStore:
             fs = self.db.execute("SELECT body FROM findings WHERE run_id = ? ORDER BY rowid", (run_id,)).fetchall()
         return dict(r, summary=json.loads(r["summary"] or "{}"), findings=[json.loads(x["body"]) for x in fs])
 
+    def finding(self, finding_id):
+        """The most recent stored copy of one finding, by id, or None."""
+        with self.lock:
+            r = self.db.execute("SELECT body FROM findings WHERE id = ? ORDER BY rowid DESC LIMIT 1",
+                                (str(finding_id),)).fetchone()
+        return json.loads(r["body"]) if r else None
+
     def delete_run(self, run_id):
         with self.lock:
             self.db.execute("DELETE FROM runs WHERE id = ?", (run_id,))

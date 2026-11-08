@@ -76,6 +76,13 @@ def _unquoted_text(command):
     return "".join(out)
 
 
+def commands_in(finding):
+    """Every command text in a finding's Fix panel (Check, Fix and Undo): what Run may run."""
+    fx = (finding or {}).get("fixes") or {}
+    return {c["text"] for sec in ("check", "fix", "undo") for o in fx.get(sec) or []
+            for c in (o.get("commands") or []) + (o.get("undo") or []) if isinstance(c, dict) and c.get("text")}
+
+
 def run(command, allowed, store=None, runner=subprocess.run, which=shutil.which):
     """Run `command` if it is exactly one of `allowed` (texts Vigil generated)."""
     if command not in allowed:
@@ -96,7 +103,7 @@ def run(command, allowed, store=None, runner=subprocess.run, which=shutil.which)
     if admin and code in (126, 127):
         result["note"] = "The password dialog was cancelled or authorisation was refused; nothing ran."
     if store is not None:
-        store.event(started, "action", f"Ran (sudo mode): {command} → exit {code}",
+        store.event(started, "action", f"Ran (Run mode): {command} → exit {code}",
                      "runner: pressed Run in the Vigil page" + (" (via pkexec)" if admin else ""),
                      detail={"exit": code, "seconds": result["seconds"], "stderr": result["stderr"][-2000:]})
     return result

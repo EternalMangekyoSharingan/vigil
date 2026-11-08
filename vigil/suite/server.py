@@ -24,6 +24,8 @@ STATIC = Path(__file__).resolve().parent / "static"
 class Home:
     def __init__(self, data_root, apps=None, running=None):
         self.root = Path(data_root)
+        self.data_root = self.root
+        self.tool_id = "home"
         self.apps = apps if apps is not None else {}
         self.running = running if running is not None else {}
         self.job = checkup.Job()

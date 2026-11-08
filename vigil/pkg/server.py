@@ -5,7 +5,7 @@ import os
 import threading
 from pathlib import Path
 
-from ..core import system, web
+from ..core import runner, system, web
 from ..core.web import BadRequest, _json_body
 from . import gate, inbox, installed, parse, review
 
@@ -17,6 +17,8 @@ class App:
     def __init__(self, data_dir, os_release_path="/etc/os-release", fs_root="/", fetcher=None, home=None):
         self.data_dir = Path(data_dir)
         self.store = review.open_store(self.data_dir)
+        self.tool_id = "pkg"
+        self.data_root = Path(self.store.dir).parent
         self.trusted = review.Trusted(self.store)
         self.os_release_path, self.fs_root = os_release_path, fs_root
         self.fetcher = fetcher            # tests replace the network; None means the real one
@@ -131,6 +133,12 @@ class App:
         if q.get("review") == "1":
             self.store.set_meta("inbox", seen)
         return {"helpers": helpers, "packages": out, "home": self.home}
+
+    # Run mode: only commands in a finding this tool produced and stored itself.
+    def run_allowed(self, source, ref):
+        if source != "finding" or not ref:
+            return set()
+        return runner.commands_in(self.store.finding(ref))
 
     def routes(self):
         return {("GET", "/api/status"): self.api_status, ("GET", "/api/inbox"): self.api_inbox,

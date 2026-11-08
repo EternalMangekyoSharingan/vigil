@@ -45,7 +45,7 @@ export class ScanView {
     const box = clear(this.body);
     const t = st.tools, res = st.results;
     box.append(el("h2", { text: "System scan" }),
-      el("p", { class: "muted", text: "Looks for what starts by itself, what is open to the network, programs running from odd places, malware signatures in your folders and installed packages with known security holes. It only reads; fixes are commands you copy (or Run in sudo mode)." }));
+      el("p", { class: "muted", text: "Looks for what starts by itself, what is open to the network, programs running from odd places, malware signatures in your folders and installed packages with known security holes. It only reads; fixes are commands you copy (or Run, with Run mode on)." }));
     const quick = el("button", { type: "button", class: "btn primary", text: "Quick scan", disabled: st.running, onclick: () => this.start("quick") });
     const full = el("button", { type: "button", class: "btn", text: st.running ? "Scanning…" : "Full scan", disabled: st.running, onclick: () => this.start("full") });
     const yb = el("button", { type: "button", class: "btn", text: "Update YARA rules" });

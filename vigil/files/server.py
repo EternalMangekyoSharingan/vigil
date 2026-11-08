@@ -9,7 +9,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
-from ..core import finding as fmt
+from ..core import runner, finding as fmt
 from ..core import system, web
 from ..core.store import FindingStore
 from ..core.web import BadRequest, _json_body
@@ -48,6 +48,8 @@ class App:
     def __init__(self, data_dir, os_release_path="/etc/os-release", home=None, requester=None):
         self.data_dir = Path(data_dir)
         self.store = FindingStore("files", self.data_dir)
+        self.tool_id = "files"
+        self.data_root = Path(self.store.dir).parent
         self.quarantine = Quarantine(self.data_dir / "quarantine")
         self.os_release_path = os_release_path
         self.downloads = downloads_dir(home)
@@ -254,6 +256,12 @@ class App:
                                 subject=f"{sha}:{service}", data=f["data"],
                                 iocs=[{"type": "sha256", "value": sha}]))
         return {"service": service, "result": result, "findings": out}
+
+    # Run mode: only commands in a finding this tool produced and stored itself.
+    def run_allowed(self, source, ref):
+        if source != "finding" or not ref:
+            return set()
+        return runner.commands_in(self.store.finding(ref))
 
     def routes(self):
         return {("GET", "/api/status"): self.api_status, ("GET", "/api/browse"): self.api_browse,

@@ -2493,3 +2493,52 @@ python3 -m vigil.pkg gate                   # paru.conf lines for a review befor
 python3 -m vigil.ai evals                   # the AI layer's checks on synthetic scenarios
 ```
 Then open <http://127.0.0.1:8769/#pid=1> to try the Tasks deep link.
+
+
+---
+
+# UI pass: professional shell, Run next to Copy, Settings everywhere (2026-11-08)
+
+## What was built
+- **One shell on every page** (`vigil/ui/static/suite.js`): a left rail with an icon and label
+  per tool; the Vigil mark plays a ~750 ms arrival animation (the cube's faces assemble, a scan
+  ring opens) and goes Home; top right: Run mode chip, **Jump to…** (command palette) and a
+  Settings gear. Replaces the old "Tools" drop-down.
+- **Settings sheet**: Run mode switch, density (comfortable/compact), motion
+  (system/full/reduced), keyboard list. Stored in `data/settings.json`, shared by every tool
+  through new built-in routes on every server (`core/web.py`: `GET/POST /api/vigil/settings`).
+- **Run next to Copy everywhere.** `commandLine` always renders Run; it is greyed out with the
+  reason on hover (Run mode off, copy-only view, shell syntax, sudoedit). Pressing a greyed
+  Run while Run mode is off opens Settings.
+- **Run in more tools**: `POST /api/vigil/run` on every server; a tool can run only if its app
+  has `run_allowed(source, ref)`. Persist, Files, Pkg look the finding up in their own store
+  (`FindingStore.finding`); Tasks re-generates findings from /proc; Net reuses its existing
+  re-generation. Cases and Home have no `run_allowed`. Non-Net runs and switches are logged to
+  `data/run-log.jsonl` (`core/settings.RunLog`).
+- **Keyboard**: Ctrl+K / g palette, 1–7 tools, [ ] tabs, / search, , Settings, ? help, Esc.
+- **Visual pass**: roomier type and spacing, 32 px controls, Fix options no longer boxed
+  inside the finding card (hairline dividers instead), stat strips with no empty cells
+  (Home posture, Network Map overview), Home tool cards are one big target with the tool's
+  icon, taller Tasks rows, soft page entrance.
+
+## Tests
+`tests/core/test_run_everywhere.py` (9 tests): settings defaults, shared file keeps Net's
+other keys, 0600, invalid values refused, `can_run` per tool, Run mode switches logged; Run
+off by default, only commands from that stored finding run (Check, Fix and Undo), other
+commands, other findings and missing refs refused, copy-only tools refuse, `commands_in`;
+tool wiring (data root, which apps can run). Two Home tests updated for the new shell (same
+intent: every page loads it). Full suite: 421 passed.
+
+Also checked in Chrome: Run on a Persist finding ran `cat /etc/sudoers` and showed the output;
+switching Run mode off in the sheet greyed the button immediately with its reason.
+
+## Decisions
+- Kept the settings key `sudo_mode` so existing `data/settings.json` files and Net keep working;
+  the UI calls it Run mode.
+- Persist/Files/Pkg trust their own stored findings (data folder is 0700, written only by
+  Vigil) rather than re-scanning before every Run; Tasks re-generates because it is cheap.
+- Cases stays copy-only: imported JSONL can come from another machine.
+
+## Known limitations
+- Tools still run on separate ports, so moving between tools is a full page load.
+- The palette lists tools, tabs and visible primary buttons, not individual findings yet.

@@ -28,7 +28,12 @@ but stays on the Cases timeline, dimmed, with your reason. It comes back by itse
 worse, or, for *Fixed*, if a later scan sees it again. Decisions live in `data/decisions.json`
 and are shared by every tool.
 
-Every page has a **Tools** menu (or press <kbd>g</kbd>) to jump between tools, and <kbd>?</kbd>
+Every page has the same frame: a **rail of tool icons** on the left (the Vigil mark plays a short
+arrival animation and takes you Home), and top right a **Run mode** chip when it is on, **Jump to…**
+(<kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>g</kbd>: any tool, tab or action) and the **Settings** gear
+(<kbd>,</kbd>). Settings holds Run mode, density (comfortable or compact) and motion (system, full,
+reduced), shared by every tool through `data/settings.json`. Keys: <kbd>1</kbd>–<kbd>7</kbd> jump to a
+tool, <kbd>[</kbd> <kbd>]</kbd> switch tabs, <kbd>/</kbd> searches, and <kbd>?</kbd>
 shows the shortcuts. Nothing is changed, sent or deleted unless you press a button that says
 it will. `python3 -m vigil.suite --checkup` runs the same check-up in the terminal and exits.
 
@@ -789,9 +794,13 @@ Vigil measures what could go and what each item costs you:
 
 Every command names exact paths, with no wildcards.
 
-## Sudo mode (Settings, off by default)
+## Run mode (Settings, off by default; formerly "sudo mode")
 
-With sudo mode on, fix, cleanup and scan commands get a **Run** button next to Copy.
+Every command shows **Copy** and **Run** side by side. Run is greyed out, and says why when you
+hover it, unless Run mode is on (the gear, top right, or <kbd>,</kbd>). Run mode is one switch for
+every tool. It works in Net (alerts' Fix panels, Cleanup, Scan) and in the Fix panels of Tasks,
+Persist, Files and Pkg findings. Cases stays copy-only, because it holds imported findings that
+may come from another PC.
 - Vigil shows the exact command and asks first.
 - Admin commands run through **pkexec**: your system's own password window shows the
   command and takes your password. Vigil never sees it.
@@ -800,6 +809,10 @@ With sudo mode on, fix, cleanup and scan commands get a **Run** button next to C
 - One command per press, no shell, a 10-minute limit.
 - Output and exit code are shown, and every run is written to the event log.
 - `sudoedit` steps stay copy-only, because they open an editor.
+- Where a command comes from a finding, the server looks that finding up (Persist, Files,
+  Pkg: the copy it stored; Tasks: re-generated from /proc) and runs the text only if it is
+  one of that finding's Check, Fix or Undo commands. Runs outside Net are logged to
+  `data/run-log.jsonl`, along with every Run mode switch.
 
 ## Cases and exports (Cases tab)
 
@@ -939,7 +952,8 @@ vigil/core/          shared by every tool
   store.py           per-tool SQLite evidence store + findings.jsonl
   web.py             the 127.0.0.1-only web server every tool uses
   netfetch.py        the single function in the suite that can open a URL (on request only)
-  runner.py          sudo mode (Network Map only): runs only Vigil-generated commands, via pkexec
+  runner.py          Run mode: runs only Vigil-generated commands, via pkexec
+  settings.py        data/settings.json shared by every tool (Run mode, density, motion), run log
   pkgdb.py           pacman and dpkg databases read directly: ownership, mtree / md5sums integrity, vercmp
 vigil/ui/static/     shared UI kit: style.css, fonts, ui.js, fx.js, menu.js, findings.js
                      (finding card, Fix panel, colour-coded commands, verdict, code and diff

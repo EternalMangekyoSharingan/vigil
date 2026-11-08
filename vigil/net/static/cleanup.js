@@ -1,5 +1,5 @@
 // Cleanup: caches, package leftovers, logs and old files, measured. Commands to copy (or Run
-// in sudo mode); your own files are listed only.
+// in Run mode); your own files are listed only.
 import { api, el, clear } from "./ui.js";
 import { commandLine } from "./findings.js";
 

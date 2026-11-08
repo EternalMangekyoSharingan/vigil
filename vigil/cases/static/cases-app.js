@@ -75,7 +75,7 @@ function swimlanes(box, events) {
 async function finding(key) {
   const f = await api.get(`/api/finding?key=${encodeURIComponent(key)}`);
   const box = clear($("detail"));
-  box.append(findingCard(f.body, { open: true }));
+  box.append(findingCard(f.body, { open: true, run: false }));
   const pid = f.tool === "tasks" && /^pid (\d+)$/.exec(f.body.evidence?.[0]?.value || "");
   if (pid) box.append(el("div", { class: "actions" }, el("a", { class: "btn", href: toolUrl("tasks", `/#pid=${pid[1]}`), target: "_blank", rel: "noopener",
     title: "If it is still running: its place in the tree, open files and network", text: `Open process ${pid[1]} in Tasks` })));

@@ -4,7 +4,7 @@ import os
 import threading
 from pathlib import Path
 
-from ..core import system, web
+from ..core import runner, system, web
 from ..core.pkgdb import PackageFiles
 from ..core.store import FindingStore
 from . import findings as F
@@ -18,6 +18,8 @@ FIELDS = ("pid", "ppid", "name", "comm", "path", "exe_deleted", "user", "uid", "
 class App:
     def __init__(self, data_dir, proc_root="/proc", root="/", os_release_path="/etc/os-release", home=None):
         self.store = FindingStore("tasks", data_dir)
+        self.tool_id = "tasks"
+        self.data_root = Path(self.store.dir).parent
         self.proc_root, self.root = proc_root, root
         self.os_release_path = os_release_path
         self.home = home
@@ -75,6 +77,13 @@ class App:
                                                   "counts": {s: sum(f["severity"] == s for f in fs) for s in
                                                              ("High", "Medium", "Low", "Info")}})
         return {"run_id": run, "findings": fs}
+
+    # Run mode: re-generate the findings from /proc now; only their commands may run.
+    def run_allowed(self, source, ref):
+        if source != "finding" or not ref:
+            return set()
+        _, fs, _ = self.take()
+        return runner.commands_in(next((f for f in fs if f["id"] == ref), None))
 
     def routes(self):
         return {("GET", "/api/tree"): self.api_tree, ("GET", "/api/process"): self.api_process,

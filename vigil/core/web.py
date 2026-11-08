@@ -49,6 +49,50 @@ def _not_found():
     raise NotFound()
 
 
+# ---- routes every tool gets: shared settings and Run ------------------------------------------
+# GET  /api/vigil/settings  -> Run mode, interface preferences, and whether this tool can run
+# POST /api/vigil/settings  -> change them (data/settings.json, shared by every tool)
+# POST /api/vigil/run       -> Run mode: run one command this tool generated (core.runner rules)
+# A tool can run commands only if its app has run_allowed(source, ref) -> set of command texts,
+# re-generated or looked up server-side; text from the page is never trusted.
+
+def _data_root(app):
+    from .store import default_data_dir
+    return getattr(app, "data_root", None) or default_data_dir()
+
+
+def builtin_routes(app):
+    from . import runner, settings
+
+    def get_settings(q):
+        return dict(settings.public(_data_root(app)), can_run=hasattr(app, "run_allowed"))
+
+    def set_settings(q, body, headers):
+        req = _json_body(body)
+        before = settings.run_mode(_data_root(app))
+        out = settings.update(_data_root(app), req)
+        if out["run_mode"] != before:
+            log = getattr(app, "run_log", None) or settings.RunLog(_data_root(app), getattr(app, "tool_id", "?"))
+            log.event(None, "setting", f"Run mode switched {'on' if out['run_mode'] else 'off'}", "Settings panel")
+        return dict(out, can_run=hasattr(app, "run_allowed"))
+
+    def run(q, body, headers):
+        if not hasattr(app, "run_allowed"):
+            raise BadRequest("this tool shows commands to copy only")
+        if not settings.run_mode(_data_root(app)):
+            raise BadRequest("Run mode is off: switch it on in Settings, or copy the command")
+        req = _json_body(body)
+        allowed = app.run_allowed(str(req.get("source") or ""), req.get("ref"))
+        log = getattr(app, "run_log", None) or settings.RunLog(_data_root(app), getattr(app, "tool_id", "?"))
+        try:
+            return runner.run(str(req.get("command") or ""), allowed, store=log)
+        except runner.Refused as exc:
+            raise BadRequest(str(exc)) from None
+
+    return {("GET", "/api/vigil/settings"): get_settings, ("POST", "/api/vigil/settings"): set_settings,
+            ("POST", "/api/vigil/run"): run}
+
+
 def _json_body(body):
     try:
         data = json.loads(body or b"{}")
@@ -105,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
         url = urllib.parse.urlsplit(self.path)
         q = dict(urllib.parse.parse_qsl(url.query))
         app = self.server.app
-        handler = app.routes().get((method, url.path))
+        handler = app.routes().get((method, url.path)) or builtin_routes(app).get((method, url.path))
         if method != "GET":
             self.close_connection = True  # never leave an unread body on a kept-alive socket
         if handler:

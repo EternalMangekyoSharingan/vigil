@@ -113,7 +113,7 @@ class HomeServerTests(unittest.TestCase):
             with self.assertRaises(BadRequest):
                 home.routes()[("POST", "/api/checkup")]({}, json.dumps({"steps": ["nope"]}).encode(), {})
             page_check(self, make_server, home, [("/", b"<title>Vigil Home</title>"), ("/static/home.js", b"Check this PC"),
-                                                 ("/static/suite.js", b"Switch tool")])
+                                                 ("/static/suite.js", b"Vigil tools")])
 
     def test_launcher_starts_tools_and_links_busy_ports(self):
         ports = {t["id"]: t["port"] for t in suite.TOOLS}
@@ -136,7 +136,7 @@ class HomeServerTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent.parent / "vigil"
         for js in ("pkg/static/pkg.js", "files/static/files-app.js", "persist/static/persist.js", "tasks/static/tasks.js",
                    "cases/static/cases-app.js", "net/static/app.js", "suite/static/home.js"):
-            self.assertIn('import "./suite.js";', (root / js).read_text(), js)
+            self.assertRegex((root / js).read_text(), r'import (\{[^}]*\} from )?"\./suite\.js";', js)
         js_ports = (root / "ui/static/suite.js").read_text()
         for t in suite.TOOLS:                                   # the page's port list mirrors the registry
             self.assertIn(f'id: "{t["id"]}", name: "{t["name"]}", port: {t["port"]}', js_ports)

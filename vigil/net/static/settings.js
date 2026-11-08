@@ -24,21 +24,13 @@ export class SettingsView {
     const mine = rules.filter((r) => r.source === "user");
     if (!mine.length) box.append(el("p", { class: "faint", text: "No rules yet. Use Allowlist… on an alert." }));
     for (const r of mine) box.append(this.rule(r, true));
-    box.append(el("h3", { text: "Sudo mode" }));
+    box.append(el("h3", { text: "Run mode" }));
     const on = !!status.sudo_mode;
     box.append(el("div", { class: "card" },
-      el("strong", { text: on ? "Sudo mode is on" : "Sudo mode is off" }),
-      el("p", { class: "muted", text: "When on, fix, cleanup and scan commands get a Run button next to Copy. Vigil shows the exact command and asks you first. Admin commands run through pkexec: your system's own password window shows the command and takes your password, so Vigil never sees it. Only commands Vigil generated can run, one at a time, without a shell, and every run is written to the event log." }),
-      el("div", { class: "actions" }, el("button", {
-        type: "button", class: `btn ${on ? "" : "primary"}`, text: on ? "Switch sudo mode off" : "Switch sudo mode on",
-        onclick: async () => {
-          if (!on && !window.confirm("Switch on sudo mode?\n\nVigil will then be able to run its own fix, cleanup and scan commands when you press Run, asking your system for your password for admin commands.")) return;
-          await api.send("POST", "/api/settings", { sudo_mode: !on });
-          appState.sudoMode = !on;
-          toast(on ? "Sudo mode off" : "Sudo mode on");
-          this.sig = "";
-          this.refresh();
-        } }))));
+      el("strong", { text: on ? "Run mode is on" : "Run mode is off" }),
+      el("p", { class: "muted", text: "Run mode (formerly sudo mode) lives in Settings, behind the gear in the top right of every Vigil page, and applies to every tool at once." }),
+      el("div", { class: "actions" }, el("button", { type: "button", class: "btn", text: "Open Settings",
+        onclick: () => window.dispatchEvent(new CustomEvent("vigil:open-settings")) }))));
     box.append(el("h3", { text: "How hard Vigil looks" }));
     const until = status.fast_poll_until || 0;
     const fast = until * 1000 > Date.now();

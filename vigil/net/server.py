@@ -78,6 +78,8 @@ class App:
     def __init__(self, data_dir, interval=2.0, proc_root="/proc", start_monitor=True):
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.data_root = self.data_dir     # data/settings.json is shared by every tool
+        self.tool_id = "net"
         self.store = Store(str(self.data_dir / "vigil.db"))
         self.report_lock = threading.Lock()     # load-modify-save of a stored report
         self.clamav_slot = threading.Semaphore(1)
@@ -538,6 +540,13 @@ class App:
             res = self.scan.get("results") or {}
             return {c for r in res.get("findings", []) for c in r.get("commands", []) + r.get("check", [])}
         return set()
+
+    def run_allowed(self, source, ref):
+        return self.allowed_commands(source, ref)
+
+    @property
+    def run_log(self):
+        return self.store
 
     def api_run(self, q, body, headers):
         """Sudo mode: run one generated command after the user pressed Run. pkexec asks for

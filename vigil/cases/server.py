@@ -21,6 +21,7 @@ class App:
         self.store = CaseStore(data_dir)
         self.ask = None          # tests replace the provider; None means the real one
         self.data_root = Path(data_root) if data_root else Path(data_dir).parent
+        self.tool_id = "cases"   # imported findings may come from other machines: copy only, no Run
         self.decisions = decisions_mod.Decisions(self.data_root)
 
     def close(self):
