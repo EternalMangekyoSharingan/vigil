@@ -29,7 +29,10 @@ echo "Installing Vigil $version"
 
 # Files, and the manifest the uninstaller reads.
 ( cd "$here" && find usr -type f -o -type l ) | sed 's#^#/#' > "$here/usr/lib/vigil/MANIFEST"
-cp -r --no-preserve=ownership "$here/usr/." /usr/
+# A running program's file cannot be overwritten ("Text file busy"): stop the daemon, and
+# unlink each old file before copying (an app window still open keeps its old copy in memory).
+systemctl stop vigild.service 2>/dev/null || true
+cp -r --remove-destination --no-preserve=ownership "$here/usr/." /usr/
 systemd-sysusers /usr/lib/sysusers.d/vigil.conf
 
 if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" != Disabled ]; then
