@@ -233,3 +233,32 @@ Clicking a program on the map flags its windows in the taskbar. On KDE Plasma th
 three-line KWin script over the session bus that sets `demandsAttention` on windows owned by the
 program's processes; elsewhere it posts a desktop notification naming the program. Both stay on the
 local session bus. GNOME offers no equivalent for another application's windows.
+
+## D-022 An inspector beside every list; the app repaints only on new data (2026-11-09)
+
+Supersedes the floating cards of D-020. The owner's round-3 review: details covered the columns
+they described, the map's callout covered its own links, and the pages left large empty areas.
+Now the Network map, Connections, Processes and Cases each keep a fixed inspector column (380 px)
+on the right. With nothing selected it shows an overview of the page (top programs by CPU and
+memory, connections by program and service, events by kind); selecting fills it in place and
+clicking again returns to the overview. Nothing resizes and nothing is covered. The process list
+is a virtual list (only visible rows are built), sortable by column, and any jump to a process
+scrolls it to the middle of the view and outlines it.
+
+CPU, measured in the container (software rendering, so absolute numbers are high): the app idle on
+Home went from 45 % to 7.7 % of a core. Causes, all removed: the live dot pulsed on every look and
+each pulse repainted the window for ~300 ms; numbers rolled after every look; the shield shone on
+a timer; list rows had staggered entrances. The window now paints once per daemon look (every 2 s).
+The daemon looked up every process's user name through NSS on every poll, which opened
+`/etc/passwd` about 200 times a second; with fapolicyd running, fapolicyd had to vet each open
+(the owner saw fapolicyd at 10 % CPU). User names are now cached for ten minutes, and process rows
+are written to the store when new, with every row's `last_seen` refreshed once a minute.
+
+## D-023 The mark: a teal shell holding an orange core cube (2026-11-09)
+
+The owner found the tiled mark busy and the orange dot too slight. The mark is again a solid
+isometric cube, now with a smaller orange cube in its near corner and a dark slot between them:
+the orange is a shape of its own, still made of squares. The arrival keeps the square motion:
+twelve tiles appear flat, the faces fold, the tiles close into solid faces, then the core grows
+into its slot and the mark flies to the rail. The shield turned blue for "sees everything",
+amber for a partial view and red for nothing, with solid and soft quarters split by a thin cross.

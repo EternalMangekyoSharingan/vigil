@@ -14,8 +14,8 @@ use vigil_ui_core::motion;
 use vigil_ui_core::settings::View;
 use vigil_ui_core::theme::Rgba;
 
-use crate::ui::{ago, button, c, ca, card, card_title, chip, enter, id, id2, kbd, row_enter, slide_in};
-use crate::{live::Snapshot, Conn, Sel, Vigil, DETAIL_W};
+use crate::ui::{ago, button, c, ca, card, card_title, chip, enter, id, id2, kbd, row_enter};
+use crate::{live::Snapshot, Conn, ProcSort, Sel, Vigil, DETAIL_W};
 
 /// "Firefox" for well-known programs, else the collector's name ("http.server (python3)").
 pub fn display_name(p: Option<&ProcessInfo>, key: &str) -> String {
@@ -28,13 +28,16 @@ pub fn display_name(p: Option<&ProcessInfo>, key: &str) -> String {
 }
 
 pub fn program_name(d: &Snapshot, key: &str) -> String {
-    let p = d
-        .net
+    program_name_in(&d.net, key)
+}
+
+pub fn program_name_in(net: &vigil_model::host::NetSnapshot, key: &str) -> String {
+    let p = net
         .sockets
         .iter()
         .find(|s| s.program.as_deref() == Some(key))
         .and_then(|s| s.pid)
-        .and_then(|pid| d.net.processes.get(&pid));
+        .and_then(|pid| net.processes.get(&pid));
     wording::printable(&display_name(p, key))
 }
 
@@ -48,7 +51,11 @@ fn endpoint(ip: &str, port: u32) -> String {
 
 /// Outbound and inbound connections that leave this machine, the ones people care about.
 pub fn real_connections(d: &Snapshot) -> impl Iterator<Item = &Socket> {
-    d.net.sockets.iter().filter(|s| s.kind == "connection" && scope_of(&s.remote_ip) != "loopback")
+    real_connections_in(&d.net)
+}
+
+pub fn real_connections_in(net: &vigil_model::host::NetSnapshot) -> impl Iterator<Item = &Socket> {
+    net.sockets.iter().filter(|s| s.kind == "connection" && scope_of(&s.remote_ip) != "loopback")
 }
 
 /// Processes in tree order: (pid, depth).
@@ -101,6 +108,31 @@ fn socket_matches(s: &Socket, d: &Snapshot, f: &str) -> bool {
     format!("{} {} {} {} {}", s.remote_ip, s.remote_port, s.state, name, s.program.as_deref().unwrap_or(""))
         .to_lowercase()
         .contains(&f.to_lowercase())
+}
+
+/// One program's processes: (count, CPU %, memory kB, executable).
+type ProgUse = (usize, f32, u64, String);
+
+/// "689 MB", "1.6 GB".
+pub fn mem(kb: u64) -> String {
+    if kb >= 1024 * 1024 {
+        format!("{:.1} GB", kb as f64 / 1024.0 / 1024.0)
+    } else {
+        format!("{} MB", kb / 1024)
+    }
+}
+
+/// The process to show for a program: the one whose parent is not the same program (the
+/// browser rather than one of its tabs), else the lowest pid.
+pub fn main_pid(d: &Snapshot, key: &str) -> Option<u32> {
+    let mine: BTreeSet<u32> = d.procs.processes.iter().filter(|p| p.key == key).map(|p| p.pid).collect();
+    let pids: BTreeSet<u32> = if mine.is_empty() {
+        d.net.sockets.iter().filter(|s| s.program.as_deref() == Some(key)).flat_map(|s| s.pids.clone()).collect()
+    } else {
+        mine
+    };
+    let parent_of = |pid: u32| d.procs.processes.iter().find(|p| p.pid == pid).map(|p| p.ppid);
+    pids.iter().copied().find(|p| parent_of(*p).is_none_or(|pp| !pids.contains(&pp))).or_else(|| pids.first().copied())
 }
 
 fn hash01(s: &str) -> f32 {
@@ -171,20 +203,13 @@ impl Vigil {
     pub fn list_items(&self) -> Vec<Sel> {
         let Some(d) = &self.data else { return vec![] };
         match (self.area, self.tab[self.area]) {
-            (2, 0) => tree_order(&d.procs.processes)
-                .into_iter()
-                .filter(|(pid, _)| d.procs.processes.iter().any(|p| p.pid == *pid && matches_filter(p, &self.filter)))
-                .map(|(pid, _)| Sel::Proc(pid))
-                .collect(),
-            (2, 1) => {
-                d.procs.processes.iter().filter(|p| matches_filter(p, &self.filter)).map(|p| Sel::Proc(p.pid)).collect()
-            }
+            (2, _) => self.process_order(d).into_iter().map(|(pid, _)| Sel::Proc(pid)).collect(),
             (1, 0) => {
                 let (w, h) = self
                     .map_bounds
                     .get()
                     .map_or((1100.0, 640.0), |b| (f32::from(b.size.width), f32::from(b.size.height)));
-                crate::netmap::geometry(d, w, h)
+                crate::netmap::geometry(&d.net, w, h)
                     .progs
                     .into_iter()
                     .filter(|p| !p.hidden)
@@ -211,9 +236,10 @@ impl Vigil {
         if self.arrival.is_some() {
             return div().flex_1().into_any_element();
         }
+        let page = (self.area, self.tab[self.area]);
         let main: AnyElement = match &self.data {
             None => self.no_data(cx),
-            Some(_) => match (self.area, self.tab[self.area]) {
+            Some(_) => match page {
                 (0, 0) => self.home(cx),
                 (0, 1) => self.since(cx),
                 (1, 0) => self.network_map(cx),
@@ -224,16 +250,18 @@ impl Vigil {
                 _ => self.coming(cx),
             },
         };
-        let detail = self.detail(cx);
         let pad = if self.settings.density == vigil_ui_core::settings::Density::Compact { 14.0 } else { t.pad };
-        // Home and the map are laid out to fill the window exactly; the rest scroll.
-        let fills = self.data.is_some() && matches!((self.area, self.tab[self.area]), (0, 0) | (1, 0));
-        // The detail card floats over the content: opening it never resizes anything.
+        // Lists and the map keep an inspector beside them, always: selecting something fills
+        // it in place, so nothing resizes and nothing is covered (owner, 2026-11-08).
+        let inspected = self.data.is_some() && matches!(page, (1, 0) | (1, 1) | (2, 0) | (2, 1) | (8, 0));
+        // Pages laid out to fill the window exactly; the rest scroll.
+        let fills = self.data.is_some() && matches!(page, (0, 0) | (1, 0) | (1, 1) | (2, 0) | (2, 1) | (8, 0));
         div()
             .flex_1()
             .min_h(px(0.0))
-            .relative()
             .flex()
+            .gap(px(pad))
+            .p(px(pad))
             .child(
                 div()
                     .id(id("main", self.nav))
@@ -241,7 +269,6 @@ impl Vigil {
                     .min_w(px(0.0))
                     .h_full()
                     .when(!fills, |el| el.overflow_y_scroll())
-                    .p(px(pad))
                     .child(enter(
                         div().flex().flex_col().gap(px(16.0)).when(fills, |el| el.h_full()).child(main),
                         id("area", self.nav),
@@ -250,9 +277,7 @@ impl Vigil {
                         reduced,
                     )),
             )
-            .when_some(detail, |d, panel| {
-                d.child(div().absolute().top(px(pad)).bottom(px(pad)).right(px(pad)).w(px(DETAIL_W)).child(panel))
-            })
+            .when(inspected, |d| d.child(div().w(px(DETAIL_W)).flex_none().h_full().child(self.inspector(cx))))
             .into_any_element()
     }
 
@@ -574,16 +599,146 @@ impl Vigil {
         }
     }
 
+    /// The rows of the process list in the order shown: (pid, depth).
+    fn process_order(&self, d: &Snapshot) -> Vec<(u32, usize)> {
+        let tree = self.tab[2] == 0;
+        let by_pid: HashMap<u32, &ProcessInfo> = d.procs.processes.iter().map(|p| (p.pid, p)).collect();
+        let keep = |pid: &u32| by_pid.get(pid).is_some_and(|p| matches_filter(p, &self.filter));
+        if tree {
+            return tree_order(&d.procs.processes).into_iter().filter(|(pid, _)| keep(pid)).collect();
+        }
+        let mut v: Vec<&ProcessInfo> = d.procs.processes.iter().filter(|p| keep(&p.pid)).collect();
+        let (sort, desc) = self.proc_sort;
+        let cpu = |p: &ProcessInfo| p.cpu_pct.unwrap_or(0.0);
+        v.sort_by(|a, b| {
+            let o = match sort {
+                ProcSort::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                ProcSort::User => a.user.cmp(&b.user),
+                ProcSort::Cpu => cpu(a).partial_cmp(&cpu(b)).unwrap_or(std::cmp::Ordering::Equal),
+                ProcSort::Memory => a.rss_kb.cmp(&b.rss_kb),
+                ProcSort::Started => a.started.partial_cmp(&b.started).unwrap_or(std::cmp::Ordering::Equal),
+                ProcSort::Pid | ProcSort::Tree => a.pid.cmp(&b.pid),
+            };
+            let o = o.then(a.pid.cmp(&b.pid));
+            if desc {
+                o.reverse()
+            } else {
+                o
+            }
+        });
+        v.into_iter().map(|p| (p.pid, 0)).collect()
+    }
+
     fn processes(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = &self.theme;
         let Some(d) = &self.data else { return div().into_any_element() };
         let tree = self.tab[2] == 0;
-        let expert = self.settings.view(AREAS[2].id) == View::Expert;
-        let reduced = self.reduced();
+        let order = self.process_order(d);
+        let n = order.len();
+        // A jump (from the map, Home, the palette or j/k) brings the selection into view.
+        if let (Some(how), Some(Sel::Proc(pid))) = (self.reveal.take(), &self.sel) {
+            if let Some(ix) = order.iter().position(|(p, _)| p == pid) {
+                self.list_scroll.scroll_to_item(ix, how);
+            }
+        }
+        *self.rows.borrow_mut() = order;
+        let hidden: usize = d.procs.unreadable_by_uid.values().sum();
+        let note = if hidden > 0 {
+            format!("{n} processes · details of {hidden} are limited (other users or protected)")
+        } else {
+            format!("{n} processes")
+        };
+        let head_cell = |label: &'static str, sort: ProcSort, w: Option<f32>, right: bool, cx: &mut Context<Self>| {
+            let (cur, desc) = self.proc_sort;
+            let on = !tree && cur == sort;
+            let arrow = if on {
+                if desc {
+                    " ↓"
+                } else {
+                    " ↑"
+                }
+            } else {
+                ""
+            };
+            let cell = div()
+                .id(label)
+                .flex()
+                .when(right, |el| el.justify_end())
+                .when(!tree, |el| el.cursor_pointer().hover(|s| s.text_color(c(t.text[0]))))
+                .text_color(if on { c(t.text[0]) } else { c(t.text[2]) })
+                .child(format!("{label}{arrow}"))
+                .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                    if this.tab[2] == 0 {
+                        return;
+                    }
+                    // Numbers sort biggest first; words A to Z. A second click flips it.
+                    let first_desc = matches!(sort, ProcSort::Cpu | ProcSort::Memory | ProcSort::Started);
+                    this.proc_sort =
+                        if this.proc_sort.0 == sort { (sort, !this.proc_sort.1) } else { (sort, first_desc) };
+                    this.reveal.set(Some(gpui::ScrollStrategy::Nearest));
+                    cx.notify();
+                }));
+            match w {
+                Some(w) => cell.w(px(w)).flex_none(),
+                None => cell.flex_1().min_w(px(0.0)),
+            }
+        };
+        let head = div()
+            .flex()
+            .h(px(30.0))
+            .items_center()
+            .px(px(12.0))
+            .gap(px(12.0))
+            .border_b_1()
+            .border_color(c(t.line[0]))
+            .text_size(px(11.5))
+            .child(head_cell("Program", ProcSort::Name, None, false, cx))
+            .child(head_cell("PID", ProcSort::Pid, Some(64.0), true, cx))
+            .child(head_cell("User", ProcSort::User, Some(96.0), false, cx))
+            .child(head_cell("CPU", ProcSort::Cpu, Some(56.0), true, cx))
+            .child(head_cell("Memory", ProcSort::Memory, Some(76.0), true, cx))
+            .child(head_cell("Started", ProcSort::Started, Some(96.0), false, cx));
+        let list = gpui::uniform_list(
+            id("proc-list", self.tab[2] as u64),
+            n,
+            cx.processor(|this: &mut Vigil, range: std::ops::Range<usize>, _w, cx| this.process_rows(range, cx)),
+        )
+        .track_scroll(&self.list_scroll)
+        .flex_1()
+        .min_h(px(0.0));
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .gap(px(12.0))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(14.0))
+                    .child(div().w(px(420.0)).child(self.filter_box("Filter by name, user, pid or command line", cx)))
+                    .child(div().text_color(c(t.text[2])).text_size(px(12.0)).child(note))
+                    .child(div().flex_1())
+                    .child(div().text_size(px(11.5)).text_color(c(t.text[2])).child(if tree {
+                        "Tree: children under the program that started them"
+                    } else {
+                        "Click a column to sort"
+                    })),
+            )
+            .child(card(t).flex_1().min_h(px(0.0)).overflow_hidden().child(head).child(list).when(n == 0, |el| {
+                el.child(div().p(px(16.0)).text_color(c(t.text[2])).child("No process matches the filter."))
+            }))
+            .into_any_element()
+    }
+
+    /// The process rows `range` of the virtual list (only the visible ones are built).
+    fn process_rows(&mut self, range: std::ops::Range<usize>, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let t = self.theme.clone();
+        let Some(d) = &self.data else { return vec![] };
+        let tree = self.tab[2] == 0;
+        let rows = self.rows.borrow();
         let by_pid: HashMap<u32, &ProcessInfo> = d.procs.processes.iter().map(|p| (p.pid, p)).collect();
-        let order: Vec<(u32, usize)> =
-            if tree { tree_order(&d.procs.processes) } else { d.procs.processes.iter().map(|p| (p.pid, 0)).collect() };
-        let sockets_per_pid: HashMap<u32, usize> =
+        let net: HashMap<u32, usize> =
             d.net.sockets.iter().filter(|s| s.kind == "connection").flat_map(|s| s.pids.clone()).fold(
                 HashMap::new(),
                 |mut m, p| {
@@ -591,31 +746,29 @@ impl Vigil {
                     m
                 },
             );
-        let mut rows = vec![];
-        let mut shown = 0;
-        for (pid, depth) in order {
+        let mut out = vec![];
+        for ix in range {
+            let Some(&(pid, depth)) = rows.get(ix) else { continue };
             let Some(p) = by_pid.get(&pid) else { continue };
-            if !matches_filter(p, &self.filter) {
-                continue;
-            }
-            let i = shown;
-            shown += 1;
-            if shown > 600 {
-                continue;
-            }
             let selected = self.sel == Some(Sel::Proc(pid));
-            let net = sockets_per_pid.get(&pid).copied().unwrap_or(0);
-            let indent = if tree && self.filter.is_empty() { depth.min(12) as f32 * 16.0 } else { 0.0 };
-            let mut row = div()
-                .id(id2("proc", self.nav, pid as u64))
-                .h(px(32.0))
-                .px(px(10.0))
+            let indent = if tree && self.filter.is_empty() { depth.min(14) as f32 * 14.0 } else { 0.0 };
+            let args = wording::printable(&p.cmdline.iter().skip(1).cloned().collect::<Vec<_>>().join(" "));
+            let conns = net.get(&pid).copied().unwrap_or(0);
+            let cpu = p.cpu_pct.unwrap_or(0.0);
+            let dim = |s: String| div().text_color(c(t.text[2])).child(s);
+            let row = div()
+                .id(("proc", pid as u64))
+                .w_full()
+                .h(px(30.0))
+                .px(px(11.0))
                 .flex()
                 .items_center()
+                .gap(px(12.0))
                 .rounded(px(t.radius_sm))
+                .border_1()
                 .cursor_pointer()
-                .bg(if selected { c(t.accent_soft) } else { ca(t.bg[0], 0.0) })
-                .hover(|st| st.bg(ca(Rgba(0xffffff0a), 1.0)))
+                .when(selected, |el| el.bg(c(t.accent_soft)).border_color(c(t.accent)))
+                .when(!selected, |el| el.border_color(ca(t.bg[0], 0.0)).hover(|st| st.bg(ca(Rgba(0xffffff0a), 1.0))))
                 .child(
                     div()
                         .flex_1()
@@ -624,63 +777,50 @@ impl Vigil {
                         .items_center()
                         .gap(px(8.0))
                         .pl(px(indent))
-                        .when(indent > 0.0, |el| el.child(div().w(px(8.0)).h(px(1.0)).bg(c(t.line[2]))))
-                        .when(p.exe.is_some(), |el| el.child(self.app_icon(p.exe.as_deref().unwrap_or(""), 16.0)))
-                        .child(div().truncate().child(wording::printable(&p.name)))
+                        .when(indent > 0.0, |el| el.child(div().w(px(7.0)).h(px(1.0)).flex_none().bg(c(t.line[2]))))
+                        .child(match &p.exe {
+                            Some(e) => self.app_icon(e, 16.0),
+                            None => div().size(px(16.0)).flex_none().into_any_element(),
+                        })
+                        .child(div().flex_none().max_w(px(260.0)).truncate().child(wording::printable(&p.name)))
                         .when(p.exe_deleted, |el| el.child(chip("deleted file", t.warn)))
-                        .when(net > 0, |el| el.child(chip(format!("{net} net"), t.live))),
+                        .when(conns > 0, |el| el.child(chip(format!("{conns} net"), t.live)))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .truncate()
+                                .text_size(px(12.0))
+                                .text_color(c(t.text[2]))
+                                .child(args),
+                        ),
                 )
-                .child(div().w(px(70.0)).text_color(c(t.text[2])).child(p.pid.to_string()))
-                .child(div().w(px(110.0)).truncate().text_color(c(t.text[2])).child(p.user.clone()))
-                .child(div().w(px(110.0)).text_color(c(t.text[2])).child(p.started.map_or("-".into(), ago)));
-            if expert {
-                row = row.child(
+                .child(dim(p.pid.to_string()).w(px(64.0)).flex_none().flex().justify_end())
+                .child(div().w(px(96.0)).flex_none().truncate().text_color(c(t.text[1])).child(p.user.clone()))
+                .child(
                     div()
-                        .w(px(360.0))
-                        .truncate()
-                        .text_color(c(t.text[2]))
-                        .child(wording::printable(&p.cmdline.join(" "))),
-                );
-            }
-            let row = row.on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
-                this.sel = if this.sel == Some(Sel::Proc(pid)) { None } else { Some(Sel::Proc(pid)) };
-                cx.notify();
-            }));
-            rows.push(row_enter(row, id2("proc-in", self.nav, i as u64), i, reduced).into_any_element());
+                        .w(px(56.0))
+                        .flex_none()
+                        .flex()
+                        .justify_end()
+                        .text_color(if cpu >= 10.0 {
+                            c(t.accent)
+                        } else if cpu >= 0.1 {
+                            c(t.text[1])
+                        } else {
+                            c(t.text[2])
+                        })
+                        .child(if p.cpu_pct.is_some() { format!("{cpu:.1}%") } else { "-".into() }),
+                )
+                .child(dim(p.rss_kb.map_or("-".into(), mem)).w(px(76.0)).flex_none().flex().justify_end())
+                .child(dim(p.started.map_or("-".into(), ago)).w(px(96.0)).flex_none().truncate())
+                .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                    this.sel = if this.sel == Some(Sel::Proc(pid)) { None } else { Some(Sel::Proc(pid)) };
+                    cx.notify();
+                }));
+            out.push(row.into_any_element());
         }
-        let hidden: usize = d.procs.unreadable_by_uid.values().sum();
-        let note = if hidden > 0 {
-            format!("{shown} processes · {hidden} belong to other users or are protected, so their details are limited (the installed daemon sees everything)")
-        } else {
-            format!("{shown} processes")
-        };
-        let mut head = div()
-            .flex()
-            .px(px(10.0))
-            .pb(px(6.0))
-            .text_size(px(11.5))
-            .text_color(c(t.text[2]))
-            .child(div().flex_1().child("Program"))
-            .child(div().w(px(70.0)).child("PID"))
-            .child(div().w(px(110.0)).child("User"))
-            .child(div().w(px(110.0)).child("Started"));
-        if expert {
-            head = head.child(div().w(px(360.0)).child("Command line"));
-        }
-        div()
-            .flex()
-            .flex_col()
-            .gap(px(12.0))
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(12.0))
-                    .child(div().w(px(420.0)).child(self.filter_box("Filter by name, user, pid or command line", cx)))
-                    .child(div().text_color(c(t.text[2])).text_size(px(12.0)).child(note)),
-            )
-            .child(card(t).p(px(10.0)).child(head).children(rows))
-            .into_any_element()
+        out
     }
 
     fn timeline(&self) -> AnyElement {
@@ -830,11 +970,21 @@ impl Vigil {
 
     // ---- the detail panel ----------------------------------------------------------------
 
+    /// The inspector: the selection's details, or (nothing selected) an overview of the page.
+    pub fn inspector(&self, cx: &mut Context<Self>) -> AnyElement {
+        let t = &self.theme;
+        let body = match self.detail(cx) {
+            Some(d) => d,
+            None => match (self.area, self.tab[self.area]) {
+                (1, 0) | (1, 1) => self.network_overview(cx),
+                (2, _) => self.processes_overview(cx),
+                _ => self.timeline_overview(),
+            },
+        };
+        card(t).id("inspector").size_full().overflow_y_scroll().p(px(18.0)).child(body).into_any_element()
+    }
+
     fn detail(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        // The map shows its own callout beside the clicked node.
-        if (self.area, self.tab[self.area]) == (1, 0) {
-            return None;
-        }
         let d = self.data.as_ref()?;
         let sel = self.sel.clone()?;
         let t = &self.theme;
@@ -890,6 +1040,7 @@ impl Vigil {
                             .child(div().text_color(c(t.text[2])).child(apid.to_string()))
                             .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
                                 this.sel = Some(Sel::Proc(apid));
+                                this.reveal.set(Some(gpui::ScrollStrategy::Center));
                                 cx.notify();
                             })),
                     );
@@ -935,6 +1086,14 @@ impl Vigil {
                             ))),
                     )
                     .child(section("DETAILS"))
+                    .child(kv(
+                        "CPU · memory",
+                        format!(
+                            "{} · {}",
+                            p.cpu_pct.map_or("-".into(), |c| format!("{c:.1}% of one core")),
+                            p.rss_kb.map_or("-".into(), mem)
+                        ),
+                    ))
                     .child(kv(
                         "Program file",
                         p.exe.clone().map_or("(not readable)".into(), |e| wording::printable(&e)),
@@ -1088,20 +1247,375 @@ impl Vigil {
                     }))
             }
         };
-        let panel = div()
-            .id(id("detail", key_n))
-            .w(px(DETAIL_W))
-            .h_full()
-            .rounded(px(t.radius + 2.0))
-            .bg(c(t.bg[2]))
-            .border_1()
-            .border_color(c(t.line[1]))
-            .shadow_lg()
-            .overflow_y_scroll()
-            .p(px(20.0))
-            .child(div().flex().justify_end().child(close))
-            .child(body);
-        Some(slide_in(panel, id("detail-in", key_n), self.reduced()).into_any_element())
+        let _ = key_n;
+        Some(
+            div()
+                .relative()
+                .child(div().absolute().top(px(-8.0)).right(px(-8.0)).child(close))
+                .child(body)
+                .into_any_element(),
+        )
+    }
+
+    // ---- overviews (the inspector with nothing selected) -----------------------------------
+
+    fn section_head(&self, title: &str, note: String) -> gpui::Div {
+        let t = &self.theme;
+        div()
+            .pt(px(18.0))
+            .pb(px(8.0))
+            .flex()
+            .items_center()
+            .child(div().flex_1().text_size(px(11.5)).text_color(c(t.text[2])).child(title.to_string()))
+            .child(div().text_size(px(11.5)).text_color(c(t.text[2])).child(note))
+    }
+
+    /// One line of a ranked list: icon, name, value, and a thin bar under the name.
+    #[allow(clippy::too_many_arguments)]
+    fn rank_row(
+        &self,
+        key: (&'static str, u64),
+        icon: Option<&str>,
+        name: String,
+        value: String,
+        frac: f32,
+        colour: Rgba,
+        sel: Option<Sel>,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let t = &self.theme;
+        div()
+            .id(key)
+            .py(px(5.0))
+            .px(px(6.0))
+            .mx(px(-6.0))
+            .flex()
+            .items_center()
+            .gap(px(10.0))
+            .rounded(px(t.radius_sm))
+            .when(sel.is_some(), |el| el.cursor_pointer().hover(|s| s.bg(ca(Rgba(0xffffff0a), 1.0))))
+            .when_some(icon, |el, i| el.child(self.app_icon(i, 18.0)))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(0.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(3.0))
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(8.0))
+                            .child(div().flex_1().min_w(px(0.0)).truncate().child(name))
+                            .child(div().flex_none().text_color(c(t.text[1])).child(value)),
+                    )
+                    .child(
+                        div().h(px(3.0)).w_full().rounded(px(2.0)).bg(c(t.bg[3])).child(
+                            div().h_full().rounded(px(2.0)).bg(c(colour)).w(gpui::relative(frac.clamp(0.0, 1.0))),
+                        ),
+                    ),
+            )
+            .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                if let Some(s) = sel.clone() {
+                    this.sel = Some(s);
+                    this.reveal.set(Some(gpui::ScrollStrategy::Center));
+                    cx.notify();
+                }
+            }))
+    }
+
+    fn stat(&self, label: &str, value: String) -> gpui::Div {
+        let t = &self.theme;
+        div()
+            .flex_1()
+            .flex()
+            .flex_col()
+            .gap(px(2.0))
+            .child(div().text_size(px(20.0)).child(value))
+            .child(div().text_size(px(11.5)).text_color(c(t.text[2])).child(label.to_string()))
+    }
+
+    fn processes_overview(&self, cx: &mut Context<Self>) -> AnyElement {
+        let t = &self.theme;
+        let Some(d) = &self.data else { return div().into_any_element() };
+        // Per program: processes, CPU, memory.
+        let mut per: BTreeMap<String, ProgUse> = BTreeMap::new();
+        for p in &d.procs.processes {
+            if p.exe.is_none() && p.cmdline.is_empty() {
+                continue; // kernel threads
+            }
+            let e = per.entry(p.key.clone()).or_insert((0, 0.0, 0, p.exe.clone().unwrap_or_default()));
+            e.0 += 1;
+            e.1 += p.cpu_pct.unwrap_or(0.0);
+            e.2 += p.rss_kb.unwrap_or(0);
+        }
+        let kernel = d.procs.processes.iter().filter(|p| p.exe.is_none() && p.cmdline.is_empty()).count();
+        let users: BTreeSet<&str> = d.procs.processes.iter().map(|p| p.user.as_str()).collect();
+        let total_cpu: f32 = d.procs.processes.iter().filter_map(|p| p.cpu_pct).sum();
+        let mut by_cpu: Vec<(&String, &ProgUse)> = per.iter().collect();
+        by_cpu.sort_by(|a, b| b.1 .1.partial_cmp(&a.1 .1).unwrap_or(std::cmp::Ordering::Equal));
+        let mut by_mem: Vec<(&String, &ProgUse)> = per.iter().collect();
+        by_mem.sort_by_key(|x| std::cmp::Reverse(x.1 .2));
+        let name_of = |key: &str, n: usize| {
+            let name =
+                d.procs.processes.iter().find(|p| p.key == key).map_or(key.to_string(), |p| display_name(Some(p), key));
+            if n > 1 {
+                format!("{} ×{n}", wording::printable(&name))
+            } else {
+                wording::printable(&name)
+            }
+        };
+        let cpu_max = by_cpu.first().map_or(1.0, |x| x.1 .1).max(1.0);
+        let mem_max = by_mem.first().map_or(1, |x| x.1 .2).max(1) as f32;
+        let mut cpu_rows = vec![];
+        for (i, (key, (n, cpu, _, exe))) in by_cpu.iter().take(7).enumerate() {
+            let pid = main_pid(d, key);
+            cpu_rows.push(self.rank_row(
+                ("ov-cpu", i as u64),
+                Some(exe.as_str()),
+                name_of(key, *n),
+                format!("{cpu:.1}%"),
+                cpu / cpu_max,
+                t.accent,
+                pid.map(Sel::Proc),
+                cx,
+            ));
+        }
+        let mut mem_rows = vec![];
+        for (i, (key, (n, _, kb, exe))) in by_mem.iter().take(7).enumerate() {
+            let pid = main_pid(d, key);
+            mem_rows.push(self.rank_row(
+                ("ov-mem", i as u64),
+                Some(exe.as_str()),
+                name_of(key, *n),
+                mem(*kb),
+                *kb as f32 / mem_max,
+                t.live,
+                pid.map(Sel::Proc),
+                cx,
+            ));
+        }
+        let mut user_counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for p in &d.procs.processes {
+            *user_counts.entry(p.user.as_str()).or_insert(0) += 1;
+        }
+        let mut user_rows: Vec<(&str, usize)> = user_counts.into_iter().collect();
+        user_rows.sort_by_key(|x| std::cmp::Reverse(x.1));
+        let ucount = d.procs.processes.len().max(1) as f32;
+        let hidden: usize = d.procs.unreadable_by_uid.values().sum();
+        div()
+            .flex()
+            .flex_col()
+            .child(div().text_size(px(16.0)).child("All processes"))
+            .child(
+                div()
+                    .pt(px(12.0))
+                    .flex()
+                    .child(self.stat("running", d.procs.processes.len().to_string()))
+                    .child(self.stat("programs", per.len().to_string()))
+                    .child(self.stat("users", users.len().to_string()))
+                    .child(self.stat("CPU in use", format!("{total_cpu:.0}%"))),
+            )
+            .child(self.section_head("USING THE MOST CPU", "share of one core".into()))
+            .children(cpu_rows)
+            .child(self.section_head("USING THE MOST MEMORY", "resident".into()))
+            .children(mem_rows)
+            .child(self.section_head("BY USER", format!("{kernel} kernel threads")))
+            .children(user_rows.into_iter().take(6).enumerate().map(|(i, (u, n))| {
+                div()
+                    .id(("ov-user", i as u64))
+                    .py(px(4.0))
+                    .flex()
+                    .gap(px(10.0))
+                    .child(div().flex_1().truncate().child(u.to_string()))
+                    .child(
+                        div().w(px(110.0)).h(px(3.0)).mt(px(8.0)).rounded(px(2.0)).bg(c(t.bg[3])).child(
+                            div().h_full().rounded(px(2.0)).bg(c(t.text[2])).w(gpui::relative(n as f32 / ucount)),
+                        ),
+                    )
+                    .child(div().w(px(36.0)).flex().justify_end().text_color(c(t.text[1])).child(n.to_string()))
+            }))
+            .when(hidden > 0, |el| {
+                el.child(div().pt(px(14.0)).text_size(px(12.0)).text_color(c(t.text[2])).child(format!(
+                    "{hidden} processes belong to other users or are protected: names and pids are shown, \
+                     details are limited. The installed daemon sees them all."
+                )))
+            })
+            .child(div().pt(px(14.0)).text_size(px(12.0)).text_color(c(t.text[2])).child(
+                "Click a process for its command line, parent chain and connections. Click it again to come back here.",
+            ))
+            .into_any_element()
+    }
+
+    fn network_overview(&self, cx: &mut Context<Self>) -> AnyElement {
+        let t = &self.theme;
+        let Some(d) = &self.data else { return div().into_any_element() };
+        let socks: Vec<&Socket> = real_connections(d).collect();
+        let mut per: BTreeMap<String, (usize, BTreeSet<&str>)> = BTreeMap::new();
+        let mut states: BTreeMap<&str, usize> = BTreeMap::new();
+        let mut services: BTreeMap<String, usize> = BTreeMap::new();
+        let (mut internet, mut lan, mut inbound) = (0usize, 0usize, 0usize);
+        for s in &socks {
+            if let Some(k) = &s.program {
+                let e = per.entry(k.clone()).or_default();
+                e.0 += 1;
+                e.1.insert(s.remote_ip.as_str());
+            }
+            let st = match s.state.as_str() {
+                "ESTABLISHED" => "Open",
+                "SYN_SENT" | "SYN_RECV" | "NEW_SYN_RECV" => "Connecting",
+                _ => "Closing",
+            };
+            *states.entry(st).or_insert(0) += 1;
+            let port = if s.direction == "in" { s.local_port } else { s.remote_port };
+            *services.entry(service_name(&s.proto, port)).or_insert(0) += 1;
+            match scope_of(&s.remote_ip) {
+                "lan" | "link-local" => lan += 1,
+                _ => internet += 1,
+            }
+            if s.direction == "in" {
+                inbound += 1;
+            }
+        }
+        let listening = d.net.sockets.iter().filter(|s| s.kind == "listen").count();
+        let mut progs: Vec<(String, (usize, BTreeSet<&str>))> = per.into_iter().collect();
+        progs.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then(a.0.cmp(&b.0)));
+        let pmax = progs.first().map_or(1, |x| x.1 .0).max(1) as f32;
+        let mut prog_rows = vec![];
+        for (i, (k, (n, addrs))) in progs.iter().take(9).enumerate() {
+            prog_rows.push(self.rank_row(
+                ("ov-prog", i as u64),
+                Some(k.as_str()),
+                program_name(d, k),
+                format!("{n} · {} addr", addrs.len()),
+                *n as f32 / pmax,
+                t.live,
+                Some(Sel::Program(k.clone())),
+                cx,
+            ));
+        }
+        let mut svc: Vec<(String, usize)> = services.into_iter().collect();
+        svc.sort_by_key(|x| std::cmp::Reverse(x.1));
+        let smax = svc.first().map_or(1, |x| x.1).max(1) as f32;
+        let total = socks.len().max(1) as f32;
+        div()
+            .flex()
+            .flex_col()
+            .child(div().text_size(px(16.0)).child("Talking right now"))
+            .child(
+                div()
+                    .pt(px(12.0))
+                    .flex()
+                    .child(self.stat("connections", socks.len().to_string()))
+                    .child(self.stat("programs", progs.len().to_string()))
+                    .child(self.stat("inbound", inbound.to_string()))
+                    .child(self.stat("listening", listening.to_string())),
+            )
+            .child(
+                div().pt(px(14.0)).flex().h(px(6.0)).child(
+                    div()
+                        .flex()
+                        .w_full()
+                        .h(px(6.0))
+                        .rounded(px(3.0))
+                        .overflow_hidden()
+                        .bg(c(t.bg[3]))
+                        .child(div().h_full().bg(c(t.live)).w(gpui::relative(internet as f32 / total)))
+                        .child(div().h_full().bg(c(t.accent)).w(gpui::relative(lan as f32 / total))),
+                ),
+            )
+            .child(
+                div()
+                    .pt(px(14.0))
+                    .flex()
+                    .gap(px(14.0))
+                    .text_size(px(11.5))
+                    .text_color(c(t.text[2]))
+                    .child(format!("Internet {internet}"))
+                    .child(format!("Local network {lan}"))
+                    .children(states.iter().map(|(k, v)| format!("{k} {v}"))),
+            )
+            .child(self.section_head("PROGRAMS", "connections · addresses".into()))
+            .children(prog_rows)
+            .when(progs.is_empty(), |el| {
+                el.child(div().text_color(c(t.text[2])).child("Nothing is talking to another machine."))
+            })
+            .child(self.section_head("SERVICES", String::new()))
+            .children(svc.into_iter().take(6).enumerate().map(|(i, (name, n))| {
+                div()
+                    .id(("ov-svc", i as u64))
+                    .py(px(4.0))
+                    .flex()
+                    .gap(px(10.0))
+                    .child(div().w(px(120.0)).truncate().child(name))
+                    .child(
+                        div()
+                            .flex_1()
+                            .h(px(3.0))
+                            .mt(px(8.0))
+                            .rounded(px(2.0))
+                            .bg(c(t.bg[3]))
+                            .child(div().h_full().rounded(px(2.0)).bg(c(t.live)).w(gpui::relative(n as f32 / smax))),
+                    )
+                    .child(div().w(px(30.0)).flex().justify_end().text_color(c(t.text[1])).child(n.to_string()))
+            }))
+            .child(
+                div()
+                    .pt(px(14.0))
+                    .text_size(px(12.0))
+                    .text_color(c(t.text[2]))
+                    .child("Click a program or an address for its details. Click it again to come back here."),
+            )
+            .into_any_element()
+    }
+
+    fn timeline_overview(&self) -> AnyElement {
+        let t = &self.theme;
+        let Some(d) = &self.data else { return div().into_any_element() };
+        let day = vigil_model::finding::now() - 86400.0;
+        let mut kinds: BTreeMap<&str, (usize, usize)> = BTreeMap::new();
+        for e in &d.events {
+            let k = kinds.entry(e.kind.as_str()).or_default();
+            k.0 += 1;
+            if e.ts > day {
+                k.1 += 1;
+            }
+        }
+        let word = |k: &str| match k {
+            "first-seen" => "New on the network".to_string(),
+            "daemon" => "Vigil itself".to_string(),
+            other => other.to_string(),
+        };
+        div()
+            .flex()
+            .flex_col()
+            .child(div().text_size(px(16.0)).child("This week"))
+            .child(
+                div()
+                    .pt(px(12.0))
+                    .flex()
+                    .child(self.stat("events", d.events.len().to_string()))
+                    .child(self.stat("today", d.events.iter().filter(|e| e.ts > day).count().to_string())),
+            )
+            .child(self.section_head("BY KIND", "all · today".into()))
+            .children(kinds.into_iter().map(|(k, (all, today))| {
+                div()
+                    .py(px(5.0))
+                    .flex()
+                    .gap(px(10.0))
+                    .border_t_1()
+                    .border_color(c(t.line[0]))
+                    .child(div().flex_1().child(word(k)))
+                    .child(div().text_color(c(t.text[1])).child(format!("{all} · {today}")))
+            }))
+            .child(
+                div()
+                    .pt(px(14.0))
+                    .text_size(px(12.0))
+                    .text_color(c(t.text[2]))
+                    .child("Findings join this timeline in milestone 3, with where each came from."),
+            )
+            .into_any_element()
     }
 }
 

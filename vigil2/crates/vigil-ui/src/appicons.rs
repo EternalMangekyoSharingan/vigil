@@ -14,6 +14,8 @@ use std::sync::Arc;
 pub struct AppIcons {
     /// Lower-case key -> icon file.
     by_key: HashMap<String, Arc<Path>>,
+    /// Answers already worked out, misses included (lookups run for every visible row).
+    memo: std::sync::Mutex<HashMap<String, Option<Arc<Path>>>>,
 }
 
 fn home() -> PathBuf {
@@ -165,11 +167,21 @@ impl AppIcons {
                 }
             }
         }
-        AppIcons { by_key }
+        AppIcons { by_key, memo: Default::default() }
     }
 
     /// The icon for a program, by its executable path (or its program key).
     pub fn for_exe(&self, exe: &str) -> Option<Arc<Path>> {
+        let mut memo = self.memo.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(hit) = memo.get(exe) {
+            return hit.clone();
+        }
+        let found = self.lookup(exe);
+        memo.insert(exe.to_string(), found.clone());
+        found
+    }
+
+    fn lookup(&self, exe: &str) -> Option<Arc<Path>> {
         let first = exe.split(' ').next().unwrap_or(exe);
         let base = first.rsplit('/').next().unwrap_or(first).trim_end_matches(" (deleted)").to_lowercase();
         if base.is_empty() {

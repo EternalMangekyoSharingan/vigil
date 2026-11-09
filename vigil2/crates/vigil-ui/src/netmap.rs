@@ -1,30 +1,34 @@
-//! The network map: who this PC is talking to, laid out so nothing overlaps.
+//! The network map: who this PC is talking to, all on one screen, nothing overlapping.
 //!
-//! Three columns, left to right: this PC, the programs that hold connections (with their
-//! icons), and the addresses they talk to, grouped by program so links rarely cross.
-//! Links are smooth curves: teal for open connections, amber for connections made *to*
-//! this PC, grey for ones closing. Nothing moves. Clicking a program or an address
-//! highlights its links and opens its card on top of the map (the map never resizes);
-//! clicking it again closes the card. Clicking a program also flags its window in the
-//! taskbar, where the desktop allows it.
+//! This PC sits in the centre. The programs holding connections sit on an arc around it,
+//! split between its left and right so the load is even, and the addresses each program
+//! talks to stand in a column on that program's side, in the same top-to-bottom order so
+//! links rarely cross. Links are smooth curves: teal for open connections, amber for
+//! connections made *to* this PC, grey for ones closing. Nothing moves.
+//!
+//! Clicking a program or an address highlights its links and fills the inspector beside
+//! the map (the map never resizes and nothing covers it); clicking it again clears it.
+//! Clicking a program also flags its window in the taskbar, where the desktop allows it.
+//! The background is a quiet hexagon grid, a still starfield or plain (Settings).
 
-use gpui::{canvas, div, point, prelude::*, px, AnimationExt, AnyElement, ClickEvent, Context, PathBuilder};
+use gpui::{canvas, div, point, prelude::*, px, AnyElement, ClickEvent, Context, PathBuilder};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use vigil_model::host::Socket;
+use vigil_model::host::{NetSnapshot, Socket};
 use vigil_model::netaddr::scope_of;
 use vigil_model::wording;
 use vigil_ui_core::theme::Rgba;
 
-use crate::live::Snapshot;
 use crate::ui::{c, ca, id, id2};
-use crate::views::{program_name, real_connections, service_name};
+use crate::views::{program_name_in, real_connections_in, service_name};
 use crate::{live, mark, Sel, Vigil};
 
-pub const PROG_W: f32 = 230.0;
-pub const PROG_H: f32 = 36.0;
-pub const DEST_W: f32 = 250.0;
-pub const DEST_H: f32 = 26.0;
-const TOP: f32 = 44.0;
+pub const PROG_H: f32 = 32.0;
+pub const DEST_H: f32 = 24.0;
+const MARGIN: f32 = 18.0;
+const TOP: f32 = 18.0;
+const BOTTOM: f32 = 40.0;
+/// The PC node's radius.
+const PC_R: f32 = 30.0;
 
 pub struct ProgNode {
     pub key: String,
@@ -32,6 +36,7 @@ pub struct ProgNode {
     pub count: usize,
     pub x: f32,
     pub y: f32,
+    pub right: bool,
     pub hidden: bool,
 }
 
@@ -41,6 +46,7 @@ pub struct DestNode {
     pub scope: &'static str,
     pub x: f32,
     pub y: f32,
+    pub right: bool,
     /// "+N more" for a program whose addresses did not all fit.
     pub more: Option<(usize, usize)>,
 }
@@ -60,8 +66,8 @@ pub struct MapGeo {
     pub progs: Vec<ProgNode>,
     pub dests: Vec<DestNode>,
     pub edges: Vec<Edge>,
-    pub prog_x: f32,
-    pub dest_x: f32,
+    pub prog_w: f32,
+    pub dest_w: f32,
 }
 
 fn hidden_label(reason: &str) -> String {
@@ -73,10 +79,17 @@ fn hidden_label(reason: &str) -> String {
     }
 }
 
-/// Where everything goes in a `w` × `h` map (pixels, from the map's top-left corner).
-pub fn geometry(d: &Snapshot, w: f32, h: f32) -> MapGeo {
+/// `n` positions spaced at most `step` apart, centred on `mid`, within `span`.
+fn spread(n: usize, mid: f32, span: f32, step: f32) -> Vec<f32> {
+    let gap = (span / n.max(1) as f32).min(step);
+    let first = mid - gap * (n as f32 - 1.0) / 2.0;
+    (0..n).map(|i| first + gap * i as f32).collect()
+}
+
+/// Where everything goes in a `w` x `h` map (pixels, from the map's top-left corner).
+pub fn geometry(net: &NetSnapshot, w: f32, h: f32) -> MapGeo {
     let mut per: BTreeMap<String, Vec<&Socket>> = BTreeMap::new();
-    for s in real_connections(d) {
+    for s in real_connections_in(net) {
         let key = s
             .program
             .clone()
@@ -87,27 +100,15 @@ pub fn geometry(d: &Snapshot, w: f32, h: f32) -> MapGeo {
     ranked.sort_by(|a, b| {
         a.0.starts_with("hidden:").cmp(&b.0.starts_with("hidden:")).then(b.1.len().cmp(&a.1.len())).then(a.0.cmp(&b.0))
     });
-    let usable = (h - TOP - 16.0).max(60.0);
-    let max_progs = ((usable / (PROG_H + 10.0)).floor() as usize).max(1);
-    ranked.truncate(max_progs);
-    let prog_x = (w * 0.30 - PROG_W / 2.0).max(150.0);
-    let dest_x = (w - DEST_W - 28.0).max(prog_x + PROG_W + 120.0);
-    let np = ranked.len().max(1);
-    let prog_gap = usable / np as f32;
-    let mut progs = vec![];
-    for (i, (key, socks)) in ranked.iter().enumerate() {
-        let hidden = key.starts_with("hidden:");
-        progs.push(ProgNode {
-            key: key.clone(),
-            label: if hidden { hidden_label(&key[7..]) } else { program_name(d, key) },
-            count: socks.len(),
-            x: prog_x,
-            y: TOP + prog_gap * (i as f32 + 0.5) - PROG_H / 2.0,
-            hidden,
-        });
-    }
-    // Destination slots, shared out by how many addresses each program has.
-    let slots = ((usable / (DEST_H + 6.0)).floor() as usize).max(np);
+    let usable = (h - TOP - BOTTOM).max(80.0);
+    let (cx, cy) = (w / 2.0, TOP + usable / 2.0);
+    // Widths shrink together on narrow windows so both sides always fit.
+    let half = w / 2.0 - MARGIN;
+    let k = ((half - PC_R - 100.0) / (176.0 + 196.0)).clamp(0.55, 1.0);
+    let (prog_w, dest_w) = (176.0 * k, 196.0 * k);
+    let per_side = ((usable / (PROG_H + 12.0)).floor() as usize).max(1);
+    ranked.truncate(per_side * 2);
+    // Addresses per program, busiest first.
     let uniq: Vec<Vec<String>> = ranked
         .iter()
         .map(|(_, socks)| {
@@ -120,58 +121,112 @@ pub fn geometry(d: &Snapshot, w: f32, h: f32) -> MapGeo {
             v.into_iter().map(|(ip, _)| ip.to_string()).collect()
         })
         .collect();
-    let total: usize = uniq.iter().map(Vec::len).sum::<usize>().max(1);
-    let mut placed: Vec<(usize, String, Option<usize>)> = vec![];
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    for (pi, ips) in uniq.iter().enumerate() {
-        let fresh: Vec<&String> = ips.iter().filter(|ip| !seen.contains(*ip)).collect();
-        let share = ((slots as f32 * ips.len() as f32 / total as f32).floor() as usize).max(1);
-        let fits = fresh.len() <= share;
-        let show = if fits { fresh.len() } else { share.saturating_sub(1).max(1) };
-        for ip in fresh.iter().take(show) {
-            seen.insert((*ip).clone());
-            placed.push((pi, (*ip).clone(), None));
-        }
-        if !fits {
-            placed.push((pi, String::new(), Some(fresh.len() - show)));
+    // Sides: each program goes where fewer addresses are already shown (right on a tie).
+    let mut side_load = [0usize; 2];
+    let mut side_of = vec![true; ranked.len()];
+    let mut side_progs: [Vec<usize>; 2] = [vec![], vec![]];
+    for (i, ips) in uniq.iter().enumerate() {
+        let right = side_load[1] <= side_load[0] && side_progs[1].len() < per_side || side_progs[0].len() >= per_side;
+        let s = usize::from(right);
+        side_of[i] = right;
+        side_load[s] += ips.len().max(1);
+        side_progs[s].push(i);
+    }
+    // Programs on an arc around the PC: further out at mid height, closer at the top and
+    // bottom, like points on an ellipse.
+    let dest_inner = half - dest_w; // distance from the centre to a column's inner edge
+    let reach = (dest_inner - 56.0 - prog_w).max(PC_R + 24.0);
+    let mut progs: Vec<ProgNode> = Vec::with_capacity(ranked.len());
+    let mut prog_y = vec![0.0f32; ranked.len()];
+    for list in &side_progs {
+        let ys = spread(list.len(), cy, usable - PROG_H, 72.0);
+        for (&i, y) in list.iter().zip(ys) {
+            prog_y[i] = y;
         }
     }
-    let dest_gap = usable / placed.len().max(1) as f32;
+    for (i, (key, socks)) in ranked.iter().enumerate() {
+        let hidden = key.starts_with("hidden:");
+        let y = prog_y[i];
+        let dy = ((y - cy) / (usable / 2.0)).clamp(-1.0, 1.0);
+        let off = (PC_R + 24.0).max(reach * (1.0 - dy * dy).sqrt());
+        let right = side_of[i];
+        let x = if right { cx + off } else { cx - off - prog_w };
+        progs.push(ProgNode {
+            key: key.clone(),
+            label: if hidden { hidden_label(&key[7..]) } else { program_name_in(net, key) },
+            count: socks.len(),
+            x,
+            y: y - PROG_H / 2.0,
+            right,
+            hidden,
+        });
+    }
+    // Address columns, one per side, in the order of their programs.
+    let slots = ((usable / (DEST_H + 6.0)).floor() as usize).max(1);
     let mut dests = vec![];
-    let mut index: HashMap<String, usize> = HashMap::new();
+    let mut index: HashMap<(usize, String), usize> = HashMap::new();
     let mut more_of: HashMap<usize, usize> = HashMap::new();
-    for (i, (pi, ip, more)) in placed.into_iter().enumerate() {
-        let y = TOP + dest_gap * (i as f32 + 0.5) - DEST_H / 2.0;
-        match more {
-            Some(n) => {
-                more_of.insert(pi, dests.len());
-                dests.push(DestNode {
-                    ip: String::new(),
-                    service: String::new(),
-                    scope: "",
-                    x: dest_x,
-                    y,
-                    more: Some((pi, n)),
-                });
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    for (s, list) in side_progs.iter().enumerate() {
+        let mut order: Vec<usize> = list.clone();
+        order.sort_by(|a, b| prog_y[*a].partial_cmp(&prog_y[*b]).unwrap_or(std::cmp::Ordering::Equal));
+        let total: usize = order.iter().map(|i| uniq[*i].len()).sum::<usize>().max(1);
+        let mut placed: Vec<(usize, String, Option<usize>)> = vec![];
+        for &pi in &order {
+            let fresh: Vec<&String> = uniq[pi].iter().filter(|ip| !seen.contains(*ip)).collect();
+            let share = ((slots as f32 * uniq[pi].len() as f32 / total as f32).floor() as usize).max(1);
+            let fits = fresh.len() <= share;
+            let show = if fits { fresh.len() } else { share.saturating_sub(1).max(1) };
+            for ip in fresh.iter().take(show) {
+                seen.insert((*ip).clone());
+                placed.push((pi, (*ip).clone(), None));
             }
-            None => {
-                let sock = ranked[pi].1.iter().find(|s| s.remote_ip == ip);
-                let service = sock.map_or(String::new(), |s| {
-                    service_name(&s.proto, if s.direction == "in" { s.local_port } else { s.remote_port })
-                });
-                index.insert(ip.clone(), dests.len());
-                dests.push(DestNode { scope: scope_of(&ip), ip, service, x: dest_x, y, more: None });
+            if !fits {
+                placed.push((pi, String::new(), Some(fresh.len() - show)));
+            }
+        }
+        let right = s == 1;
+        let x = if right { w - MARGIN - dest_w } else { MARGIN };
+        let ys = spread(placed.len(), cy, usable - DEST_H, DEST_H + 10.0);
+        for ((pi, ip, more), y) in placed.into_iter().zip(ys) {
+            let y = y - DEST_H / 2.0;
+            match more {
+                Some(n) => {
+                    more_of.insert(pi, dests.len());
+                    dests.push(DestNode {
+                        ip: String::new(),
+                        service: String::new(),
+                        scope: "",
+                        x,
+                        y,
+                        right,
+                        more: Some((pi, n)),
+                    });
+                }
+                None => {
+                    let sock = ranked[pi].1.iter().find(|s| s.remote_ip == ip);
+                    let service = sock.map_or(String::new(), |s| {
+                        service_name(&s.proto, if s.direction == "in" { s.local_port } else { s.remote_port })
+                    });
+                    index.insert((s, ip.clone()), dests.len());
+                    dests.push(DestNode { scope: scope_of(&ip), ip, service, x, y, right, more: None });
+                }
             }
         }
     }
     let mut edges = vec![];
     let mut done = BTreeSet::new();
     for (pi, (_, socks)) in ranked.iter().enumerate() {
-        for s in socks {
-            let di = index.get(&s.remote_ip).copied().or_else(|| more_of.get(&pi).copied());
+        let s = usize::from(side_of[pi]);
+        for sock in socks {
+            let di = index
+                .get(&(s, sock.remote_ip.clone()))
+                .or_else(|| index.get(&(1 - s, sock.remote_ip.clone())))
+                .copied()
+                .or_else(|| more_of.get(&pi).copied());
             if let Some(di) = di {
                 if done.insert((pi, di)) {
-                    let all: Vec<&&Socket> = socks.iter().filter(|x| x.remote_ip == s.remote_ip).collect();
+                    let all: Vec<&&Socket> = socks.iter().filter(|x| x.remote_ip == sock.remote_ip).collect();
                     edges.push(Edge {
                         prog: pi,
                         dest: di,
@@ -182,7 +237,7 @@ pub fn geometry(d: &Snapshot, w: f32, h: f32) -> MapGeo {
             }
         }
     }
-    MapGeo { pc: (64.0, TOP + usable / 2.0), progs, dests, edges, prog_x, dest_x }
+    MapGeo { pc: (cx, cy), progs, dests, edges, prog_w, dest_w }
 }
 
 /// Points along a smooth S-curve from `a` to `b` (horizontal tangents at both ends).
@@ -201,13 +256,82 @@ fn curve(a: (f32, f32), b: (f32, f32)) -> Vec<(f32, f32)> {
         .collect()
 }
 
+/// Vigil 1's "Grid" background: a tile of five hexagons and a few small shapes, 112 x 97.
+fn paint_grid(w: &mut gpui::Window, o: gpui::Point<gpui::Pixels>, bw: f32, bh: f32, line: u32, live: u32) {
+    let hex = |cx: f32, cy: f32, r: f32| -> Vec<(f32, f32)> {
+        (0..=6)
+            .map(|i| {
+                let a = std::f32::consts::PI / 3.0 * i as f32 + std::f32::consts::PI / 6.0;
+                (cx + r * a.cos(), cy + r * a.sin())
+            })
+            .collect()
+    };
+    let centres = [(28.0, 24.0), (84.0, 24.0), (0.0, 72.5), (56.0, 72.5), (112.0, 72.5)];
+    let mut hexes = PathBuilder::stroke(px(1.0));
+    let mut shapes = PathBuilder::stroke(px(1.0));
+    let mut ty = 0.0;
+    while ty < bh + 97.0 {
+        let mut tx = 0.0;
+        while tx < bw + 112.0 {
+            for (hx, hy) in centres {
+                let pts = hex(tx + hx, ty + hy, 16.0);
+                hexes.move_to(point(o.x + px(pts[0].0), o.y + px(pts[0].1)));
+                for p in &pts[1..] {
+                    hexes.line_to(point(o.x + px(p.0), o.y + px(p.1)));
+                }
+            }
+            // A small triangle and a plus, as in the original tile.
+            let at = |x: f32, y: f32| point(o.x + px(tx + x), o.y + px(ty + y));
+            shapes.move_to(at(56.0, 4.0));
+            shapes.line_to(at(60.0, 11.0));
+            shapes.line_to(at(52.0, 11.0));
+            shapes.line_to(at(56.0, 4.0));
+            shapes.move_to(at(24.0, 56.0));
+            shapes.line_to(at(24.0, 62.0));
+            shapes.move_to(at(21.0, 59.0));
+            shapes.line_to(at(27.0, 59.0));
+            tx += 112.0;
+        }
+        ty += 97.0;
+    }
+    if let Ok(p) = hexes.build() {
+        w.paint_path(p, mark::hsla(line, 0.075));
+    }
+    if let Ok(p) = shapes.build() {
+        w.paint_path(p, mark::hsla(live, 0.11));
+    }
+}
+
+/// "Night": a still field of stars, the same every time (placed by a hash, not at random).
+fn paint_stars(w: &mut gpui::Window, o: gpui::Point<gpui::Pixels>, bw: f32, bh: f32) {
+    let mut h: u32 = 0x9e37_79b9;
+    let mut next = || {
+        h ^= h << 13;
+        h ^= h >> 17;
+        h ^= h << 5;
+        (h % 10_000) as f32 / 10_000.0
+    };
+    let n = ((bw * bh) / 2600.0) as usize;
+    for _ in 0..n {
+        let (x, y, r, a) = (next() * bw, next() * bh, 0.5 + next() * 0.9, 0.12 + next() * 0.4);
+        w.paint_quad(
+            gpui::fill(
+                gpui::Bounds::new(point(o.x + px(x - r), o.y + px(y - r)), gpui::size(px(2.0 * r), px(2.0 * r))),
+                mark::hsla(0xdde8ff, a),
+            )
+            .corner_radii(px(r)),
+        );
+    }
+}
+
 impl Vigil {
     pub fn network_map(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = self.theme.clone();
         let Some(d) = &self.data else { return div().into_any_element() };
         let (w, h) =
             self.map_bounds.get().map_or((1100.0, 640.0), |b| (f32::from(b.size.width), f32::from(b.size.height)));
-        let geo = geometry(d, w, h);
+        let geo = geometry(&d.net, w, h);
+        let (pw, dw) = (geo.prog_w, geo.dest_w);
         let sel_prog = match &self.sel {
             Some(Sel::Program(k)) => geo.progs.iter().position(|p| &p.key == k),
             _ => None,
@@ -217,16 +341,25 @@ impl Vigil {
             _ => None,
         };
         let any_sel = sel_prog.is_some() || sel_dest.is_some();
-        // Owned data for the painter.
+        let lit_prog =
+            |i: usize| sel_prog == Some(i) || geo.edges.iter().any(|e| e.prog == i && sel_dest == Some(e.dest));
         let lines: Vec<Stroke> = {
             let mut v = vec![];
             for (i, p) in geo.progs.iter().enumerate() {
-                let on = sel_prog == Some(i);
+                let on = lit_prog(i);
+                let inner = if p.right { (p.x, p.y + PROG_H / 2.0) } else { (p.x + pw, p.y + PROG_H / 2.0) };
+                let from = (geo.pc.0 + if p.right { PC_R } else { -PC_R }, geo.pc.1);
                 v.push((
-                    curve((geo.pc.0 + 22.0, geo.pc.1), (p.x, p.y + PROG_H / 2.0)),
-                    t.text[2].0 >> 8,
-                    if any_sel && !on { 0.12 } else { 0.35 },
-                    1.0,
+                    curve(from, inner),
+                    if on { t.accent.0 >> 8 } else { t.text[2].0 >> 8 },
+                    if any_sel && !on {
+                        0.12
+                    } else if on {
+                        0.9
+                    } else {
+                        0.4
+                    },
+                    if on { 1.6 } else { 1.0 },
                 ));
             }
             for e in &geo.edges {
@@ -242,23 +375,20 @@ impl Vigil {
                     t.text[2]
                 };
                 let alpha = if any_sel && !on {
-                    0.1
+                    0.08
                 } else if on {
                     0.95
                 } else {
-                    0.5
+                    0.45
                 };
-                v.push((
-                    curve((p.x + PROG_W, p.y + PROG_H / 2.0), (q.x, q.y + DEST_H / 2.0)),
-                    colour.0 >> 8,
-                    alpha,
-                    if on { 1.8 } else { 1.2 },
-                ));
+                let a = if p.right { (p.x + pw, p.y + PROG_H / 2.0) } else { (p.x, p.y + PROG_H / 2.0) };
+                let b = if q.right { (q.x, q.y + DEST_H / 2.0) } else { (q.x + dw, q.y + DEST_H / 2.0) };
+                v.push((curve(a, b), colour.0 >> 8, alpha, if on { 1.6 } else { 1.1 }));
             }
             v
         };
-        let dot = t.line[1].0 >> 8;
-        let pc = geo.pc;
+        let background = self.settings.map_background.clone();
+        let (line, live) = (t.line[2].0 >> 8, t.live.0 >> 8);
         let cell = self.map_bounds.clone();
         let painter = canvas(
             move |b, w, _| {
@@ -269,19 +399,11 @@ impl Vigil {
             },
             move |b, _, w, _| {
                 let o = b.origin;
-                // A quiet dot grid, so the space reads as a surface rather than a void.
                 let (bw, bh) = (f32::from(b.size.width), f32::from(b.size.height));
-                let mut y = 12.0;
-                while y < bh {
-                    let mut x = 12.0;
-                    while x < bw {
-                        w.paint_quad(gpui::fill(
-                            gpui::Bounds::new(point(o.x + px(x), o.y + px(y)), gpui::size(px(1.2), px(1.2))),
-                            mark::hsla(dot, 0.45),
-                        ));
-                        x += 24.0;
-                    }
-                    y += 24.0;
+                match background.as_str() {
+                    "night" => paint_stars(w, o, bw, bh),
+                    "plain" => {}
+                    _ => paint_grid(w, o, bw, bh, line, live),
                 }
                 for (pts, colour, alpha, width) in &lines {
                     let mut p = PathBuilder::stroke(px(*width));
@@ -293,7 +415,6 @@ impl Vigil {
                         w.paint_path(path, mark::hsla(*colour, *alpha));
                     }
                 }
-                mark::paint(w, o, &vigil_ui_core::motion::MarkFrame::at_rest(pc.0, pc.1, 22.0));
             },
         )
         .absolute()
@@ -301,32 +422,41 @@ impl Vigil {
         .left_0()
         .size_full();
 
-        let header = |x: f32, text: &str| {
-            div()
-                .absolute()
-                .left(px(x))
-                .top(px(14.0))
-                .text_size(px(11.0))
-                .text_color(c(t.text[2]))
-                .child(text.to_string())
+        let pc = geo.pc;
+        let kind_icon = match self.device.kind {
+            vigil_sensor::device::Kind::Laptop => "laptop",
+            _ => "desktop",
         };
         let mut nodes: Vec<AnyElement> = vec![
-            header(24.0, "THIS PC").into_any_element(),
-            header(geo.prog_x, "PROGRAMS").into_any_element(),
-            header(geo.dest_x, "TALKING TO").into_any_element(),
             div()
                 .absolute()
-                .left(px(14.0))
-                .top(px(pc.1 + 30.0))
-                .w(px(100.0))
-                .text_size(px(11.5))
+                .left(px(pc.0 - PC_R))
+                .top(px(pc.1 - PC_R))
+                .size(px(PC_R * 2.0))
+                .rounded_full()
+                .bg(c(t.bg[3]))
+                .border_1()
+                .border_color(c(t.line[2]))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(gpui::svg().path(format!("icons/{kind_icon}.svg")).size(px(26.0)).text_color(c(t.text[0])))
+                .into_any_element(),
+            div()
+                .absolute()
+                .left(px(pc.0 - 90.0))
+                .top(px(pc.1 + PC_R + 6.0))
+                .w(px(180.0))
+                .flex()
+                .justify_center()
+                .text_size(px(12.0))
                 .text_color(c(t.text[1]))
-                .truncate()
-                .child(wording::printable(&self.device.name))
+                .child(div().truncate().child(wording::printable(&self.device.name)))
                 .into_any_element(),
         ];
         for (i, p) in geo.progs.iter().enumerate() {
             let on = sel_prog == Some(i);
+            let lit = lit_prog(i);
             let key = p.key.clone();
             let hidden = p.hidden;
             let pids: Vec<u32> = d
@@ -346,44 +476,48 @@ impl Vigil {
                     .absolute()
                     .left(px(p.x))
                     .top(px(p.y))
-                    .w(px(PROG_W))
+                    .w(px(pw))
                     .h(px(PROG_H))
-                    .px(px(8.0))
+                    .pl(px(6.0))
+                    .pr(px(8.0))
                     .flex()
                     .items_center()
-                    .gap(px(9.0))
+                    .gap(px(8.0))
                     .rounded(px(PROG_H / 2.0))
                     .bg(if on { c(t.accent_soft) } else { c(t.bg[2]) })
                     .border_1()
-                    .border_color(if on { c(t.accent) } else { c(t.line[1]) })
-                    .when(any_sel && !on, |el| el.opacity(0.55))
+                    .border_color(if lit { c(t.accent) } else { c(t.line[1]) })
+                    .when(any_sel && !lit, |el| el.opacity(0.5))
                     .cursor_pointer()
                     .hover(|s| s.border_color(ca(Rgba(0xffffff40), 1.0)))
                     .child(if hidden {
                         div()
-                            .size(px(22.0))
+                            .size(px(20.0))
+                            .flex_none()
                             .rounded_full()
                             .bg(c(t.bg[4]))
                             .flex()
                             .items_center()
                             .justify_center()
-                            .child(gpui::svg().path("icons/eye.svg").size(px(13.0)).text_color(c(t.text[2])))
+                            .child(gpui::svg().path("icons/eye.svg").size(px(12.0)).text_color(c(t.text[2])))
                             .into_any_element()
                     } else {
-                        self.app_icon(&p.key, 22.0)
+                        self.app_icon(&p.key, 20.0)
                     })
                     .child(
                         div()
                             .flex_1()
                             .min_w(px(0.0))
                             .truncate()
+                            .text_size(px(12.5))
                             .text_color(if hidden { c(t.text[2]) } else { c(t.text[0]) })
                             .child(p.label.clone()),
                     )
                     .child(
                         div()
-                            .px(px(7.0))
-                            .rounded(px(9.0))
+                            .flex_none()
+                            .px(px(6.0))
+                            .rounded(px(8.0))
                             .bg(c(t.bg[4]))
                             .text_size(px(11.0))
                             .text_color(c(t.text[1]))
@@ -412,91 +546,79 @@ impl Vigil {
                 .absolute()
                 .left(px(q.x))
                 .top(px(q.y))
-                .w(px(DEST_W))
+                .w(px(dw))
                 .h(px(DEST_H))
-                .px(px(10.0))
+                .px(px(9.0))
                 .flex()
                 .items_center()
-                .gap(px(8.0))
+                .gap(px(7.0))
                 .rounded(px(6.0))
-                .bg(if on { c(t.accent_soft) } else { c(t.bg[1]) })
+                .bg(if sel_dest == Some(i) { c(t.accent_soft) } else { c(t.bg[1]) })
                 .border_1()
                 .border_color(if on { c(t.accent) } else { c(t.line[0]) })
-                .when(any_sel && !on, |el| el.opacity(0.5))
+                .when(any_sel && !on, |el| el.opacity(0.45))
                 .cursor_pointer()
+                .hover(|s| s.border_color(ca(Rgba(0xffffff40), 1.0)))
                 .text_size(px(12.0));
             let el = match q.more {
                 Some((pi, n)) => {
                     let key = geo.progs[pi].key.clone();
-                    base.child(div().text_color(c(t.text[2])).child(format!("+{n} more addresses"))).on_click(
-                        cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                    base.child(div().text_color(c(t.text[2])).child(format!("+{n} more"))).on_click(cx.listener(
+                        move |this, _: &ClickEvent, _w, cx| {
                             this.set_tab(1, 1);
                             this.sel = Some(Sel::Program(key.clone()));
                             cx.notify();
-                        }),
-                    )
+                        },
+                    ))
                 }
                 None => {
                     let ip = q.ip.clone();
                     let lan = matches!(q.scope, "lan" | "link-local");
-                    base.child(div().size(px(7.0)).rounded_full().bg(if lan { c(t.accent) } else { c(t.live) }))
-                        .child(div().flex_1().truncate().child(q.ip.clone()))
-                        .child(div().text_size(px(11.0)).text_color(c(t.text[2])).child(q.service.clone()))
-                        .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
-                            this.sel = if this.sel == Some(Sel::Addr(ip.clone())) {
-                                None
-                            } else {
-                                Some(Sel::Addr(ip.clone()))
-                            };
-                            cx.notify();
-                        }))
+                    base.child(div().size(px(6.0)).flex_none().rounded_full().bg(if lan {
+                        c(t.accent)
+                    } else {
+                        c(t.live)
+                    }))
+                    .child(div().flex_1().min_w(px(0.0)).truncate().child(q.ip.clone()))
+                    .child(div().flex_none().text_size(px(10.5)).text_color(c(t.text[2])).child(q.service.clone()))
+                    .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                        this.sel =
+                            if this.sel == Some(Sel::Addr(ip.clone())) { None } else { Some(Sel::Addr(ip.clone())) };
+                        cx.notify();
+                    }))
                 }
             };
             nodes.push(el.into_any_element());
         }
-        if let Some(c_) = self.callout(&geo, sel_prog, sel_dest, h, cx) {
-            nodes.push(c_);
-        }
+        let key_line = |colour: Rgba, label: &'static str| {
+            div().flex().items_center().gap(px(6.0)).child(div().w(px(14.0)).h(px(2.0)).bg(c(colour))).child(label)
+        };
         let legend = div()
             .absolute()
-            .bottom(px(10.0))
+            .bottom(px(12.0))
             .left(px(16.0))
+            .right(px(16.0))
             .flex()
             .gap(px(16.0))
             .text_size(px(11.5))
             .text_color(c(t.text[2]))
+            .child(key_line(t.live, "open, made by this PC"))
+            .child(key_line(t.warn, "made to this PC"))
+            .child(key_line(t.text[2], "closing"))
             .child(
                 div()
                     .flex()
                     .items_center()
                     .gap(px(6.0))
-                    .child(div().w(px(14.0)).h(px(2.0)).bg(c(t.live)))
-                    .child("open, made by this PC"),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(6.0))
-                    .child(div().w(px(14.0)).h(px(2.0)).bg(c(t.warn)))
-                    .child("made to this PC"),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(6.0))
-                    .child(div().w(px(14.0)).h(px(2.0)).bg(c(t.text[2])))
-                    .child("closing"),
-            )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(6.0))
-                    .child(div().size(px(7.0)).rounded_full().bg(c(t.accent)))
+                    .child(div().size(px(6.0)).rounded_full().bg(c(t.accent)))
                     .child("local network"),
-            );
+            )
+            .child(div().flex_1())
+            .child(format!(
+                "{} programs · {} addresses",
+                geo.progs.len(),
+                geo.dests.iter().filter(|q| q.more.is_none()).count()
+            ));
         div()
             .id(id("map", self.nav))
             .relative()
@@ -510,141 +632,73 @@ impl Vigil {
             .child(painter)
             .children(nodes)
             .child(legend)
+            .when(geo.progs.is_empty(), |el| {
+                el.child(
+                    div()
+                        .absolute()
+                        .top(px(pc.1 + PC_R + 30.0))
+                        .left_0()
+                        .right_0()
+                        .flex()
+                        .justify_center()
+                        .text_color(c(t.text[2]))
+                        .child("Nothing on this PC is talking to another machine right now."),
+                )
+            })
             .into_any_element()
     }
+}
 
-    /// A small card beside the selected node, in the open space between the columns, so
-    /// the map keeps its size and the node stays in view.
-    fn callout(
-        &self,
-        geo: &MapGeo,
-        sel_prog: Option<usize>,
-        sel_dest: Option<usize>,
-        h: f32,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let t = &self.theme;
-        let d = self.data.as_ref()?;
-        let w = 300.0;
-        let line = |k: &str, v: String| {
-            div()
-                .flex()
-                .gap(px(8.0))
-                .child(div().w(px(92.0)).text_color(c(t.text[2])).child(k.to_string()))
-                .child(div().flex_1().truncate().child(v))
-        };
-        let (left, top, body): (f32, f32, gpui::Div) = if let Some(i) = sel_prog {
-            let p = &geo.progs[i];
-            let socks: Vec<&Socket> =
-                d.net.sockets.iter().filter(|s| s.program.as_deref() == Some(p.key.as_str())).collect();
-            let pids: BTreeSet<u32> = socks.iter().flat_map(|s| s.pids.clone()).collect();
-            let user =
-                pids.iter().next().and_then(|pid| d.net.processes.get(pid)).map_or("-".to_string(), |p| p.user.clone());
-            let first = d
-                .events
-                .iter()
-                .filter(|e| {
-                    e.kind == "first-seen" && e.detail.get("program").and_then(|v| v.as_str()) == Some(p.key.as_str())
-                })
-                .map(|e| e.ts)
-                .fold(f64::NAN, f64::min);
-            let pids_v: Vec<u32> = pids.iter().copied().collect();
-            let name = p.label.clone();
-            let icon = self.icons.as_ref().and_then(|i| i.for_exe(&p.key)).map(|x| x.to_string_lossy().into_owned());
-            let body = div()
-                .flex()
-                .flex_col()
-                .gap(px(6.0))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(10.0))
-                        .child(self.app_icon(&p.key, 26.0))
-                        .child(div().flex_1().text_size(px(15.0)).truncate().child(p.label.clone())),
-                )
-                .child(line("Path", wording::printable(&p.key)))
-                .child(line("Processes", pids.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(", ")))
-                .child(line("User", user))
-                .child(line(
-                    "Online since",
-                    if first.is_nan() {
-                        "before history".into()
-                    } else {
-                        format!("{} ({})", self.clock(first), crate::ui::ago(first))
-                    },
-                ))
-                .child(
-                    div()
-                        .pt(px(6.0))
-                        .flex()
-                        .gap(px(8.0))
-                        .child(crate::ui::button(t, "co-point", "Point it out", false).on_click(cx.listener(
-                            move |this, _: &ClickEvent, _w, cx| {
-                                let _ = this.req.send(live::Req::Attention {
-                                    pids: pids_v.clone(),
-                                    name: name.clone(),
-                                    icon: icon.clone(),
-                                });
-                                cx.notify();
-                            },
-                        )))
-                        .child(crate::ui::button(t, "co-proc", "Show process", false).on_click(cx.listener(
-                            |this, _: &ClickEvent, _w, cx| {
-                                this.act(vigil_ui_core::keymap::Action::Pivot);
-                                cx.notify();
-                            },
-                        ))),
-                );
-            (p.x + PROG_W + 18.0, p.y - 10.0, body)
-        } else {
-            let i = sel_dest?;
-            let q = &geo.dests[i];
-            let socks: Vec<&Socket> = d.net.sockets.iter().filter(|s| s.remote_ip == q.ip).collect();
-            let progs: BTreeSet<String> = socks.iter().filter_map(|s| s.program.clone()).collect();
-            let where_ = match q.scope {
-                "internet" => "Internet",
-                "lan" => "Local network",
-                "link-local" => "This network link",
-                other => other,
-            };
-            let body = div()
-                .flex()
-                .flex_col()
-                .gap(px(6.0))
-                .child(div().text_size(px(15.0)).child(q.ip.clone()))
-                .child(line("Where", where_.to_string()))
-                .child(line("Service", q.service.clone()))
-                .child(line("Open", format!("{} connections", socks.len())))
-                .child(line("Programs", progs.iter().map(|k| program_name(d, k)).collect::<Vec<_>>().join(", ")));
-            (q.x - w - 18.0, q.y - 10.0, body)
-        };
-        let top = top.clamp(TOP, (h - 230.0).max(TOP));
-        Some(
-            div()
-                .id("callout")
-                .absolute()
-                .left(px(left))
-                .top(px(top))
-                .w(px(w))
-                .p(px(14.0))
-                .rounded(px(t.radius))
-                .bg(c(t.bg[2]))
-                .border_1()
-                .border_color(c(t.accent))
-                .shadow_lg()
-                .child(body)
-                .with_animation(
-                    id2(
-                        "callout-in",
-                        self.nav,
-                        sel_prog.unwrap_or(1000) as u64 * 1000 + sel_dest.unwrap_or(999) as u64,
-                    ),
-                    gpui::Animation::new(std::time::Duration::from_millis(if self.reduced() { 1 } else { 200 }))
-                        .with_easing(vigil_ui_core::motion::Spring::SNAPPY.easing(200.0)),
-                    |el, d| el.opacity(d.clamp(0.0, 1.0)),
-                )
-                .into_any_element(),
-        )
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The synthetic /proc fixture, plus SYNTHETIC extra connections: one program with
+    /// `extra` addresses (like a browser), so the layout is tested under load.
+    fn net(extra: usize) -> NetSnapshot {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/proc");
+        let dst = std::env::temp_dir().join(format!("vigil-map-test-{}-{extra}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dst);
+        vigil_sensor::procfs::materialise_fixture(&src, &dst).expect("fixture");
+        let mut n = vigil_sensor::procfs::ProcRoot::at(&dst).net_snapshot(1_700_000_000.0, 0);
+        let _ = std::fs::remove_dir_all(&dst);
+        let base = n.sockets.iter().find(|s| s.kind == "connection" && s.program.is_some()).cloned().expect("a socket");
+        for i in 0..extra {
+            let mut s = base.clone();
+            s.remote_ip = format!("198.51.{}.{}", i / 200, i % 200 + 1);
+            s.inode = 90_000 + i as u64;
+            n.sockets.push(s);
+        }
+        n
+    }
+
+    fn overlaps(a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)) -> bool {
+        a.0 < b.0 + b.2 && b.0 < a.0 + a.2 && a.1 < b.1 + b.3 && b.1 < a.1 + a.3
+    }
+
+    #[test]
+    fn nothing_overlaps_and_everything_is_inside() {
+        for extra in [0usize, 18, 80] {
+            let n = net(extra);
+            for (w, h) in [(1490.0, 980.0), (990.0, 760.0), (820.0, 520.0)] {
+                let g = geometry(&n, w, h);
+                let mut boxes = vec![(g.pc.0 - PC_R, g.pc.1 - PC_R, 2.0 * PC_R, 2.0 * PC_R)];
+                boxes.extend(g.progs.iter().map(|p| (p.x, p.y, g.prog_w, PROG_H)));
+                boxes.extend(g.dests.iter().map(|q| (q.x, q.y, g.dest_w, DEST_H)));
+                for (i, a) in boxes.iter().enumerate() {
+                    assert!(a.0 >= 0.0 && a.1 >= 0.0 && a.0 + a.2 <= w && a.1 + a.3 <= h, "{extra} {w}x{h}: {a:?}");
+                    for b in &boxes[i + 1..] {
+                        assert!(!overlaps(*a, *b), "{extra} {w}x{h}: {a:?} overlaps {b:?}");
+                    }
+                }
+                // Every program reaches at least one address, and every address a program.
+                for (i, _) in g.progs.iter().enumerate() {
+                    assert!(g.edges.iter().any(|e| e.prog == i), "program {i} has no link");
+                }
+                for (i, _) in g.dests.iter().enumerate() {
+                    assert!(g.edges.iter().any(|e| e.dest == i), "address {i} has no link");
+                }
+            }
+        }
     }
 }

@@ -24,7 +24,7 @@ use gpui::{
     canvas, div, prelude::*, px, size, App, Bounds, ClickEvent, ClipboardItem, Context, FocusHandle, Hsla,
     KeyDownEvent, Pixels, Render, Window, WindowBounds, WindowOptions,
 };
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -40,7 +40,21 @@ use vigil_ui_core::theme::{self, Rgba, Theme};
 
 /// Where the rail logo sits (centre and circumradius): the arrival lands here.
 pub const RAIL_LOGO: (f32, f32, f32) = (34.0, 34.0, 12.5);
-pub const DETAIL_W: f32 = 400.0;
+/// The inspector beside every list and the map: always there, so nothing moves or
+/// resizes when you select something, and nothing is ever covered.
+pub const DETAIL_W: f32 = 380.0;
+
+/// How the process table is sorted.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ProcSort {
+    Tree,
+    Name,
+    Pid,
+    User,
+    Cpu,
+    Memory,
+    Started,
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Overlay {
@@ -121,9 +135,26 @@ pub struct Vigil {
     pub filter: String,
     pub filter_focus: bool,
     pub map_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
-    /// Rolling numbers: key -> (from, to, since).
+    /// Numbers shown on Home: key -> value (they change in place; nothing rolls).
     counters: HashMap<&'static str, (f32, f32, Instant)>,
     pub utc_offset_s: i64,
+    /// The window's size at the last frame, so views can fit their rows to it.
+    pub viewport: Cell<(f32, f32)>,
+    /// The process and connection lists scroll here; a jump scrolls the selection into view.
+    pub list_scroll: gpui::UniformListScrollHandle,
+    pub reveal: Cell<Option<gpui::ScrollStrategy>>,
+    /// Rows of the process list as drawn (pid, depth), for the virtual list.
+    pub rows: RefCell<Vec<(u32, usize)>>,
+    pub proc_sort: (ProcSort, bool),
+}
+
+/// "system", "session", or "test" for a private bus address.
+fn bus_word(bus: &str) -> &str {
+    if bus.starts_with("address=") || bus.contains(':') {
+        "test-bus"
+    } else {
+        bus
+    }
 }
 
 /// GNOME and GTK keep "enable animations" in settings.ini; KDE in kdeglobals.
@@ -233,6 +264,11 @@ impl Vigil {
             map_bounds: Rc::new(Cell::new(None)),
             counters: HashMap::new(),
             utc_offset_s,
+            viewport: Cell::new((1320.0, 840.0)),
+            list_scroll: gpui::UniformListScrollHandle::new(),
+            reveal: Cell::new(None),
+            rows: RefCell::new(vec![]),
+            proc_sort: (ProcSort::Pid, false),
         };
         v.reload_theme();
         v.entries = v.palette_entries();
@@ -429,6 +465,10 @@ impl Vigil {
                 };
                 self.save_settings();
             }
+            ["mapbg", b] => {
+                self.settings.map_background = (*b).into();
+                self.save_settings();
+            }
             ["density", d] => {
                 self.settings.density = if *d == "compact" { Density::Compact } else { Density::Comfortable };
                 self.save_settings();
@@ -436,6 +476,7 @@ impl Vigil {
             ["proc", pid] => {
                 self.set_tab(2, 1);
                 self.sel = pid.parse().ok().map(Sel::Proc);
+                self.reveal.set(Some(gpui::ScrollStrategy::Center));
             }
             ["addr", ip] => {
                 self.set_tab(1, 1);
@@ -555,6 +596,7 @@ impl Vigil {
                 let next = if a == Action::Down { (cur + 1).min(items.len() - 1) } else { cur.saturating_sub(1) };
                 self.cursor = next;
                 self.sel = Some(items[next].clone());
+                self.reveal.set(Some(gpui::ScrollStrategy::Nearest));
             }
             Action::Open => {
                 if self.sel.is_none() {
@@ -569,11 +611,10 @@ impl Vigil {
                     self.filter = format!("pid:{pid}");
                 }
                 Some(Sel::Program(key)) => {
-                    let pid = self.data.as_ref().and_then(|d| {
-                        d.net.sockets.iter().find(|s| s.program.as_deref() == Some(&key)).and_then(|s| s.pid)
-                    });
+                    let pid = self.data.as_ref().and_then(|d| views::main_pid(d, &key));
                     self.set_tab(2, 1);
                     self.sel = pid.map(Sel::Proc);
+                    self.reveal.set(Some(gpui::ScrollStrategy::Center));
                 }
                 Some(Sel::Addr(ip)) => {
                     self.set_tab(1, 1);
@@ -726,25 +767,17 @@ impl Vigil {
             }
             None => vec![],
         };
+        // Numbers change in place: a rolling counter repainted the window 60 times a second
+        // after every look, which cost more CPU than everything else together.
         let now = Instant::now();
-        let mut moving = false;
         for (k, target) in targets {
-            let shown = self.counter(k);
-            let e = self.counters.entry(k).or_insert((0.0, target, now));
-            if (e.1 - target).abs() > f32::EPSILON {
-                *e = (shown, target, now);
-            }
-            if e.2.elapsed().as_secs_f32() * 1000.0 < motion::COUNTER_MS {
-                moving = true;
-            }
+            self.counters.insert(k, (target, target, now));
         }
-        moving && !self.reduced()
+        false
     }
 
     pub fn counter(&self, k: &str) -> f32 {
-        self.counters.get(k).map_or(0.0, |(from, to, t0)| {
-            motion::tween(*from, *to, t0.elapsed().as_secs_f32() * 1000.0, motion::COUNTER_MS, self.reduced())
-        })
+        self.counters.get(k).map_or(0.0, |(_, to, _)| *to)
     }
 
     // ---- the shell ------------------------------------------------------------------------
@@ -934,13 +967,12 @@ impl Vigil {
         }
         let view = if self.settings.view(a.id) == View::Expert { "Expert" } else { "Guided" };
         let (dot, status) = match &self.conn {
-            Conn::Connected(bus) if self.paused => (t.warn, format!("Paused · {bus} daemon")),
-            Conn::Connected(bus) => (t.ok, format!("Live · {bus} daemon")),
+            Conn::Connected(bus) if self.paused => (t.warn, format!("Paused · {} daemon", bus_word(bus))),
+            Conn::Connected(bus) => (t.ok, format!("Live · {} daemon", bus_word(bus))),
             Conn::Looking => (t.text[2], "Looking for the daemon…".to_string()),
             Conn::Failed(_) => (t.danger, "Daemon not running".to_string()),
         };
-        let pulse = self.updates;
-        let reduced = self.reduced();
+
         div()
             .h(px(54.0))
             .flex_none()
@@ -982,13 +1014,8 @@ impl Vigil {
                     .hover(|s| s.opacity(0.8))
                     .text_size(px(12.0))
                     .text_color(c(t.text[2]))
-                    .child(ui::enter(
-                        div().size(px(7.0)).rounded_full().bg(c(dot)),
-                        id("pulse", pulse),
-                        0.0,
-                        0.0,
-                        reduced,
-                    ))
+                    // A still dot: a pulse on every look repainted the whole window each time.
+                    .child(div().size(px(7.0)).rounded_full().bg(c(dot)))
                     .child(status)
                     .on_click(cx.listener(|this, _: &ClickEvent, _w, cx| {
                         this.act(Action::PlayPause);
@@ -1199,39 +1226,41 @@ impl Vigil {
 
     fn settings_view(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let t = &self.theme;
-        let seg =
-            |name: &'static str, options: &[(&'static str, &'static str)], current: &str, cx: &mut Context<Self>| {
-                let mut opts = vec![];
-                for (i, (value, label)) in options.iter().enumerate() {
-                    let on = *value == current;
-                    let target = format!("{name}:{value}");
-                    opts.push(
-                        div()
-                            .id(ui::id2("seg", name.len() as u64, i as u64))
-                            .flex_1()
-                            .h(px(28.0))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(px(6.0))
-                            .cursor_pointer()
-                            .text_size(px(12.0))
-                            .bg(if on { c(t.bg[4]) } else { ca(t.bg[4], 0.0) })
-                            .text_color(if on { c(t.text[0]) } else { c(t.text[2]) })
-                            .hover(|s| s.bg(ca(Rgba(0xffffff0d), 1.0)))
-                            .child(*label)
-                            .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
-                                // Settings change in place: the popover stays open.
-                                let keep = this.overlay;
-                                this.choose(&target);
-                                this.overlay = keep;
-                                this.closing = None;
-                                cx.notify();
-                            })),
-                    );
-                }
-                div().w_full().p(px(3.0)).rounded(px(8.0)).bg(c(t.bg[1])).flex().gap(px(2.0)).children(opts)
-            };
+        let seg = |name: &'static str,
+                   options: &[(&'static str, &'static str)],
+                   current: &str,
+                   cx: &mut Context<Self>| {
+            let mut opts = vec![];
+            for (i, (value, label)) in options.iter().enumerate() {
+                let on = *value == current;
+                let target = format!("{name}:{value}");
+                opts.push(
+                    div()
+                        .id(ui::id2("seg", name.bytes().fold(7u64, |h, b| h.wrapping_mul(31) + u64::from(b)), i as u64))
+                        .flex_1()
+                        .h(px(28.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(6.0))
+                        .cursor_pointer()
+                        .text_size(px(12.0))
+                        .bg(if on { c(t.bg[4]) } else { ca(t.bg[4], 0.0) })
+                        .text_color(if on { c(t.text[0]) } else { c(t.text[2]) })
+                        .hover(|s| s.bg(ca(Rgba(0xffffff0d), 1.0)))
+                        .child(*label)
+                        .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                            // Settings change in place: the popover stays open.
+                            let keep = this.overlay;
+                            this.choose(&target);
+                            this.overlay = keep;
+                            this.closing = None;
+                            cx.notify();
+                        })),
+                );
+            }
+            div().w_full().p(px(3.0)).rounded(px(8.0)).bg(c(t.bg[1])).flex().gap(px(2.0)).children(opts)
+        };
         let row = |title: &str, control: gpui::AnyElement| {
             div()
                 .px(px(16.0))
@@ -1253,6 +1282,8 @@ impl Vigil {
             seg("theme", &[("dark", "Dark"), ("light", "Light"), ("high-contrast", "Contrast")], &theme_name, cx);
         let motion_seg = seg("motion", &[("system", "System"), ("full", "Full"), ("reduced", "Reduced")], motion, cx);
         let density_seg = seg("density", &[("comfortable", "Comfortable"), ("compact", "Compact")], density, cx);
+        let bg_name = self.settings.map_background.clone();
+        let mapbg_seg = seg("mapbg", &[("grid", "Grid"), ("night", "Night"), ("plain", "Plain")], &bg_name, cx);
         div()
             .w_full()
             .rounded(px(t.radius + 2.0))
@@ -1266,6 +1297,7 @@ impl Vigil {
             .child(row("Theme", theme_seg.into_any_element()))
             .child(row("Motion", motion_seg.into_any_element()))
             .child(row("Density", density_seg.into_any_element()))
+            .child(row("Network map background", mapbg_seg.into_any_element()))
             .child(
                 div()
                     .mx(px(16.0))
@@ -1332,6 +1364,9 @@ fn modal(t: &Theme, width: f32) -> gpui::Div {
 
 impl Render for Vigil {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if std::env::var_os("VIGIL_DEBUG_RENDERS").is_some() {
+            eprintln!("render {:.3}", self.started.elapsed().as_secs_f64());
+        }
         if self.first_frame.is_none() {
             let d = self.started.elapsed();
             self.first_frame = Some(d);
@@ -1343,6 +1378,8 @@ impl Render for Vigil {
             }
         }
         self.drain();
+        let vp = window.viewport_size();
+        self.viewport.set((f32::from(vp.width), f32::from(vp.height)));
         // Keys only reach a focused element; some compositors start the window unfocused.
         if !self.focus.is_focused(window) {
             self.focus.focus(window, cx);
@@ -1354,6 +1391,7 @@ impl Render for Vigil {
         if arrival_ms.is_some_and(|ms| ms >= motion::ARRIVAL_MS) {
             self.arrival = None;
             self.arrived = Some(Instant::now());
+            self.shine_at = Instant::now();
         }
         let marker_moving = !reduced && self.marker.2.elapsed() < Duration::from_millis(700);
         let cards_rising = self.arrived.is_some_and(|a| a.elapsed() < Duration::from_millis(900));
@@ -1362,7 +1400,14 @@ impl Render for Vigil {
             self.closing = None;
         }
         let counting = self.tick_counters();
-        let shining = !reduced && self.area == 0 && self.arrival.is_none() && self.shine_phase() < home::SHINE_MS;
+        let shining = !reduced && self.area == 0 && self.arrival.is_none() && self.shining();
+        if std::env::var_os("VIGIL_DEBUG_RENDERS").is_some() {
+            eprintln!(
+                "  flags marker={marker_moving} arrival={} cards={cards_rising} closing={} counting={counting} shining={shining}",
+                self.arrival.is_some(),
+                self.closing.is_some()
+            );
+        }
         if marker_moving || self.arrival.is_some() || cards_rising || self.closing.is_some() || counting || shining {
             window.request_animation_frame();
         }
@@ -1526,9 +1571,9 @@ fn main() {
                 let mut last_mtime = None;
                 let mut n = 0u32;
                 loop {
-                    cx.background_executor().timer(Duration::from_millis(120)).await;
+                    cx.background_executor().timer(Duration::from_millis(200)).await;
                     n += 1;
-                    let mtime = if n.is_multiple_of(8) {
+                    let mtime = if n.is_multiple_of(10) {
                         config_dir()
                             .and_then(|d| std::fs::metadata(d.join("theme.toml")).ok())
                             .and_then(|m| m.modified().ok())
@@ -1547,9 +1592,7 @@ fn main() {
                         if expired {
                             v.toast = None;
                         }
-                        // The shield's shine starts on its own every few seconds.
-                        let shine = v.area == 0 && !v.reduced() && v.shine_phase() < 130.0;
-                        if data || theme_changed || expired || shine {
+                        if data || theme_changed || expired {
                             cx.notify();
                         }
                     });

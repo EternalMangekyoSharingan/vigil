@@ -10,7 +10,7 @@
 //!
 //! Nothing here writes to /proc or changes any setting.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
@@ -67,11 +67,28 @@ pub struct ProcRoot {
 }
 
 /// The system's user database (NSS), or "uid N" when the uid has no name.
+///
+/// Answers are kept for ten minutes. Each NSS lookup opens /etc/passwd (or asks
+/// systemd-userdb); doing that for every process on every look cost real CPU, and on
+/// systems with fapolicyd it made fapolicyd vet hundreds of opens a second.
 pub fn system_user_name(uid: u32) -> String {
-    match nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid)) {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    type Cache = Mutex<HashMap<u32, (String, Instant)>>;
+    static CACHE: OnceLock<Cache> = OnceLock::new();
+    const KEEP: Duration = Duration::from_secs(600);
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some((name, at)) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&uid) {
+        if at.elapsed() < KEEP {
+            return name.clone();
+        }
+    }
+    let name = match nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid)) {
         Ok(Some(u)) => u.name,
         _ => format!("uid {uid}"),
-    }
+    };
+    cache.lock().unwrap_or_else(|e| e.into_inner()).insert(uid, (name.clone(), Instant::now()));
+    name
 }
 
 impl ProcRoot {

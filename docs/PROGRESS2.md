@@ -222,3 +222,33 @@ taint), launcher parsing for icons. Clippy clean; `check-deps` and `check-packag
   attention script still need a run on the owner's laptop.
 - The installer and updater were syntax-checked and the tarball's layout checked; a full install and
   an update cycle need a machine with systemd running (the container has none).
+
+---
+
+## The owner's review, round 3 (2026-11-09)
+
+### Built
+- **Layout everywhere** (D-022, and the owner's rules now in CLAUDE.md): a fixed inspector beside
+  the map, Connections, Processes and Cases; overviews when nothing is selected; no floating cards.
+- **Processes**: a virtual, sortable table (program with its arguments, PID, user, CPU, memory,
+  started) that fills the width; jumps from Home, the map ("Show the process"), the palette and
+  the parent chain scroll to the process and outline it. "Show the process" picks the program's
+  main process (the browser, not one of its tabs).
+- **Network map**: back to one compact radial screen: this PC in the centre, programs on an arc
+  around it split left and right by load, each program's addresses in a column on its side, in the
+  same order so links rarely cross. Vigil 1's hexagon grid background is back (Settings: Grid,
+  Night, Plain, all still). A test checks that no two nodes overlap at three window sizes with up
+  to 80 extra addresses.
+- **Home**: battery and shield sit beside the device name; the busiest list is per program
+  ("brave, 12 processes"); lists show as many rows as the window fits; flat sparklines are lines.
+- **CPU** (D-022): the app paints only on new data; the daemon caches user names and writes less.
+- **The mark** (D-023): teal shell, orange core cube.
+
+### Tests
+53 pass (new: the map layout test; the mark's merge and core geometry). Clippy clean.
+
+### Limits
+- CPU was measured in the container with software rendering. The owner's laptop (GPU) should be
+  well below these numbers; the budget in section 4 (idle under 0.5 %) needs measuring there.
+- With Brave-sized loads the map shows up to the rows that fit per side and a "+N more" node that
+  opens the Connections tab for the rest.

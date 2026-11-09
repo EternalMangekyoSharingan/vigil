@@ -7,7 +7,7 @@
 | `areas.rs` | The nine areas on the rail (keys 1–9), their `g` letters, questions and tabs |
 | `keymap.rs` | Every binding from section 5.5; chords (`g h`); rebinding in `~/.config/vigil/keys.toml`; refuses clashes and chords hidden behind a single key; letters type into text fields instead of triggering shortcuts |
 | `palette.rs` | Ranking for the command palette: forgiving subsequence match with bonuses for word starts and runs ("prc tr" finds "Processes: Tree") |
-| `motion.rs` | Springs, Vigil's ease curve, the arrival as a pure function of time (each part tested: faces 70 ms apart, core 0 → 2.2 → 1, rings 120 ms apart, everything settled at 700 ms), Home's cards rising 30 ms apart, reduced motion |
+| `motion.rs` | Springs, Vigil's ease curve, the mark's geometry (shell, tiles, core cube) and the arrival as a pure function of time (tested frame by frame: tiles fold and close, the core overshoots once, the last frame is the rail logo), reduced motion |
 | `theme.rs` | Dark (Vigil 1's tokens), light and high-contrast themes, each tested for WCAG contrast; `theme.toml` overrides single colours and is reloaded live |
 | `settings.rs` | The app's own preferences (`~/.config/vigil/ui.toml`): theme, motion, density, Guided or Expert per area. Security settings are not here: they live in the daemon behind polkit |
 
@@ -24,35 +24,41 @@
 
 ### What is live
 
-- **Home**: processes, outbound connections, programs online, destinations seen and the
-  daemon's memory, as numbers that roll to new values; "Talking now" (programs by connection
-  count, click to open them); what Vigil can and cannot see; the latest events.
+Every list and the map keep an **inspector** beside them (D-022): an overview of the page when
+nothing is selected, the selection's details when something is. Nothing floats over the data and
+nothing resizes when you select; clicking again clears the selection.
+
+- **Home**: the device's name with its battery (or driver health) and the shield beside it;
+  processes, outbound connections, programs online, destinations seen and Vigil's own memory and
+  CPU; network activity per program; the busiest programs (all of a program's processes as one
+  line); traffic by service; activity; coverage. Lists show as many rows as the window fits.
   "Since you last looked": programs that used the network for the first time in 24 hours.
-- **Network**: a live map (this PC at the centre, programs on an inner ring, the addresses each
-  talks to fanned out around it, dots flowing along open connections in the direction they were
-  made; click a program); the connections list with a filter and a detail panel; the time machine
-  (what was open 5 minutes, an hour, 6 hours, a day or a week ago).
-- **Processes**: the tree (parents and children) and the table, filter with `/`, a detail panel
-  with the command line, program file, start time, the clickable parent chain and the process's
-  connections. `x` switches to Expert columns (uid, inode, full command line).
-- **Cases → Timeline**: everything Vigil noticed or did, grouped by day.
+- **Network**: the map (this PC in the centre, programs on an arc around it with their icons,
+  each program's addresses in a column on its side, nothing overlapping, nothing moving; Grid,
+  Night or Plain background in Settings); the connections list; the time machine (what was open
+  5 minutes, an hour, 6 hours, a day or a week ago). Clicking a program also flags its window in
+  the taskbar (D-021).
+- **Processes**: the tree and the table (virtual: only visible rows are built), sortable by
+  program, PID, user, CPU, memory and start time; each row shows the program's arguments. Any jump
+  (Home, the map's "Show the process", the palette, the parent chain, j/k) scrolls the process
+  into view and outlines it.
+- **Cases → Timeline**: everything Vigil noticed or did, grouped by day, with counts by kind.
 - Autostart, Files, Software, Guard, Canaries, DNS, LAN, Secrets and Storylines say what they
   will do, in which milestone, and which Vigil 1 command does it today (with Copy).
 
 ### Motion
 
-- **The arrival** (launch, the mark, `g h`): a stroke traces a circle; the circle becomes a
-  hexagon by a polar morph while turning a twelfth of a turn; the cube's three inner edges grow
-  from the centre; the faces fill and the core ignites on a bouncy spring; the word VIGIL resolves
-  letter by letter; then the mark flies along a Bézier curve (smootherstep: zero speed and zero
-  acceleration at both ends) and shrinks onto the rail logo while the backdrop dissolves, and
-  Home's cards rise. The last frame is the logo itself. Any key skips it.
-- **Everywhere else**: SwiftUI-style springs (response and damping fraction). Areas and tabs
-  fade and rise in; list rows follow one another by 14 ms; the detail panel slides in; the
-  palette and the Settings sheet animate in and out; the rail marker springs between areas;
-  numbers roll; buttons and rows have hover and press states.
-- Reduced motion (Settings, or the desktop's setting) turns all of it off. The app repaints at
-  frame rate only while something moves (the map's dots count as moving).
+- **The arrival** (launch, the mark, `g h`): twelve square tiles appear flat as an unfolded cube,
+  the three faces fold into place by shear, the tiles close into a solid teal shell, an outline is
+  traced, the orange core cube grows into its slot, the word VIGIL resolves letter by letter, then
+  the mark flies along a Bezier curve (smootherstep) onto the rail logo while the backdrop
+  dissolves. The last frame is the logo itself. Any key skips it.
+- **Everywhere else**, motion only where it carries information: areas fade in, overlays and
+  Settings slide in and out, the rail marker moves between areas, the shield's border shines once
+  after the arrival, on hover and when coverage changes. Data views never move: no rolling
+  numbers, no pulses, no flowing dots, no staggered rows.
+- The window repaints only when the daemon sends a new look (every 2 s) or you act; idle CPU stays
+  near zero. Reduced motion (Settings, or the desktop's setting) turns the rest off.
 
 Flags: `vigil --bus system|session|address=...`, `--no-arrival`, `--measure-startup`.
 Screens: `docs/vigil2/screens/app-*.png`.

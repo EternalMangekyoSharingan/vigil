@@ -10,8 +10,9 @@
 //!
 //! **The arrival** builds the Vigil mark from squares (see [`arrival`] and the geometry
 //! notes below): twelve tiles appear flat, the three faces fold into an isometric cube by
-//! shear, an outline is traced, the core ignites, and the mark glides onto the rail logo
-//! while the backdrop dissolves: the last frame *is* the app.
+//! shear and close into a solid shell, an outline is traced, the orange core cube grows
+//! into its slot, and the mark glides onto the rail logo while the backdrop dissolves: the
+//! last frame *is* the app.
 //!
 //! Rules enforced by the tests: nothing but the arrival lasts longer than
 //! [`MAX_TRANSITION_MS`]; reduced motion skips the arrival; the last frame matches the
@@ -191,18 +192,21 @@ pub fn corner(k: usize) -> (f32, f32) {
 /// Top (light), right (mid), left (deep).
 pub const FACES: [(usize, usize); 3] = [(1, 5), (1, 3), (3, 5)];
 pub const FACE_COLOURS: [u32; 3] = [0x9fe3df, 0x5dbdb9, 0x3f9a95];
+/// The core: a smaller orange cube in the shell's near corner, lit the same way.
+pub const CORE_COLOURS: [u32; 3] = [0xffc07f, 0xff9f43, 0xe0792a];
+/// The slot around the core (a deep teal shadow, so it reads on any background).
+pub const SLOT_COLOUR: u32 = 0x163033;
+/// The core's edge, and the slot's width, as fractions of the shell's edge.
+pub const CORE_SIZE: f32 = 0.5;
+pub const SLOT_GAP: f32 = 0.06;
 /// Shade of each tile in a face, as a lightness offset: a quiet diagonal gradient, with
 /// the two faces in shadow rotated so the light seems to come from the upper left.
 pub const TILE_SHADE: [[f32; 4]; 3] =
     [[0.10, 0.04, 0.04, -0.03], [0.05, -0.02, 0.02, -0.08], [0.02, -0.05, -0.04, -0.12]];
 /// The gap between tiles, as a fraction of a face's edge.
 pub const TILE_GAP: f32 = 0.07;
-pub const CORE_COLOUR: u32 = 0xff9f43;
-pub const CORE_RIM: u32 = 0xc2621f;
 pub const STROKE_COLOUR: u32 = 0x62f3ff;
 pub const HIGHLIGHT: u32 = 0xe8fffd;
-/// The core's radius as a fraction of the hexagon's circumradius.
-pub const CORE_RATIO: f32 = 0.17;
 
 /// A 2 × 2 linear map plus a translation (column vectors a, b; origin o).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -236,11 +240,12 @@ pub fn face_flat(i: usize) -> Affine {
     Affine { a: (s, 0.0), b: (0.0, s), o: (ox, oy) }
 }
 
-/// Tile `j` (0..4) of a face, as a (u0, v0, size) square in face coordinates.
-pub fn tile(j: usize) -> (f32, f32, f32) {
-    let s = 0.5 - TILE_GAP / 2.0;
+/// Tile `j` (0..4) of a face, as a (u0, v0, size) square in face coordinates, with `gap`
+/// between tiles (the tiles close into one face as the gap reaches 0).
+pub fn tile(j: usize, gap: f32) -> (f32, f32, f32) {
+    let s = 0.5 - gap / 2.0;
     let (cu, cv) = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0)][j];
-    (cu * (0.5 + TILE_GAP / 2.0), cv * (0.5 + TILE_GAP / 2.0), s)
+    (cu * (0.5 + gap / 2.0), cv * (0.5 + gap / 2.0), s)
 }
 
 /// Everything the painter needs for one frame of the mark. Coordinates in pixels.
@@ -254,14 +259,15 @@ pub struct MarkFrame {
     pub fold: [f32; 3],
     /// Per tile (face * 4 + tile): its scale about its own centre (0 = not there yet).
     pub tiles: [f32; 12],
+    /// 0 = separate tiles with gaps and shades, 1 = one solid face.
+    pub merge: f32,
     /// The traced hexagon outline: how much of it is drawn, and how visible.
     pub sweep: f32,
     pub stroke_alpha: f32,
     /// The light rim along the top edges.
     pub highlight: f32,
+    /// The orange core cube's size (0 = absent, 1 = at rest; overshoots a little).
     pub core_scale: f32,
-    /// A thin ring that leaves the core once, as it ignites (radius multiple, alpha).
-    pub ring: (f32, f32),
 }
 
 impl MarkFrame {
@@ -273,11 +279,11 @@ impl MarkFrame {
             radius,
             fold: [1.0; 3],
             tiles: [1.0; 12],
+            merge: 1.0,
             sweep: 1.0,
             stroke_alpha: 0.0,
             highlight: 1.0,
             core_scale: 1.0,
-            ring: (1.0, 0.0),
         }
     }
 
@@ -291,11 +297,17 @@ impl MarkFrame {
     /// The four corners of tile `j` of face `i`, scaled about the tile's centre.
     pub fn tile_quad(&self, i: usize, j: usize) -> [(f32, f32); 4] {
         let m = self.face(i);
-        let (u0, v0, s) = tile(j);
+        let (u0, v0, s) = tile(j, TILE_GAP * (1.0 - self.merge));
         let k = self.tiles[i * 4 + j];
         let (cu, cv) = (u0 + s / 2.0, v0 + s / 2.0);
         let h = s / 2.0 * k;
         [m.apply(cu - h, cv - h), m.apply(cu + h, cv - h), m.apply(cu + h, cv + h), m.apply(cu - h, cv + h)]
+    }
+
+    /// The quad of face `i` between face coordinates (u0, v0) and (u1, v1).
+    pub fn face_quad(&self, i: usize, u0: f32, v0: f32, u1: f32, v1: f32) -> [(f32, f32); 4] {
+        let m = self.face(i);
+        [m.apply(u0, v0), m.apply(u1, v0), m.apply(u1, v1), m.apply(u0, v1)]
     }
 
     /// Hexagon corner `k` in pixels.
@@ -331,6 +343,8 @@ pub const TILE_START: f32 = 0.0;
 pub const TILE_STAGGER: f32 = 26.0;
 pub const FOLD_START: f32 = 480.0;
 pub const FOLD_STAGGER: f32 = 70.0;
+/// The tiles close into solid faces while the last face settles.
+pub const MERGE: (f32, f32) = (760.0, 260.0);
 pub const SWEEP: (f32, f32) = (880.0, 300.0);
 pub const CORE_START: f32 = 960.0;
 pub const WORD_START: f32 = 580.0;
@@ -369,9 +383,10 @@ fn flight_path(from: (f32, f32), to: (f32, f32), s: f32) -> (f32, f32) {
 ///
 /// 1. Twelve tiles pop in one after another (a bouncy spring each), laid out flat as an
 ///    unfolded cube; 2. the three faces fold into the cube, one after another (shear on a
-///    smooth spring); 3. a light rim runs along the top edges and a thin outline is traced
-///    around the hexagon, then fades; 4. the core ignites, sending one ring outward;
-///    5. the mark glides onto the rail logo while the backdrop dissolves.
+///    smooth spring), and their tiles close into solid faces; 3. a light rim runs along the
+///    top edges and a thin outline is traced around the hexagon, then fades; 4. the orange
+///    core cube grows into its slot in the shell's near corner; 5. the mark glides onto the
+///    rail logo while the backdrop dissolves.
 pub fn arrival(t: f32, w: f32, h: f32, land: Landing, reduced: bool) -> ArrivalFrame {
     let t = if reduced { ARRIVAL_MS } else { t.max(0.0) };
     let secs = |start: f32| ((t - start) / 1000.0).max(0.0);
@@ -394,8 +409,7 @@ pub fn arrival(t: f32, w: f32, h: f32, land: Landing, reduced: bool) -> ArrivalF
     let stroke_alpha = if t < SWEEP.0 { 0.0 } else { 1.0 - ease(progress(t, SWEEP.0 + SWEEP.1, 260.0)) };
     let highlight = ease(progress(t, SWEEP.0 + 60.0, 260.0));
     let core_scale = if t <= CORE_START { 0.0 } else { Spring::BOUNCY.value(secs(CORE_START)) };
-    let rp = progress(t, CORE_START + 40.0, 420.0);
-    let ring = (1.0 + 3.0 * ease(rp), if rp <= 0.0 || rp >= 1.0 { 0.0 } else { 0.8 * (1.0 - rp) });
+    let merge = ease_in_out(progress(t, MERGE.0, MERGE.1));
 
     let f = flight_ease(progress(t, FLIGHT_START, FLIGHT_MS));
     let (cx, cy) = flight_path(centre, (land.cx, land.cy), f);
@@ -412,7 +426,7 @@ pub fn arrival(t: f32, w: f32, h: f32, land: Landing, reduced: bool) -> ArrivalF
     let mark = if landed {
         MarkFrame::at_rest(land.cx, land.cy, land.radius)
     } else {
-        MarkFrame { cx, cy, radius, fold, tiles, sweep, stroke_alpha, highlight, core_scale, ring }
+        MarkFrame { cx, cy, radius, fold, tiles, merge, sweep, stroke_alpha, highlight, core_scale }
     };
     ArrivalFrame {
         backdrop: 1.0 - ease_in_out(progress(t, FLIGHT_START + 40.0, FLIGHT_MS - 40.0)),
@@ -480,9 +494,12 @@ mod tests {
             assert!((f.a.0 * f.b.0 + f.a.1 * f.b.1).abs() < 1e-6);
             assert!(((f.a.0.hypot(f.a.1)) - f.b.0.hypot(f.b.1)).abs() < 1e-6);
         }
-        // Tiles leave gaps and stay inside the face.
-        let (u0, v0, s) = tile(3);
+        // Tiles leave gaps and stay inside the face; merged, they tile it exactly.
+        let (u0, v0, s) = tile(3, TILE_GAP);
         assert!(u0 > 0.5 && v0 > 0.5 && (u0 + s - 1.0).abs() < 1e-6);
+        assert_eq!(tile(3, 0.0), (0.5, 0.5, 0.5));
+        // The core and its slot fit inside the shell.
+        const { assert!(CORE_SIZE + SLOT_GAP < 0.75) };
     }
 
     #[test]
@@ -495,8 +512,10 @@ mod tests {
         let flat = at(FOLD_START - 1.0);
         assert!(flat.mark.tiles.iter().all(|x| *x > 0.7), "{:?}", flat.mark.tiles);
         assert!(flat.mark.fold.iter().all(|x| *x == 0.0));
-        // Folded by the sweep.
+        // Folded by the sweep, and solid once the tiles have closed.
         assert!(at(SWEEP.0 + 100.0).mark.fold.iter().all(|x| *x > 0.95));
+        assert!(at(FOLD_START).mark.merge == 0.0 && at(MERGE.0 + MERGE.1).mark.merge == 1.0);
+        assert!(MERGE.0 + MERGE.1 <= CORE_START + 100.0);
         // The core overshoots a little, then settles.
         let peak = (0..1700).map(|t| at(t as f32).mark.core_scale).fold(0.0, f32::max);
         assert!(peak > 1.05 && peak < 1.3, "{peak}");

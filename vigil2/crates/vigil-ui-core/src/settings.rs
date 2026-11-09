@@ -40,6 +40,9 @@ pub struct UiSettings {
     pub views: BTreeMap<String, View>,
     pub favourites: Vec<String>,
     pub onboarded: bool,
+    /// The network map's background: "grid" (hexagons and shapes), "night" (stars) or
+    /// "plain". All three are still: nothing on the map moves.
+    pub map_background: String,
 }
 
 impl Default for UiSettings {
@@ -51,6 +54,7 @@ impl Default for UiSettings {
             views: BTreeMap::new(),
             favourites: vec![],
             onboarded: false,
+            map_background: "grid".into(),
         }
     }
 }

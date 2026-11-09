@@ -3,12 +3,9 @@
 //! One painter draws every frame of the arrival *and* the rail logo, so the arrival's
 //! last frame and the logo are the same pixels: the hand-off cannot be seen.
 
-use gpui::{
-    fill, point, px, quad, size, BorderStyle, Bounds, Hsla, PathBuilder, Pixels, Point, SharedString, TextAlign,
-    TextRun, Window,
-};
+use gpui::{fill, point, px, Bounds, Hsla, PathBuilder, Pixels, Point, SharedString, TextAlign, TextRun, Window};
 use vigil_ui_core::motion::{
-    self, MarkFrame, CORE_COLOUR, CORE_RATIO, CORE_RIM, FACE_COLOURS, HIGHLIGHT, STROKE_COLOUR, TILE_SHADE,
+    self, MarkFrame, CORE_COLOURS, CORE_SIZE, FACE_COLOURS, HIGHLIGHT, SLOT_COLOUR, SLOT_GAP, STROKE_COLOUR, TILE_SHADE,
 };
 
 pub fn hsla(rgb: u32, alpha: f32) -> Hsla {
@@ -31,80 +28,96 @@ fn pt(o: Point<Pixels>, (x, y): (f32, f32)) -> Point<Pixels> {
     point(o.x + px(x), o.y + px(y))
 }
 
-fn circle(w: &mut Window, c: Point<Pixels>, r: f32, colour: Hsla) {
-    w.paint_quad(
-        fill(Bounds::new(point(c.x - px(r), c.y - px(r)), size(px(2.0 * r), px(2.0 * r))), colour).corner_radii(px(r)),
-    );
+fn fill_poly(w: &mut Window, o: Point<Pixels>, q: &[(f32, f32)], colour: Hsla) {
+    let mut b = PathBuilder::fill();
+    b.move_to(pt(o, q[0]));
+    for c in &q[1..] {
+        b.line_to(pt(o, *c));
+    }
+    b.close();
+    if let Ok(p) = b.build() {
+        w.paint_path(p, colour);
+    }
+}
+
+fn polyline(w: &mut Window, o: Point<Pixels>, q: &[(f32, f32)], width: f32, colour: Hsla) {
+    let mut b = PathBuilder::stroke(px(width));
+    b.move_to(pt(o, q[0]));
+    for c in &q[1..] {
+        b.line_to(pt(o, *c));
+    }
+    if let Ok(p) = b.build() {
+        w.paint_path(p, colour);
+    }
 }
 
 /// Paint `m`, whose coordinates are relative to `origin`.
+///
+/// The mark: a teal isometric cube (the shell) holding a smaller orange cube (the core)
+/// in its near corner, with a dark slot between them. Faces are flat colours, lit from
+/// the upper left; a light rim runs along the top edges.
 pub fn paint(w: &mut Window, origin: Point<Pixels>, m: &MarkFrame) {
-    // Faces back to front (left, right, top), each as 2 × 2 tiles in their own shades.
+    // The shell, faces back to front (left, right, top): solid once merged, else 2 x 2 tiles.
     for i in [2usize, 1, 0] {
+        if m.merge >= 1.0 && m.fold[i] >= 1.0 {
+            fill_poly(w, origin, &m.face_quad(i, 0.0, 0.0, 1.0, 1.0), hsla(FACE_COLOURS[i], 1.0));
+            continue;
+        }
         for (j, tone) in TILE_SHADE[i].iter().enumerate() {
             let k = m.tiles[i * 4 + j];
             if k <= 0.0 {
                 continue;
             }
-            let q = m.tile_quad(i, j);
-            let mut b = PathBuilder::fill();
-            b.move_to(pt(origin, q[0]));
-            for c in &q[1..] {
-                b.line_to(pt(origin, *c));
-            }
-            b.close();
-            if let Ok(p) = b.build() {
-                w.paint_path(p, hsla(shade(FACE_COLOURS[i], *tone), (k * 1.6).min(1.0)));
-            }
+            let colour = hsla(shade(FACE_COLOURS[i], tone * (1.0 - m.merge)), (k * 1.6).min(1.0));
+            fill_poly(w, origin, &m.tile_quad(i, j), colour);
         }
     }
     let width = (m.radius / 26.0).clamp(0.8, 1.8);
+    let folded = m.fold.iter().all(|f| *f > 0.98);
     // The light rim along the two top edges, where the light falls.
-    if m.highlight > 0.0 && m.fold.iter().all(|f| *f > 0.98) {
-        let mut b = PathBuilder::stroke(px(width));
-        b.move_to(pt(origin, m.corner_px(5)));
-        b.line_to(pt(origin, m.corner_px(0)));
-        b.line_to(pt(origin, m.corner_px(1)));
-        if let Ok(p) = b.build() {
-            w.paint_path(p, hsla(HIGHLIGHT, 0.75 * m.highlight));
+    if m.highlight > 0.0 && folded {
+        polyline(
+            w,
+            origin,
+            &[m.corner_px(5), m.corner_px(0), m.corner_px(1)],
+            width,
+            hsla(HIGHLIGHT, 0.75 * m.highlight),
+        );
+    }
+    // The core: its slot, then its three faces, then its own small rim.
+    if m.core_scale > 0.0 && folded {
+        let s = CORE_SIZE * m.core_scale;
+        let g = (CORE_SIZE + SLOT_GAP) * m.core_scale.min(1.0);
+        for i in [2usize, 1, 0] {
+            fill_poly(w, origin, &m.face_quad(i, 0.0, 0.0, g, g), hsla(SLOT_COLOUR, 1.0));
         }
+        for i in [2usize, 1, 0] {
+            fill_poly(w, origin, &m.face_quad(i, 0.0, 0.0, s, s), hsla(CORE_COLOURS[i], 1.0));
+        }
+        let top = m.face(0);
+        polyline(
+            w,
+            origin,
+            &[top.apply(0.0, s), top.apply(s, s), top.apply(s, 0.0)],
+            (width * 0.8).max(0.7),
+            hsla(0xfff1de, 0.7 * m.highlight),
+        );
     }
     // The traced outline: corner to corner, clockwise from the top.
     if m.stroke_alpha > 0.0 && m.sweep > 0.0 {
-        let mut b = PathBuilder::stroke(px(width));
-        b.move_to(pt(origin, m.corner_px(0)));
         let total = 6.0 * m.sweep;
+        let mut q = vec![m.corner_px(0)];
         for e in 0..6 {
             let part = (total - e as f32).clamp(0.0, 1.0);
             if part <= 0.0 {
                 break;
             }
             let (a, c) = (m.corner_px(e), m.corner_px(e + 1));
-            b.line_to(pt(origin, (a.0 + (c.0 - a.0) * part, a.1 + (c.1 - a.1) * part)));
+            q.push((a.0 + (c.0 - a.0) * part, a.1 + (c.1 - a.1) * part));
         }
-        if let Ok(p) = b.build() {
-            w.paint_path(p, hsla(STROKE_COLOUR, m.stroke_alpha));
+        if q.len() > 1 {
+            polyline(w, origin, &q, width, hsla(STROKE_COLOUR, m.stroke_alpha));
         }
-    }
-    // The core: a darker rim, the orange body, and a small highlight.
-    let c = pt(origin, (m.cx, m.cy));
-    let r = m.radius * CORE_RATIO;
-    if m.ring.1 > 0.0 {
-        let rr = r * m.ring.0;
-        w.paint_quad(quad(
-            Bounds::new(point(c.x - px(rr), c.y - px(rr)), size(px(2.0 * rr), px(2.0 * rr))),
-            px(rr),
-            Hsla::transparent_black(),
-            px(width * 0.8),
-            hsla(CORE_COLOUR, m.ring.1),
-            BorderStyle::Solid,
-        ));
-    }
-    if m.core_scale > 0.0 {
-        let s = m.core_scale;
-        circle(w, c, r * s, hsla(CORE_RIM, 1.0));
-        circle(w, c, r * 0.74 * s, hsla(CORE_COLOUR, 1.0));
-        circle(w, point(c.x - px(r * 0.22 * s), c.y - px(r * 0.22 * s)), r * 0.2 * s, hsla(0xffe2c2, 0.85));
     }
 }
 

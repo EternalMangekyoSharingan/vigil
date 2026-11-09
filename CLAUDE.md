@@ -70,6 +70,23 @@ behind a gear top right, a command palette (Ctrl+K), keyboard shortcuts, and a s
 animation on the Vigil mark (the one decorative motion; skipped with reduced motion). No boxes
 inside boxes: a card is the only surface, sections inside it are divided by hairlines.
 
+Updated 2026-11-09 at the owner's request (Vigil 2 app; applies to every page, not just Home):
+- No dead space. Every page fills the window: lists and cards stretch to the available
+  height and show as many rows as fit; wide tables use the width for useful columns.
+- Nothing covers content. Details open in a fixed inspector column beside the list or map
+  (it shows an overview of the page when nothing is selected); never a floating card or
+  callout over the data, never a panel that resizes the content when it opens.
+- Click to open, click again to close, everywhere. Pressing something never shrinks or
+  moves the rest of the page.
+- Jumping to an item (from Home, the map, the palette, a parent chain) scrolls it into view
+  and highlights it clearly.
+- No moving elements in data views (no flowing dots, rolling numbers, pulses, staggered
+  rows). The app repaints only when data changes; idle CPU stays near zero.
+- The Network map stays one compact screen: this PC in the centre, programs around it,
+  their addresses beside them, nothing overlapping (tested), program icons where known.
+- The Vigil mark: a teal cube holding an orange core cube. The shield: quartered, blue
+  when Vigil sees everything, red when it does not; its border shines only on events.
+
 ## Run mode, formerly sudo mode (owner's decision, 2026-10-31; widened 2026-11-08)
 Run sits next to Copy on every command, greyed out with the reason unless Run mode is on.
 One switch for every tool (data/settings.json, key "sudo_mode"). Run works wherever the server

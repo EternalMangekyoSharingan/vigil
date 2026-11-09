@@ -90,28 +90,10 @@ pub fn enter<E: IntoElement + Styled + 'static>(
     el.with_animation(key, anim, move |el, d| el.opacity(d.clamp(0.0, 1.0)).relative().top(px(rise * (1.0 - d))))
 }
 
-/// List rows: each a little after the one above, the first few only.
-pub fn row_enter<E: IntoElement + Styled + 'static>(
-    el: E,
-    key: ElementId,
-    i: usize,
-    reduced: bool,
-) -> AnimationElement<E> {
-    let delay = i.min(motion::ROW_STAGGER_MAX) as f32 * motion::ROW_STAGGER_MS;
-    enter(el, key, delay, 6.0, reduced)
-}
-
-/// A panel sliding in from the right on a snappy spring.
-pub fn slide_in<E: IntoElement + Styled + 'static>(el: E, key: ElementId, reduced: bool) -> AnimationElement<E> {
-    let anim = if reduced {
-        Animation::new(Duration::from_millis(1))
-    } else {
-        Animation::new(Duration::from_millis(motion::PANEL_MS as u64))
-            .with_easing(Spring::SNAPPY.easing(motion::PANEL_MS))
-    };
-    el.with_animation(key, anim, |el, d| {
-        el.opacity(d.clamp(0.0, 1.0)).relative().left(px(motion::PANEL_SLIDE_PX * (1.0 - d)))
-    })
+/// List rows appear as they are: no stagger (owner, 2026-11-08: nothing in lists moves,
+/// and animating hundreds of rows cost CPU). Kept as a function so call sites stay simple.
+pub fn row_enter<E: IntoElement>(el: E, _key: ElementId, _i: usize, _reduced: bool) -> E {
+    el
 }
 
 /// A key cap, for shortcut hints.
@@ -131,6 +113,8 @@ pub fn ago(ts: f64) -> String {
     let d = vigil_model::finding::now() - ts;
     if d < 5.0 {
         "just now".into()
+    } else if d >= 2.0 * 86400.0 {
+        format!("{} days ago", (d / 86400.0).floor())
     } else {
         format!("{} ago", vigil_model::wording::span(d, true))
     }

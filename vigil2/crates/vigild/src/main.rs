@@ -77,6 +77,8 @@ pub struct Shared {
     pub polls: Mutex<PollStats>,
     /// CPU ticks per (pid, start time) at the previous look, for CPU percentages.
     pub ticks: Mutex<TickMap>,
+    /// Processes already in the store, and when every row's last_seen was last refreshed.
+    pub recorded: Mutex<(std::collections::HashSet<(u32, u64)>, Instant)>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -180,8 +182,23 @@ pub(crate) fn poll(shared: &Shared, root: &ProcRoot, viewer: u32) {
             }
             Err(e) => log!(3, "could not record connections: {e}"),
         }
-        if let Err(e) = store.record_processes(&procs) {
-            log!(3, "could not record processes: {e}");
+        // New processes every look; everyone's last_seen once a minute (fewer disk writes).
+        let mut known = shared.recorded.lock().unwrap_or_else(|e| e.into_inner());
+        let key = |p: &vigil_model::host::ProcessInfo| (p.pid, p.started.map_or(0, |s| (s * 100.0) as u64));
+        let refresh = known.1.elapsed() > Duration::from_secs(60) || known.0.is_empty();
+        let res = if refresh {
+            store.record_processes(&procs)
+        } else {
+            store.record_processes_where(&procs, |p| !known.0.contains(&key(p)))
+        };
+        match res {
+            Ok(_) => {
+                known.0 = procs.processes.iter().map(key).collect();
+                if refresh {
+                    known.1 = Instant::now();
+                }
+            }
+            Err(e) => log!(3, "could not record processes: {e}"),
         }
     }
     *shared.net.write().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(net));
@@ -234,6 +251,7 @@ fn main() -> std::process::ExitCode {
         retention_days: args.retention_days,
         polls: Mutex::new(PollStats::default()),
         ticks: Mutex::new((std::collections::HashMap::new(), Instant::now())),
+        recorded: Mutex::new((std::collections::HashSet::new(), Instant::now())),
     });
     let root = ProcRoot::at(&args.proc_root);
     let viewer = if ptrace { 0 } else { euid };

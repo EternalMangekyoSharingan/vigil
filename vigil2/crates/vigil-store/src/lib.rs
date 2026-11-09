@@ -245,6 +245,16 @@ impl Store {
     /// Record every visible process (keyed by pid and start time, so a reused pid is a
     /// new process).
     pub fn record_processes(&mut self, list: &ProcessList) -> Result<usize> {
+        self.record_processes_where(list, |_| true)
+    }
+
+    /// Record only the processes `keep` picks (the daemon writes new processes on every
+    /// look and refreshes `last_seen` for all of them once a minute).
+    pub fn record_processes_where(
+        &mut self,
+        list: &ProcessList,
+        keep: impl Fn(&vigil_model::host::ProcessInfo) -> bool,
+    ) -> Result<usize> {
         let tx = self.conn.transaction()?;
         let mut n = 0;
         {
@@ -253,7 +263,7 @@ impl Store {
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
                  ON CONFLICT (pid, started) DO UPDATE SET last_seen = excluded.last_seen",
             )?;
-            for p in &list.processes {
+            for p in list.processes.iter().filter(|p| keep(p)) {
                 let Some(started) = p.started else { continue };
                 up.execute(params![
                     p.pid,
