@@ -110,6 +110,25 @@ fn socket_matches(s: &Socket, d: &Snapshot, f: &str) -> bool {
         .contains(&f.to_lowercase())
 }
 
+/// Current findings about process `pid` (subjects end in ":<pid>"), worst first.
+pub fn proc_findings(d: &Snapshot, pid: u32) -> Vec<&vigil_model::finding::Finding> {
+    let tail = format!(":{pid}");
+    let mut v: Vec<_> = d.findings.iter().filter(|f| f.tool == "tasks" && f.subject.ends_with(&tail)).collect();
+    v.sort_by_key(|f| std::cmp::Reverse(f.severity.rank()));
+    v
+}
+
+/// The colour for a severity.
+pub fn sev_colour(t: &vigil_ui_core::theme::Theme, s: vigil_model::finding::Severity) -> Rgba {
+    use vigil_model::finding::Severity;
+    match s {
+        Severity::High => t.danger,
+        Severity::Medium => t.warn,
+        Severity::Low => t.live,
+        Severity::Info => t.text[2],
+    }
+}
+
 /// One program's processes: (count, CPU %, memory kB, executable).
 type ProgUse = (usize, f32, u64, String);
 
@@ -497,6 +516,7 @@ impl Vigil {
         }
         let n = socks.len();
         div()
+            .size_full()
             .flex()
             .flex_col()
             .gap(px(12.0))
@@ -508,9 +528,19 @@ impl Vigil {
                     .child(div().w(px(420.0)).child(self.filter_box("Filter by program, address, port or state", cx)))
                     .child(div().text_color(c(t.text[2])).child(format!("{n} connections"))),
             )
-            .child(card(t).p(px(10.0)).child(head(&cols)).children(rows).when(n == 0, |el| {
-                el.child(div().p(px(12.0)).text_color(c(t.text[2])).child("No connection matches."))
-            }))
+            .child(
+                card(t).flex_1().min_h(px(0.0)).p(px(10.0)).child(head(&cols)).child(
+                    div()
+                        .id(id("conn-rows", self.nav))
+                        .flex_1()
+                        .min_h(px(0.0))
+                        .overflow_y_scroll()
+                        .children(rows)
+                        .when(n == 0, |el| {
+                            el.child(div().p(px(12.0)).text_color(c(t.text[2])).child("No connection matches."))
+                        }),
+                ),
+            )
             .into_any_element()
     }
 
@@ -754,6 +784,7 @@ impl Vigil {
             let indent = if tree && self.filter.is_empty() { depth.min(14) as f32 * 14.0 } else { 0.0 };
             let args = wording::printable(&p.cmdline.iter().skip(1).cloned().collect::<Vec<_>>().join(" "));
             let conns = net.get(&pid).copied().unwrap_or(0);
+            let flagged = proc_findings(d, pid);
             let cpu = p.cpu_pct.unwrap_or(0.0);
             let dim = |s: String| div().text_color(c(t.text[2])).child(s);
             let row = div()
@@ -783,7 +814,12 @@ impl Vigil {
                             None => div().size(px(16.0)).flex_none().into_any_element(),
                         })
                         .child(div().flex_none().max_w(px(260.0)).truncate().child(wording::printable(&p.name)))
-                        .when(p.exe_deleted, |el| el.child(chip("deleted file", t.warn)))
+                        .when_some(flagged.first(), |el, f| {
+                            let more =
+                                if flagged.len() > 1 { format!(" +{}", flagged.len() - 1) } else { String::new() };
+                            el.child(chip(format!("{}{more}", f.severity.as_str()), sev_colour(&t, f.severity)))
+                        })
+                        .when(p.exe_deleted && flagged.is_empty(), |el| el.child(chip("deleted file", t.warn)))
                         .when(conns > 0, |el| el.child(chip(format!("{conns} net"), t.live)))
                         .child(
                             div()
@@ -881,10 +917,20 @@ impl Vigil {
             );
         }
         card(t)
+            .size_full()
             .p(px(16.0))
             .child(card_title(t, "Everything Vigil noticed or did, newest first"))
-            .children(rows)
-            .when(d.events.is_empty(), |el| el.child(div().pt(px(8.0)).text_color(c(t.text[2])).child("Nothing yet.")))
+            .child(
+                div()
+                    .id(id("timeline-rows", self.nav))
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .overflow_y_scroll()
+                    .children(rows)
+                    .when(d.events.is_empty(), |el| {
+                        el.child(div().pt(px(8.0)).text_color(c(t.text[2])).child("Nothing yet."))
+                    }),
+            )
             .into_any_element()
     }
 
@@ -1057,6 +1103,7 @@ impl Vigil {
                             .child(chip(p.user.clone(), t.text[1]))
                             .when(p.exe_deleted, |el| el.child(chip("file deleted while running", t.warn))),
                     )
+                    .children(self.findings_block(proc_findings(d, *pid), cx))
                     .child(section("COMMAND LINE"))
                     .child(
                         div()
@@ -1257,6 +1304,121 @@ impl Vigil {
         )
     }
 
+    /// "Why Vigil flagged it": each finding with its reasons, where it came from, and the
+    /// commands to check or fix it (copy only; Run mode arrives in milestone 5).
+    fn findings_block(&self, fs: Vec<&vigil_model::finding::Finding>, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let t = &self.theme;
+        if fs.is_empty() {
+            return vec![];
+        }
+        let mut out = vec![div()
+            .pt(px(16.0))
+            .pb(px(6.0))
+            .text_size(px(11.5))
+            .text_color(c(t.text[2]))
+            .child("WHY VIGIL FLAGGED IT")
+            .into_any_element()];
+        for (i, f) in fs.into_iter().enumerate() {
+            let colour = sev_colour(t, f.severity);
+            let attack = if f.attack.is_empty() {
+                String::new()
+            } else {
+                format!(" · ATT&CK {}", f.attack.iter().map(|a| a.id.as_str()).collect::<Vec<_>>().join(", "))
+            };
+            let mut block = div()
+                .py(px(10.0))
+                .border_t_1()
+                .border_color(c(t.line[0]))
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(chip(f.severity.as_str(), colour))
+                        .child(div().flex_1().child(wording::printable(&f.title))),
+                )
+                .child(div().text_color(c(t.text[1])).child(wording::printable(&f.summary)))
+                .children(f.signals.iter().map(|sig| {
+                    div()
+                        .flex()
+                        .gap(px(8.0))
+                        .text_size(px(12.0))
+                        .child(
+                            div()
+                                .w(px(36.0))
+                                .flex_none()
+                                .text_color(c(t.text[2]))
+                                .child(format!("{:.0}%", sig.strength * 100.0)),
+                        )
+                        .child(div().flex_1().min_w(px(0.0)).child(wording::printable(&sig.text)))
+                }))
+                .when_some(f.likely.as_ref(), |el, l| {
+                    el.child(div().text_size(px(12.0)).text_color(c(t.text[2])).child(wording::printable(l)))
+                })
+                .child(div().text_size(px(11.5)).text_color(c(t.text[2])).child(format!(
+                    "Source: {} check {}, read {} at {}{attack}",
+                    f.source.tool,
+                    f.source.check,
+                    f.source.data.as_str().unwrap_or(""),
+                    self.clock(f.source.when),
+                )));
+            if let Some(panel) = &f.fixes {
+                for (group, opts) in [("Check", &panel.check), ("Fix", &panel.fix)] {
+                    for (j, o) in opts.iter().enumerate() {
+                        let cmd = o.commands.iter().map(|c| c.text.clone()).collect::<Vec<_>>().join("\n");
+                        let n = (i * 100 + j + if group == "Fix" { 50 } else { 0 }) as u64;
+                        let mut opt = div().pt(px(4.0)).flex().flex_col().gap(px(4.0)).child(
+                            div()
+                                .flex()
+                                .gap(px(8.0))
+                                .text_size(px(12.0))
+                                .child(div().text_color(c(t.text[2])).child(group))
+                                .child(div().flex_1().child(o.title.clone()))
+                                .child(div().text_color(c(t.text[2])).child(o.risk_label.clone())),
+                        );
+                        if !cmd.is_empty() {
+                            let copy = cmd.clone();
+                            opt = opt.child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(8.0))
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .min_w(px(0.0))
+                                            .px(px(8.0))
+                                            .py(px(5.0))
+                                            .rounded(px(t.radius_sm))
+                                            .bg(c(t.bg[1]))
+                                            .font_family(t.mono_fonts[0])
+                                            .text_size(px(11.5))
+                                            .child(cmd),
+                                    )
+                                    .child(button(t, id("fx-copy", n), "Copy", false).on_click(cx.listener(
+                                        move |this, _: &ClickEvent, _w, cx| {
+                                            this.copy(copy.clone(), "the command", cx);
+                                            cx.notify();
+                                        },
+                                    ))),
+                            );
+                        }
+                        for st in &o.steps {
+                            opt =
+                                opt.child(div().text_size(px(12.0)).text_color(c(t.text[1])).child(format!("• {st}")));
+                        }
+                        block = block.child(opt);
+                    }
+                }
+            }
+            out.push(block.into_any_element());
+        }
+        out
+    }
+
     // ---- overviews (the inspector with nothing selected) -----------------------------------
 
     fn section_head(&self, title: &str, note: String) -> gpui::Div {
@@ -1351,7 +1513,7 @@ impl Vigil {
         }
         let kernel = d.procs.processes.iter().filter(|p| p.exe.is_none() && p.cmdline.is_empty()).count();
         let users: BTreeSet<&str> = d.procs.processes.iter().map(|p| p.user.as_str()).collect();
-        let total_cpu: f32 = d.procs.processes.iter().filter_map(|p| p.cpu_pct).sum();
+        let total_cpu: f32 = d.procs.processes.iter().filter_map(|p| p.cpu_pct).sum::<f32>().max(0.0);
         let mut by_cpu: Vec<(&String, &ProgUse)> = per.iter().collect();
         by_cpu.sort_by(|a, b| b.1 .1.partial_cmp(&a.1 .1).unwrap_or(std::cmp::Ordering::Equal));
         let mut by_mem: Vec<(&String, &ProgUse)> = per.iter().collect();
@@ -1403,6 +1565,32 @@ impl Vigil {
         user_rows.sort_by_key(|x| std::cmp::Reverse(x.1));
         let ucount = d.procs.processes.len().max(1) as f32;
         let hidden: usize = d.procs.unreadable_by_uid.values().sum();
+        let flagged: Vec<&vigil_model::finding::Finding> = d.findings.iter().filter(|f| f.tool == "tasks").collect();
+        let mut flagged_rows = vec![];
+        for (i, f) in flagged.iter().take(8).enumerate() {
+            let pid: Option<u32> = f.subject.rsplit(':').next().and_then(|x| x.parse().ok());
+            let colour = sev_colour(t, f.severity);
+            flagged_rows.push(
+                div()
+                    .id(("ov-flag", i as u64))
+                    .py(px(6.0))
+                    .px(px(6.0))
+                    .mx(px(-6.0))
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .rounded(px(t.radius_sm))
+                    .cursor_pointer()
+                    .hover(|s| s.bg(ca(Rgba(0xffffff0a), 1.0)))
+                    .child(chip(f.severity.as_str(), colour))
+                    .child(div().flex_1().min_w(px(0.0)).truncate().child(wording::printable(&f.title)))
+                    .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                        this.sel = pid.map(Sel::Proc);
+                        this.reveal.set(Some(gpui::ScrollStrategy::Center));
+                        cx.notify();
+                    })),
+            );
+        }
         div()
             .flex()
             .flex_col()
@@ -1416,6 +1604,14 @@ impl Vigil {
                     .child(self.stat("users", users.len().to_string()))
                     .child(self.stat("CPU in use", format!("{total_cpu:.0}%"))),
             )
+            .child(self.section_head("FLAGGED BY VIGIL", format!("{} findings", flagged.len())))
+            .children(flagged_rows)
+            .when(flagged.is_empty(), |el| {
+                el.child(div().text_size(px(12.5)).text_color(c(t.text[2])).child(
+                    "No process looks unusual to Vigil's checks right now (checked every 10 seconds). \
+                     That is what the checks found, not a promise that everything is safe.",
+                ))
+            })
             .child(self.section_head("USING THE MOST CPU", "share of one core".into()))
             .children(cpu_rows)
             .child(self.section_head("USING THE MOST MEMORY", "resident".into()))
@@ -1528,7 +1724,9 @@ impl Vigil {
                 div()
                     .pt(px(14.0))
                     .flex()
-                    .gap(px(14.0))
+                    .flex_wrap()
+                    .gap_x(px(14.0))
+                    .gap_y(px(4.0))
                     .text_size(px(11.5))
                     .text_color(c(t.text[2]))
                     .child(format!("Internet {internet}"))
@@ -1583,6 +1781,7 @@ impl Vigil {
         }
         let word = |k: &str| match k {
             "first-seen" => "New on the network".to_string(),
+            "finding" => "Findings".to_string(),
             "daemon" => "Vigil itself".to_string(),
             other => other.to_string(),
         };

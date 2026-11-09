@@ -5640,6 +5640,11 @@ dependencies = [
 [[package]]
 name = "vigil-engine"
 version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vigil-model",
+]
 
 [[package]]
 name = "vigil-model"
@@ -5706,6 +5711,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "vigil-engine",
  "vigil-model",
  "vigil-sensor",
  "vigil-store",

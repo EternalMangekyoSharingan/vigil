@@ -252,3 +252,30 @@ taint), launcher parsing for icons. Clippy clean; `check-deps` and `check-packag
   well below these numbers; the budget in section 4 (idle under 0.5 %) needs measuring there.
 - With Brave-sized loads the map shows up to the rows that fit per side and a "+N more" node that
   opens the Connections tab for the rest.
+
+---
+
+## Milestone 3, step 1: Processes at parity (2026-11-09)
+
+### Built
+- `vigil-engine`: Vigil 1's process checks and secret detection (docs/vigil2/engine.md), with the
+  finding builder (title, summary, reasons, source, ATT&CK, Check and Fix commands to copy).
+- `vigild`: runs the checks every 10 s; stores findings; a new finding is also an event;
+  `org.vigil.Findings.Recent(since)` for the app. Daemon CPU unchanged (0.57 % in the container
+  with 90 processes).
+- Sensor: open-file paths by readlink, and only the linker variables from the environment.
+- App: flagged processes carry a severity chip; the Processes overview lists what is flagged;
+  the inspector explains each finding (reasons and their strength, where it came from, ATT&CK)
+  with copyable commands; Home counts findings; the timeline and Activity show them.
+- Fixes found on the way: the Connections list and the timeline now scroll inside their cards.
+
+### Tests
+59 pass. New: the golden process checks (13 fixture processes, 34 synthetic cases, 23 flags,
+41 secret paths), every flag makes a valid finding, the bus test sees the fixture's planted agent
+flagged twice through `Findings.List` and `Findings.Recent`.
+
+### Limits and next steps
+- Checks run on 10 s looks: a program that starts and exits between them is not checked. The
+  event sensors (netlink proc connector, then eBPF) are next, then DNS per process and Network's
+  checks (beaconing and the rest of Vigil 1's scoring).
+- No package database yet (D-024).

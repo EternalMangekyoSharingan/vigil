@@ -80,9 +80,15 @@ pub fn sources(k: &KernelFacts, can_ptrace: bool, poll_ms: u64) -> Vec<SourceSta
         ),
         status(
             "file-opens",
-            "none",
-            false,
-            "Not built yet (milestone 3): which program opened SSH keys, browser profiles or wallets.".into(),
+            "fd-poll",
+            true,
+            format!(
+                "Every {:.0} s, lists the files each process holds open (readlink on /proc/<pid>/fd, nothing is \
+                 opened) and flags SSH keys, browser passwords and cookies, wallets, keyrings and cloud \
+                 credentials held by a program that does not own them; sees {reach}. A program that reads a \
+                 secret and closes it between two looks is missed; the event sensor (milestone 3) closes that gap.",
+                secs * 5.0
+            ),
         ),
         status(
             "autostart",

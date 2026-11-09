@@ -196,6 +196,19 @@ impl FindingsIface {
         let fs = store.findings().map_err(|e| fdo::Error::Failed(e.to_string()))?;
         Ok(vigil_model::finding::to_jsonl(&fs))
     }
+
+    /// Findings seen at or after `since` (seconds since the epoch), as JSON lines.
+    async fn recent(
+        &self,
+        since: f64,
+        #[zbus(header)] hdr: Header<'_>,
+        #[zbus(connection)] conn: &Connection,
+    ) -> fdo::Result<String> {
+        guard(&self.auth, conn, &hdr).await?;
+        let store = self.shared.store.lock().unwrap_or_else(|e| e.into_inner());
+        let fs = store.findings_since(since).map_err(|e| fdo::Error::Failed(e.to_string()))?;
+        Ok(vigil_model::finding::to_jsonl(&fs))
+    }
 }
 
 pub async fn serve(

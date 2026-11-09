@@ -262,3 +262,14 @@ the orange is a shape of its own, still made of squares. The arrival keeps the s
 twelve tiles appear flat, the faces fold, the tiles close into solid faces, then the core grows
 into its slot and the mark flies to the rail. The shield turned blue for "sees everything",
 amber for a partial view and red for nothing, with solid and soft quarters split by a thin cross.
+
+## D-024 Process checks without a package database yet (2026-11-09)
+
+Milestone 3 starts with Vigil 1's process checks, ported exactly (golden test). Two of them ask
+which package owns a program file; the package database readers (pacman, rpm, dpkg) belong to
+Software in milestone 4, so until then `package_db` is unknown and those parts stay quiet rather
+than guess. Vigil 1 adds "its program file does not belong to any installed package" to every
+finding when no package was found, even when it had no database to ask; Vigil 2 adds it only
+when a database was asked. The patterns Vigil 1 writes as regular expressions are hand-written
+matchers (the `regex` crate is still waiting for the owner, D-003), each with the original
+expression in its doc comment, held to Vigil 1 by the golden cases.

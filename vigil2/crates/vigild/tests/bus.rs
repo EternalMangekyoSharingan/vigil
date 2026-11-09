@@ -156,8 +156,32 @@ fn serves_the_api_on_a_private_bus() {
             .deserialize::<String>()
             .unwrap();
         assert!(evs.contains("vigild") && evs.contains("first-seen"), "{evs}");
-        let none = call(&conn, "org.vigil.Findings", "List").await.unwrap();
-        assert_eq!(none, "", "no checks run yet in milestone 2, so no findings");
+        // Milestone 3: the process checks ran on the first look. The fixture's planted agent
+        // (SYNTHETIC: /tmp/.x/agent, deleted while running) is flagged twice, as Vigil 1 does.
+        let all = call(&conn, "org.vigil.Findings", "List").await.unwrap();
+        let checks: Vec<String> = all
+            .lines()
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap()["check"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(checks.len(), 2, "{checks:?}");
+        assert!(checks.contains(&"deleted_binary".into()) && checks.contains(&"temp_binary".into()));
+        assert!(all.contains("\"subject\": \"/tmp/.x/agent:temp_binary:7000\""));
+        let recent = conn
+            .call_method(Some(BUS_NAME), OBJECT_PATH, Some("org.vigil.Findings"), "Recent", &(0.0f64,))
+            .await
+            .unwrap()
+            .body()
+            .deserialize::<String>()
+            .unwrap();
+        assert_eq!(recent.lines().count(), 2);
+        let evs = conn
+            .call_method(Some(BUS_NAME), OBJECT_PATH, Some("org.vigil.Events"), "Since", &(0.0f64, 50u32))
+            .await
+            .unwrap()
+            .body()
+            .deserialize::<String>()
+            .unwrap();
+        assert!(evs.contains("\"kind\":\"finding\"") || evs.contains("\"kind\": \"finding\""), "{evs}");
     });
 
     // Another user is refused: the daemon checks the caller's uid from the bus.

@@ -368,6 +368,17 @@ impl Store {
         Ok(())
     }
 
+    /// Findings seen at or after `ts` (the current ones, for a recent `ts`), newest first.
+    pub fn findings_since(&self, ts: f64) -> Result<Vec<Finding>> {
+        let mut st = self.conn.prepare("SELECT body FROM findings WHERE last_seen >= ?1 ORDER BY last_seen DESC")?;
+        let rows = st.query_map(params![ts], |r| r.get::<_, String>(0))?;
+        let mut out = vec![];
+        for body in rows {
+            out.push(serde_json::from_str(&body?)?);
+        }
+        Ok(out)
+    }
+
     pub fn findings(&self) -> Result<Vec<Finding>> {
         let mut st = self.conn.prepare("SELECT body FROM findings ORDER BY last_seen DESC")?;
         let rows = st.query_map([], |r| r.get::<_, String>(0))?;

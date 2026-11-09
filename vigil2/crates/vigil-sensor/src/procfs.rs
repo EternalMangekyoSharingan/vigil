@@ -131,6 +131,40 @@ impl ProcRoot {
         Ok(std::fs::read_link(p)?.to_string_lossy().into_owned())
     }
 
+    /// The files a process has open, by readlink on /proc/<pid>/fd (no file is opened), up to
+    /// 4096 of them; None when the kernel will not show its fd table.
+    pub fn open_files(&self, pid: u32) -> Option<Vec<String>> {
+        let fds = self.list_fd(pid).ok()?;
+        Some(
+            fds.iter()
+                .take(4096)
+                .filter_map(|fd| self.readlink(&format!("{pid}/fd/{fd}")).ok())
+                .filter(|t| t.starts_with('/'))
+                .map(|t| t.strip_suffix(" (deleted)").map(str::to_string).unwrap_or(t))
+                .collect(),
+        )
+    }
+
+    /// Only the dynamic linker's variables (LD_PRELOAD, LD_AUDIT, LD_LIBRARY_PATH) from a
+    /// process's environment, values cut at 500 characters. The rest of the environment
+    /// (tokens, passwords) is scanned for these names only and never kept. None if unreadable.
+    pub fn ld_vars(&self, pid: u32) -> Option<BTreeMap<String, String>> {
+        let p = self.root.join(format!("{pid}/environ"));
+        self.denied(&p).ok()?;
+        let raw = std::fs::read(p).ok()?;
+        let raw = &raw[..raw.len().min(1 << 20)];
+        let mut out = BTreeMap::new();
+        for item in raw.split(|b| *b == 0) {
+            for var in ["LD_PRELOAD=", "LD_AUDIT=", "LD_LIBRARY_PATH="] {
+                if let Some(v) = item.strip_prefix(var.as_bytes()) {
+                    let v: String = String::from_utf8_lossy(v).chars().take(500).collect();
+                    out.insert(var.trim_end_matches('=').to_string(), v);
+                }
+            }
+        }
+        Some(out)
+    }
+
     /// Every numeric entry of /proc.
     pub fn pids(&self) -> Vec<u32> {
         let Ok(dir) = std::fs::read_dir(&self.root) else { return vec![] };

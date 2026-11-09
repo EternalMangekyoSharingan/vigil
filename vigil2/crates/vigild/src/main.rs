@@ -18,6 +18,7 @@
 
 mod auth;
 mod bus;
+mod checks;
 mod notify;
 
 use clap::Parser;
@@ -79,6 +80,9 @@ pub struct Shared {
     pub ticks: Mutex<TickMap>,
     /// Processes already in the store, and when every row's last_seen was last refreshed.
     pub recorded: Mutex<(std::collections::HashSet<(u32, u64)>, Instant)>,
+    /// The process checks (milestone 3) and how many findings are current.
+    pub checker: Mutex<Option<checks::Checker>>,
+    pub current_findings: Mutex<usize>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -201,6 +205,15 @@ pub(crate) fn poll(shared: &Shared, root: &ProcRoot, viewer: u32) {
             Err(e) => log!(3, "could not record processes: {e}"),
         }
     }
+    // The process checks, every few looks (and on the first one).
+    let n = shared.polls.lock().unwrap_or_else(|e| e.into_inner()).count;
+    if n.is_multiple_of(checks::EVERY) {
+        let store = shared.store.lock().unwrap_or_else(|e| e.into_inner());
+        let mut checker = shared.checker.lock().unwrap_or_else(|e| e.into_inner());
+        let c = checker.get_or_insert_with(|| checks::Checker::new(&store));
+        let current = c.run(root, &procs, &net, viewer, &store, ts);
+        *shared.current_findings.lock().unwrap_or_else(|e| e.into_inner()) = current;
+    }
     *shared.net.write().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(net));
     *shared.procs.write().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(procs));
     let ms = t0.elapsed().as_secs_f64() * 1000.0;
@@ -252,6 +265,8 @@ fn main() -> std::process::ExitCode {
         polls: Mutex::new(PollStats::default()),
         ticks: Mutex::new((std::collections::HashMap::new(), Instant::now())),
         recorded: Mutex::new((std::collections::HashSet::new(), Instant::now())),
+        checker: Mutex::new(None),
+        current_findings: Mutex::new(0),
     });
     let root = ProcRoot::at(&args.proc_root);
     let viewer = if ptrace { 0 } else { euid };

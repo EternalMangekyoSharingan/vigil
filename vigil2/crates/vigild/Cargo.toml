@@ -11,6 +11,7 @@ publish.workspace = true
 vigil-model.workspace = true
 vigil-sensor.workspace = true
 vigil-store.workspace = true
+vigil-engine.workspace = true
 zbus.workspace = true
 tokio.workspace = true
 serde.workspace = true

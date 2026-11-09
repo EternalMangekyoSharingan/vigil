@@ -570,6 +570,16 @@ impl Vigil {
                 Some((series(1), t.live_hi)),
             ))
             .child(self.tile(3, "Destinations", n("dests").to_string(), "addresses in history".into(), None))
+            .child({
+                let high = d.findings.iter().filter(|f| f.severity == vigil_model::finding::Severity::High).count();
+                self.tile(
+                    5,
+                    "Findings",
+                    d.findings.len().to_string(),
+                    if d.findings.is_empty() { "nothing unusual found".into() } else { format!("{high} high · now") },
+                    None,
+                )
+            })
             .child(self.tile(
                 4,
                 "Vigil",
@@ -826,7 +836,12 @@ impl Vigil {
                 }
                 .into_iter()
                 .map(|e| {
-                    let colour = if e.kind == "first-seen" { t.live } else { t.text[2] };
+                    let colour = match (e.kind.as_str(), e.detail.get("severity").and_then(|v| v.as_str())) {
+                        ("finding", Some("High")) => t.danger,
+                        ("finding", _) => t.warn,
+                        ("first-seen", _) => t.live,
+                        _ => t.text[2],
+                    };
                     div()
                         .py(px(6.0))
                         .flex()

@@ -41,6 +41,7 @@ on the system bus with no flags.
 | `vigild` | [daemon.md](daemon.md) | The system service: polling, D-Bus API, polkit, systemd |
 | `vigil-cli` | [cli.md](cli.md) | The terminal client |
 | `vigil-ui-core`, `vigil-ui` | [ui.md](ui.md) | The app: shell, keyboard, palette, motion, themes |
+| `vigil-engine` | [engine.md](engine.md) | The checks that turn what the sensor sees into findings |
 | `xtask`, `packaging/` | [packaging.md](packaging.md) | Install tree, distro packages, policy checks |
 | `spike/` | `docs/DECISIONS.md` D-002 | The GPUI vs iced measurements |
 

