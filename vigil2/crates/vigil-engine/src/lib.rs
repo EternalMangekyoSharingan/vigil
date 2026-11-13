@@ -8,5 +8,6 @@
 //!
 //! Engines are pure: they read facts and return findings. They never touch the system.
 
+pub mod net;
 pub mod secrets;
 pub mod tasks;

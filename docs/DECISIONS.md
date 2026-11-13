@@ -273,3 +273,13 @@ finding when no package was found, even when it had no database to ask; Vigil 2 
 when a database was asked. The patterns Vigil 1 writes as regular expressions are hand-written
 matchers (the `regex` crate is still waiting for the owner, D-003), each with the original
 expression in its doc comment, held to Vigil 1 by the golden cases.
+
+## D-025 Network scoring from the store (2026-11-13)
+
+Vigil 1 tracked each connection's opening and closing and kept per-pair tables. Vigil 2 keeps
+connections with their first and last sighting; the scorer treats a connection not seen in the
+last 2.5 looks as closed at its last sighting, and a program's first sighting holding a socket as
+its first outbound connection. The baseline ("when Vigil started watching") is the time of the
+daemon's first look, kept in a new `meta` table (schema 2; an existing database takes its earliest
+program sighting). Unattributed connections are not scored yet. Each scored observation carries
+the time of the run (`at`), as in Vigil 1.

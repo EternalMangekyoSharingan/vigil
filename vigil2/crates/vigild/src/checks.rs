@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
-use vigil_engine::{secrets, tasks};
+use vigil_engine::{net, secrets, tasks};
 use vigil_model::distro::OsRelease;
 use vigil_model::host::{NetSnapshot, ProcessList};
 use vigil_sensor::procfs::ProcRoot;
@@ -23,12 +23,136 @@ pub struct Checker {
     /// Finding ids already in the store.
     known: HashSet<String>,
     osr: OsRelease,
+    /// The user's allowlist rules (`<state dir>/allowlist.json`), read on every scoring run.
+    allowlist: std::path::PathBuf,
+    /// Network alerts open after the last scoring run.
+    pub network_alerts: usize,
 }
 
 impl Checker {
-    pub fn new(store: &Store) -> Checker {
+    pub fn new(store: &Store, state_dir: &Path) -> Checker {
         let known = store.findings().map(|fs| fs.into_iter().map(|f| f.id).collect()).unwrap_or_default();
-        Checker { ld: HashMap::new(), known, osr: vigil_model::distro::os_release(Path::new("/etc/os-release")) }
+        Checker {
+            ld: HashMap::new(),
+            known,
+            osr: vigil_model::distro::os_release(Path::new("/etc/os-release")),
+            allowlist: state_dir.join("allowlist.json"),
+            network_alerts: 0,
+        }
+    }
+
+    /// Built-in rules (minus any the user switched off) plus the user's own, as in Vigil 1's
+    /// allowlist.json: {"rules": [...], "disabled_builtins": ["builtin-ntp", ...]}.
+    fn rules(&self) -> Vec<net::Rule> {
+        #[derive(serde::Deserialize, Default)]
+        struct File {
+            #[serde(default)]
+            rules: Vec<net::Rule>,
+            #[serde(default)]
+            disabled_builtins: Vec<String>,
+        }
+        let file: File = std::fs::read_to_string(&self.allowlist)
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default();
+        let mut rules: Vec<net::Rule> = net::builtin_rules()
+            .into_iter()
+            .map(|mut r| {
+                r.enabled = !file.disabled_builtins.contains(&r.id);
+                r
+            })
+            .collect();
+        rules.extend(file.rules);
+        rules
+    }
+
+    /// Vigil 1's network scorer over the last 24 hours of connections. Pairs at or above
+    /// the threshold that no rule covers become findings (tool "net", check "alert").
+    pub fn score_network(&mut self, procs: &ProcessList, store: &Store, now: f64, poll: f64, utc_offset: i64) {
+        let Ok(rows) = store.scoring_rows(now, net::LOOKBACK) else { return };
+        let running: HashMap<&str, &vigil_model::host::ProcessInfo> =
+            procs.processes.iter().map(|p| (p.key.as_str(), p)).collect();
+        let programs = store
+            .program_rows()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, name, first)| {
+                let info = running.get(key.as_str()).map_or_else(net::ProgInfo::default, |p| net::ProgInfo {
+                    exe: p.exe.clone(),
+                    pid: Some(p.pid),
+                    exe_deleted: p.exe_deleted,
+                });
+                (key, net::ProgramRow { name, first_outbound: Some(first), hidden: false, info })
+            })
+            .collect();
+        let cx = net::Context {
+            now,
+            baseline: store.baseline().ok().flatten(),
+            programs,
+            destinations: store
+                .destination_rows()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(ip, first, scope)| (ip, (first, scope)))
+                .collect(),
+            prevalence: store.prevalence().unwrap_or_default().into_iter().map(|(ip, p, c)| (ip, (p, c))).collect(),
+            poll,
+            utc_offset,
+        };
+        let rows: Vec<net::Row> = rows
+            .into_iter()
+            .map(|r| net::Row {
+                id: r.id,
+                program: r.program,
+                ip: r.ip,
+                direction: r.direction,
+                proto: r.proto,
+                local_port: r.local_port,
+                remote_port: r.remote_port,
+                first_seen: r.first_seen,
+                last_seen: r.last_seen,
+            })
+            .collect();
+        let results = net::run(&rows, &cx, &self.rules());
+        let alerts = net::alerts(&results);
+        self.network_alerts = alerts.len();
+        for a in alerts {
+            let prog = cx.programs.get(&a.pair.program);
+            let alert = net::Alert {
+                pair: &a.pair,
+                score: a.score,
+                findings: &a.findings,
+                name: prog.map(|p| p.name.as_str()),
+                exe: prog.and_then(|p| p.info.exe.as_deref()),
+                hidden: None,
+                first_raised: now,
+                now,
+                utc_offset,
+            };
+            let Ok(finding) = alert.finding(&self.osr) else { continue };
+            if self.known.insert(finding.id.clone()) {
+                let arrow = if a.pair.direction == "in" { "←" } else { "→" };
+                let _ = store.event(&Event {
+                    ts: now,
+                    kind: "finding".into(),
+                    summary: format!(
+                        "Alert, score {:.0}: {} {arrow} {} {}",
+                        a.score,
+                        prog.map_or(a.pair.program.as_str(), |p| p.name.as_str()),
+                        a.pair.proto,
+                        net::fmt_endpoint(&a.pair.ip, a.pair.port)
+                    ),
+                    source: format!(
+                        "vigild: network scorer, {} observations over the last 24 h of connections (threshold {})",
+                        a.findings.len(),
+                        net::ALERT_THRESHOLD
+                    ),
+                    detail: serde_json::json!({"id": finding.id, "severity": finding.severity.as_str(), "check": "alert",
+                                               "program": a.pair.program, "ip": a.pair.ip, "score": a.score}),
+                });
+            }
+            let _ = store.put_finding(&finding, now);
+        }
     }
 
     /// Check every process in `procs`; store the findings. Returns how many are current.

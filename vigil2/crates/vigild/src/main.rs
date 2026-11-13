@@ -82,6 +82,12 @@ pub struct Shared {
     pub recorded: Mutex<(std::collections::HashSet<(u32, u64)>, Instant)>,
     /// The process checks (milestone 3) and how many findings are current.
     pub checker: Mutex<Option<checks::Checker>>,
+    /// The daemon's state directory (the database, the user's allowlist).
+    pub state_dir: PathBuf,
+    /// Seconds between looks.
+    pub interval_s: f64,
+    /// Seconds east of UTC (local time for the words of findings).
+    pub utc_offset: i64,
     pub current_findings: Mutex<usize>,
 }
 
@@ -210,8 +216,13 @@ pub(crate) fn poll(shared: &Shared, root: &ProcRoot, viewer: u32) {
     if n.is_multiple_of(checks::EVERY) {
         let store = shared.store.lock().unwrap_or_else(|e| e.into_inner());
         let mut checker = shared.checker.lock().unwrap_or_else(|e| e.into_inner());
-        let c = checker.get_or_insert_with(|| checks::Checker::new(&store));
-        let current = c.run(root, &procs, &net, viewer, &store, ts);
+        let c = checker.get_or_insert_with(|| checks::Checker::new(&store, &shared.state_dir));
+        let mut current = c.run(root, &procs, &net, viewer, &store, ts);
+        // The network scorer looks at the last 24 hours, so once a minute is plenty.
+        if n.is_multiple_of(checks::EVERY * 6) {
+            c.score_network(&procs, &store, ts, shared.interval_s, shared.utc_offset);
+        }
+        current += c.network_alerts;
         *shared.current_findings.lock().unwrap_or_else(|e| e.into_inner()) = current;
     }
     *shared.net.write().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(net));
@@ -239,6 +250,9 @@ fn state_dir(args: &Args) -> PathBuf {
 }
 
 fn main() -> std::process::ExitCode {
+    // The local time zone, read before any thread starts (the only time it is safe), for
+    // clock times in the words of findings.
+    let utc_offset = time::UtcOffset::current_local_offset().map_or(0, |o| i64::from(o.whole_seconds()));
     let args = Args::parse();
     let dir = state_dir(&args);
     if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -266,6 +280,9 @@ fn main() -> std::process::ExitCode {
         ticks: Mutex::new((std::collections::HashMap::new(), Instant::now())),
         recorded: Mutex::new((std::collections::HashSet::new(), Instant::now())),
         checker: Mutex::new(None),
+        state_dir: dir.clone(),
+        interval_s: args.interval_ms as f64 / 1000.0,
+        utc_offset,
         current_findings: Mutex::new(0),
     });
     let root = ProcRoot::at(&args.proc_root);

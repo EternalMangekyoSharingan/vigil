@@ -1,0 +1,2503 @@
+{
+ "_note": "SYNTHETIC: Vigil 1's network scoring and alert wording on made-up connection histories, in UTC. Regenerate with make_golden.py.",
+ "beacon_findings": {
+  "bursty": [
+   {
+    "check": "beacon",
+    "data": "connections table: 40 connections to tcp 203.0.113.7:443 opened 14:13:19–14:41:49, start times measured to ±2 s",
+    "points": 45.0,
+    "reason": "Periodic: every 90 s ± 1% (coefficient of variation 0.01 over 20 check-ins)",
+    "stats": {
+     "checkins": 20,
+     "connections": 40,
+     "cv": 0.009,
+     "first": 1789999999.274,
+     "interval": 90.0,
+     "last": 1790001709.71,
+     "missed": 0,
+     "pauses": [],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 40 connections to tcp 203.0.113.7:443 opened 14:13:19–14:41:49, start times measured to ±2 s",
+    "points": 5.8,
+    "reason": "Kept up for 28m 30s (20 check-ins counting missed ones)",
+    "stats": {
+     "first": 1789999999.274,
+     "last": 1790001709.71,
+     "samples": 20,
+     "signal": "duration",
+     "span": 1710
+    }
+   }
+  ],
+  "jitter-15pct": [
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:13:04–15:11:07, start times measured to ±2 s",
+    "points": 33.8,
+    "reason": "Periodic: every 2m 0s ± 12% (coefficient of variation 0.12 over 30 check-ins)",
+    "stats": {
+     "checkins": 30,
+     "connections": 30,
+     "cv": 0.125,
+     "first": 1789999984.184,
+     "interval": 120.1,
+     "last": 1790003467.433,
+     "missed": 0,
+     "pauses": [],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:13:04–15:11:07, start times measured to ±2 s",
+    "points": 10.0,
+    "reason": "Kept up for 58m 3s (30 check-ins counting missed ones)",
+    "stats": {
+     "first": 1789999984.184,
+     "last": 1790003467.433,
+     "samples": 30,
+     "signal": "duration",
+     "span": 3483
+    }
+   }
+  ],
+  "jitter-30pct": [
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:12:56–15:10:47, start times measured to ±2 s",
+    "points": 24.2,
+    "reason": "Periodic: every 120 s ± 19% (coefficient of variation 0.19 over 30 check-ins)",
+    "stats": {
+     "checkins": 30,
+     "connections": 30,
+     "cv": 0.189,
+     "first": 1789999976.688,
+     "interval": 119.7,
+     "last": 1790003447.785,
+     "missed": 0,
+     "pauses": [],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:12:56–15:10:47, start times measured to ±2 s",
+    "points": 10.0,
+    "reason": "Kept up for 57m 51s (30 check-ins counting missed ones)",
+    "stats": {
+     "first": 1789999976.688,
+     "last": 1790003447.785,
+     "samples": 30,
+     "signal": "duration",
+     "span": 3471
+    }
+   }
+  ],
+  "missed": [
+   {
+    "check": "beacon",
+    "data": "connections table: 36 connections to tcp 203.0.113.7:443 opened 14:13:20–14:52:20, start times measured to ±2 s",
+    "points": 45.0,
+    "reason": "Periodic: every 60 s ± 0% (coefficient of variation 0.00 over 36 check-ins; 4 probably missed between polls)",
+    "stats": {
+     "checkins": 36,
+     "connections": 36,
+     "cv": 0.005,
+     "first": 1790000000.363,
+     "interval": 60.0,
+     "last": 1790002340.4,
+     "missed": 4,
+     "pauses": [],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 36 connections to tcp 203.0.113.7:443 opened 14:13:20–14:52:20, start times measured to ±2 s",
+    "points": 10.0,
+    "reason": "Kept up for 39m 0s (40 check-ins counting missed ones)",
+    "stats": {
+     "first": 1790000000.363,
+     "last": 1790002340.4,
+     "samples": 40,
+     "signal": "duration",
+     "span": 2340
+    }
+   }
+  ],
+  "noisy": [],
+  "pause": [
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:13:20–16:05:40, start times measured to ±2 s",
+    "points": 45.0,
+    "reason": "Periodic: every 60 s ± 1% (coefficient of variation 0.01 over 30 check-ins; 1 pause (longest 1h 24m) left out)",
+    "stats": {
+     "checkins": 30,
+     "connections": 30,
+     "cv": 0.007,
+     "first": 1790000000.34,
+     "interval": 60.0,
+     "last": 1790006740.049,
+     "missed": 0,
+     "pauses": [
+      5059
+     ],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:13:20–16:05:40, start times measured to ±2 s",
+    "points": 10.0,
+    "reason": "Kept up for 1h 52m (30 check-ins counting missed ones)",
+    "stats": {
+     "first": 1790000000.34,
+     "last": 1790006740.049,
+     "samples": 30,
+     "signal": "duration",
+     "span": 6740
+    }
+   }
+  ],
+  "steady-300": [
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:13:19–16:38:20, start times measured to ±2 s",
+    "points": 45.0,
+    "reason": "Periodic: every 5m 0s ± 1% (coefficient of variation 0.01 over 30 check-ins)",
+    "stats": {
+     "checkins": 30,
+     "connections": 30,
+     "cv": 0.008,
+     "first": 1789999999.719,
+     "interval": 300.0,
+     "last": 1790008700.985,
+     "missed": 0,
+     "pauses": [],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 30 connections to tcp 203.0.113.7:443 opened 14:13:19–16:38:20, start times measured to ±2 s",
+    "points": 10.0,
+    "reason": "Kept up for 2h 25m (30 check-ins counting missed ones)",
+    "stats": {
+     "first": 1789999999.719,
+     "last": 1790008700.985,
+     "samples": 30,
+     "signal": "duration",
+     "span": 8701
+    }
+   }
+  ],
+  "steady-60": [
+   {
+    "check": "beacon",
+    "data": "connections table: 40 connections to tcp 203.0.113.7:443 opened 14:13:19–14:52:20, start times measured to ±2 s",
+    "points": 45.0,
+    "reason": "Periodic: every 60 s ± 1% (coefficient of variation 0.01 over 40 check-ins)",
+    "stats": {
+     "checkins": 40,
+     "connections": 40,
+     "cv": 0.007,
+     "first": 1789999999.824,
+     "interval": 60.0,
+     "last": 1790002340.086,
+     "missed": 0,
+     "pauses": [],
+     "poll": 2.0,
+     "signal": "timer"
+    }
+   },
+   {
+    "check": "beacon",
+    "data": "connections table: 40 connections to tcp 203.0.113.7:443 opened 14:13:19–14:52:20, start times measured to ±2 s",
+    "points": 10.0,
+    "reason": "Kept up for 39m 0s (40 check-ins counting missed ones)",
+    "stats": {
+     "first": 1789999999.824,
+     "last": 1790002340.086,
+     "samples": 40,
+     "signal": "duration",
+     "span": 2340
+    }
+   }
+  ],
+  "too-fast": [],
+  "too-few": []
+ },
+ "beacon_stats": {
+  "bursty": {
+   "checkins": 20,
+   "cv": 0.008909857929048531,
+   "first": 1789999999.274,
+   "interval": 90.0229473741431,
+   "last": 1790001709.71,
+   "missed": 0,
+   "pauses": [],
+   "samples": 20
+  },
+  "jitter-15pct": {
+   "checkins": 30,
+   "cv": 0.12453398048581363,
+   "first": 1789999984.184,
+   "interval": 120.11203448525791,
+   "last": 1790003467.433,
+   "missed": 0,
+   "pauses": [],
+   "samples": 30
+  },
+  "jitter-30pct": {
+   "checkins": 30,
+   "cv": 0.18873845642000162,
+   "first": 1789999976.688,
+   "interval": 119.69300000420932,
+   "last": 1790003447.785,
+   "missed": 0,
+   "pauses": [],
+   "samples": 30
+  },
+  "missed": {
+   "checkins": 36,
+   "cv": 0.004659601132733838,
+   "first": 1790000000.363,
+   "interval": 60.000948722545914,
+   "last": 1790002340.4,
+   "missed": 4,
+   "pauses": [],
+   "samples": 40
+  },
+  "noisy": {
+   "checkins": 30,
+   "cv": 0.3906494552685646,
+   "first": 1789999940.028,
+   "interval": 94.2934999987483,
+   "last": 1790002957.42,
+   "missed": 3,
+   "pauses": [],
+   "samples": 33
+  },
+  "pause": {
+   "checkins": 30,
+   "cv": 0.006674208978704657,
+   "first": 1790000000.34,
+   "interval": 60.010178574493956,
+   "last": 1790006740.049,
+   "missed": 0,
+   "pauses": [
+    5059.4240000247955
+   ],
+   "samples": 30
+  },
+  "steady-300": {
+   "checkins": 30,
+   "cv": 0.007858083171625396,
+   "first": 1789999999.719,
+   "interval": 300.04365516531055,
+   "last": 1790008700.985,
+   "missed": 0,
+   "pauses": [],
+   "samples": 30
+  },
+  "steady-60": {
+   "checkins": 40,
+   "cv": 0.006894361394030616,
+   "first": 1789999999.824,
+   "interval": 60.00671795086983,
+   "last": 1790002340.086,
+   "missed": 0,
+   "pauses": [],
+   "samples": 40
+  },
+  "too-fast": null,
+  "too-few": null
+ },
+ "context": {
+  "destinations": {
+   "192.168.1.5": {
+    "first_seen": 1789999990.0,
+    "ip": "192.168.1.5",
+    "scope": "lan"
+   },
+   "198.51.100.20": {
+    "first_seen": 1789990001.0,
+    "ip": "198.51.100.20",
+    "scope": "internet"
+   },
+   "203.0.113.10": {
+    "first_seen": 1790003600.0,
+    "ip": "203.0.113.10",
+    "scope": "internet"
+   },
+   "93.184.216.34": {
+    "first_seen": 1790000200.0,
+    "ip": "93.184.216.34",
+    "scope": "internet"
+   }
+  },
+  "prevalence": {
+   "192.168.1.5": [
+    1,
+    2
+   ],
+   "198.51.100.20": [
+    3,
+    90
+   ],
+   "203.0.113.10": [
+    1,
+    30
+   ],
+   "93.184.216.34": [
+    1,
+    3
+   ]
+  },
+  "programs": {
+   "/tmp/.x/agent": {
+    "first_outbound": 1790003600.0,
+    "info": "{\"exe\": \"/tmp/.x/agent\", \"pid\": 7000}",
+    "key": "/tmp/.x/agent",
+    "name": "agent"
+   },
+   "/usr/bin/python3.12 /home/a/.cache/u.py": {
+    "first_outbound": 1790000100.0,
+    "info": "{\"exe\": \"/usr/bin/python3.12\", \"pid\": 5120}",
+    "key": "/usr/bin/python3.12 /home/a/.cache/u.py",
+    "name": "u.py (python3.12)"
+   },
+   "/usr/bin/ssh": {
+    "first_outbound": 1789900001.0,
+    "info": "{\"exe\": \"/usr/bin/ssh\", \"pid\": 6000}",
+    "key": "/usr/bin/ssh",
+    "name": "ssh"
+   },
+   "/usr/bin/syncd": {
+    "first_outbound": 1789950000.0,
+    "info": "{\"exe\": \"/usr/bin/syncd\", \"pid\": 400}",
+    "key": "/usr/bin/syncd",
+    "name": "syncd"
+   }
+  }
+ },
+ "location": {
+  "cases": {
+   "deleted": [
+    {
+     "exe": "/usr/bin/x (deleted)",
+     "exe_deleted": true,
+     "pid": 11
+    },
+    "/usr/bin/x"
+   ],
+   "hidden": [
+    {
+     "exe": "/home/a/.hidden/bin/m",
+     "pid": 8
+    },
+    "/home/a/.hidden/bin/m"
+   ],
+   "hidden-ok": [
+    {
+     "exe": "/home/a/.local/bin/tool",
+     "pid": 9
+    },
+    "/home/a/.local/bin/tool"
+   ],
+   "plain": [
+    {
+     "exe": "/usr/bin/curl",
+     "pid": 12
+    },
+    "/usr/bin/curl"
+   ],
+   "script-tmp": [
+    {
+     "exe": "/usr/bin/python3.12",
+     "pid": 10
+    },
+    "/usr/bin/python3.12 /tmp/s.py"
+   ],
+   "tmp": [
+    {
+     "exe": "/tmp/x/agent",
+     "pid": 7
+    },
+    "/tmp/x/agent"
+   ]
+  },
+  "findings": {
+   "deleted": [
+    {
+     "check": "process_location",
+     "data": "/proc/11/exe and cmdline at last poll",
+     "points": 10,
+     "reason": "Its executable was deleted or replaced while running. Normal right after a package upgrade; otherwise a way to leave no file behind",
+     "stats": {
+      "signal": "deleted_exe"
+     }
+    }
+   ],
+   "hidden": [
+    {
+     "check": "process_location",
+     "data": "/proc/8/exe and cmdline at last poll",
+     "points": 10,
+     "reason": "Runs from a hidden directory (/home/a/.hidden/bin/m)",
+     "stats": {
+      "path": "/home/a/.hidden/bin/m",
+      "signal": "hidden_dir"
+     }
+    }
+   ],
+   "hidden-ok": [],
+   "plain": [],
+   "script-tmp": [
+    {
+     "check": "process_location",
+     "data": "/proc/10/exe and cmdline at last poll",
+     "points": 25,
+     "reason": "Runs from /tmp/s.py: a world-writable temporary directory, a common drop location for downloaded payloads",
+     "stats": {
+      "path": "/tmp/s.py",
+      "signal": "temp_dir"
+     }
+    }
+   ],
+   "tmp": [
+    {
+     "check": "process_location",
+     "data": "/proc/7/exe and cmdline at last poll",
+     "points": 25,
+     "reason": "Runs from /tmp/x/agent: a world-writable temporary directory, a common drop location for downloaded payloads",
+     "stats": {
+      "path": "/tmp/x/agent",
+      "signal": "temp_dir"
+     }
+    }
+   ]
+  }
+ },
+ "long": {
+  "cases": {
+   "baseline": [
+    {
+     "closed_at": null,
+     "id": 4,
+     "local_port": 8,
+     "opened_at": 1789999900.0
+    }
+   ],
+   "closed-9h": [
+    {
+     "closed_at": 1790014600.0,
+     "id": 3,
+     "local_port": 7,
+     "opened_at": 1789981600.0
+    }
+   ],
+   "open-2h": [
+    {
+     "closed_at": null,
+     "id": 2,
+     "local_port": 6,
+     "opened_at": 1790014400.0
+    }
+   ],
+   "short": [
+    {
+     "closed_at": null,
+     "id": 1,
+     "local_port": 5,
+     "opened_at": 1790021000.0
+    }
+   ]
+  },
+  "findings": {
+   "baseline": {
+    "check": "long_connection",
+    "data": "connections table: connection #4, local port 8",
+    "points": 25.8,
+    "reason": "One connection open at least 6h 1m (since 14:11:40, still open)",
+    "stats": {
+     "at_least": true,
+     "closed_at": null,
+     "duration": 21700,
+     "opened_at": 1789999900.0,
+     "signal": "long"
+    }
+   },
+   "closed-9h": {
+    "check": "long_connection",
+    "data": "connections table: connection #3, local port 7",
+    "points": 30.0,
+    "reason": "One connection open at least 9h 10m (since 09:06:40, closed 18:16:40)",
+    "stats": {
+     "at_least": true,
+     "closed_at": 1790014600.0,
+     "duration": 33000,
+     "opened_at": 1789981600.0,
+     "signal": "long"
+    }
+   },
+   "open-2h": {
+    "check": "long_connection",
+    "data": "connections table: connection #2, local port 6",
+    "points": 17.1,
+    "reason": "One connection open 2h 0m (since 18:13:20, still open)",
+    "stats": {
+     "at_least": false,
+     "closed_at": null,
+     "duration": 7200,
+     "opened_at": 1790014400.0,
+     "signal": "long"
+    }
+   },
+   "short": null
+  }
+ },
+ "now": 1790021600.0,
+ "pairs": {
+  "agent-beacon": {
+   "conns": [
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003600.766,
+     "id": 1,
+     "last_seen": 1790003600.766,
+     "local_port": 40000,
+     "opened_at": 1790003599.766
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003660.54,
+     "id": 2,
+     "last_seen": 1790003660.54,
+     "local_port": 40001,
+     "opened_at": 1790003659.54
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003721.279,
+     "id": 3,
+     "last_seen": 1790003721.279,
+     "local_port": 40002,
+     "opened_at": 1790003720.279
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003780.77,
+     "id": 4,
+     "last_seen": 1790003780.77,
+     "local_port": 40003,
+     "opened_at": 1790003779.77
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003840.63,
+     "id": 5,
+     "last_seen": 1790003840.63,
+     "local_port": 40004,
+     "opened_at": 1790003839.63
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003900.922,
+     "id": 6,
+     "last_seen": 1790003900.922,
+     "local_port": 40005,
+     "opened_at": 1790003899.922
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003961.411,
+     "id": 7,
+     "last_seen": 1790003961.411,
+     "local_port": 40006,
+     "opened_at": 1790003960.411
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004021.319,
+     "id": 8,
+     "last_seen": 1790004021.319,
+     "local_port": 40007,
+     "opened_at": 1790004020.319
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004080.759,
+     "id": 9,
+     "last_seen": 1790004080.759,
+     "local_port": 40008,
+     "opened_at": 1790004079.759
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004140.649,
+     "id": 10,
+     "last_seen": 1790004140.649,
+     "local_port": 40009,
+     "opened_at": 1790004139.649
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004201.419,
+     "id": 11,
+     "last_seen": 1790004201.419,
+     "local_port": 40010,
+     "opened_at": 1790004200.419
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004261.071,
+     "id": 12,
+     "last_seen": 1790004261.071,
+     "local_port": 40011,
+     "opened_at": 1790004260.071
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004321.2,
+     "id": 13,
+     "last_seen": 1790004321.2,
+     "local_port": 40012,
+     "opened_at": 1790004320.2
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004380.589,
+     "id": 14,
+     "last_seen": 1790004380.589,
+     "local_port": 40013,
+     "opened_at": 1790004379.589
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004440.558,
+     "id": 15,
+     "last_seen": 1790004440.558,
+     "local_port": 40014,
+     "opened_at": 1790004439.558
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004501.188,
+     "id": 16,
+     "last_seen": 1790004501.188,
+     "local_port": 40015,
+     "opened_at": 1790004500.188
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004560.925,
+     "id": 17,
+     "last_seen": 1790004560.925,
+     "local_port": 40016,
+     "opened_at": 1790004559.925
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004620.572,
+     "id": 18,
+     "last_seen": 1790004620.572,
+     "local_port": 40017,
+     "opened_at": 1790004619.572
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004681.438,
+     "id": 19,
+     "last_seen": 1790004681.438,
+     "local_port": 40018,
+     "opened_at": 1790004680.438
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004741.134,
+     "id": 20,
+     "last_seen": 1790004741.134,
+     "local_port": 40019,
+     "opened_at": 1790004740.134
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004801.302,
+     "id": 21,
+     "last_seen": 1790004801.302,
+     "local_port": 40020,
+     "opened_at": 1790004800.302
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004860.584,
+     "id": 22,
+     "last_seen": 1790004860.584,
+     "local_port": 40021,
+     "opened_at": 1790004859.584
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004921.356,
+     "id": 23,
+     "last_seen": 1790004921.356,
+     "local_port": 40022,
+     "opened_at": 1790004920.356
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004980.567,
+     "id": 24,
+     "last_seen": 1790004980.567,
+     "local_port": 40023,
+     "opened_at": 1790004979.567
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005041.363,
+     "id": 25,
+     "last_seen": 1790005041.363,
+     "local_port": 40024,
+     "opened_at": 1790005040.363
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005100.954,
+     "id": 26,
+     "last_seen": 1790005100.954,
+     "local_port": 40025,
+     "opened_at": 1790005099.954
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005160.839,
+     "id": 27,
+     "last_seen": 1790005160.839,
+     "local_port": 40026,
+     "opened_at": 1790005159.839
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005221.053,
+     "id": 28,
+     "last_seen": 1790005221.053,
+     "local_port": 40027,
+     "opened_at": 1790005220.053
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005281.427,
+     "id": 29,
+     "last_seen": 1790005281.427,
+     "local_port": 40028,
+     "opened_at": 1790005280.427
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005340.768,
+     "id": 30,
+     "last_seen": 1790005340.768,
+     "local_port": 40029,
+     "opened_at": 1790005339.768
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005400.629,
+     "id": 31,
+     "last_seen": 1790005400.629,
+     "local_port": 40030,
+     "opened_at": 1790005399.629
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005461.027,
+     "id": 32,
+     "last_seen": 1790005461.027,
+     "local_port": 40031,
+     "opened_at": 1790005460.027
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005520.738,
+     "id": 33,
+     "last_seen": 1790005520.738,
+     "local_port": 40032,
+     "opened_at": 1790005519.738
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005580.609,
+     "id": 34,
+     "last_seen": 1790005580.609,
+     "local_port": 40033,
+     "opened_at": 1790005579.609
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005640.661,
+     "id": 35,
+     "last_seen": 1790005640.661,
+     "local_port": 40034,
+     "opened_at": 1790005639.661
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005700.55,
+     "id": 36,
+     "last_seen": 1790005700.55,
+     "local_port": 40035,
+     "opened_at": 1790005699.55
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005760.702,
+     "id": 37,
+     "last_seen": 1790005760.702,
+     "local_port": 40036,
+     "opened_at": 1790005759.702
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005820.812,
+     "id": 38,
+     "last_seen": 1790005820.812,
+     "local_port": 40037,
+     "opened_at": 1790005819.812
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005880.805,
+     "id": 39,
+     "last_seen": 1790005880.805,
+     "local_port": 40038,
+     "opened_at": 1790005879.805
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005941.259,
+     "id": 40,
+     "last_seen": 1790005941.259,
+     "local_port": 40039,
+     "opened_at": 1790005940.259
+    }
+   ],
+   "explain": {
+    "confidence": {
+     "level": "High",
+     "reason": "A program running from a temporary folder that phones home is a classic malware pattern."
+    },
+    "signals": [
+     {
+      "signal": "timer",
+      "strength": 1.0,
+      "text": "Contacts it on a steady timer (about every 1 min, very regular)"
+     },
+     {
+      "signal": "temp_dir",
+      "strength": 1.0,
+      "text": "Runs from a temporary folder (/tmp/.x/agent), where downloads land"
+     },
+     {
+      "signal": "new_program",
+      "strength": 1.0,
+      "text": "First time this program used the network since Vigil started watching"
+     },
+     {
+      "signal": "new_destination",
+      "strength": 1.0,
+      "text": "First time this PC has talked to this server since Vigil started watching"
+     },
+     {
+      "signal": "duration",
+      "strength": 1.0,
+      "text": "Has kept this up for 39 min"
+     },
+     {
+      "signal": "odd_port",
+      "strength": 1.0,
+      "text": "Uses port 4444, which no common service uses"
+     }
+    ],
+    "summary": "agent has contacted 203.0.113.10 on your network about every 1 min since 15:13.",
+    "why": [
+     {
+      "group": "timer",
+      "text": "Updaters, sync tools and chat apps do this. So does malware checking in with its owner. A timer alone is never enough to raise an alert."
+     },
+     {
+      "group": "location",
+      "text": "Installed software lives in /usr or /opt. Temporary and hidden folders are where downloaded payloads hide."
+     },
+     {
+      "group": "new",
+      "text": "Most new things are harmless: a new app or a new website. But almost everything bad is new too."
+     },
+     {
+      "group": "odd_port",
+      "text": "Most software uses a few well-known ports. Odd ones are often games or file sharing, sometimes backdoors."
+     }
+    ]
+   },
+   "findings": [
+    {
+     "at": 1790021600.0,
+     "check": "beacon",
+     "data": "connections table: 40 connections to tcp 203.0.113.10:4444 opened 15:13:19–15:52:20, start times measured to ±2 s",
+     "points": 45.0,
+     "reason": "Periodic: every 60 s ± 1% (coefficient of variation 0.01 over 40 check-ins)",
+     "stats": {
+      "checkins": 40,
+      "connections": 40,
+      "cv": 0.007,
+      "first": 1790003599.766,
+      "interval": 60.0,
+      "last": 1790005940.259,
+      "missed": 0,
+      "pauses": [],
+      "poll": 2.0,
+      "signal": "timer"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "beacon",
+     "data": "connections table: 40 connections to tcp 203.0.113.10:4444 opened 15:13:19–15:52:20, start times measured to ±2 s",
+     "points": 10.0,
+     "reason": "Kept up for 39m 0s (40 check-ins counting missed ones)",
+     "stats": {
+      "first": 1790003599.766,
+      "last": 1790005940.259,
+      "samples": 40,
+      "signal": "duration",
+      "span": 2340
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "first_seen",
+     "data": "destinations table (first-seen tracking)",
+     "points": 15,
+     "reason": "New destination: first contacted at 15:13:20, after Vigil's baseline of 2026-09-21 14:13",
+     "stats": {
+      "at": 1790003600.0,
+      "baseline": 1790000000.0,
+      "signal": "new_destination"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "first_seen",
+     "data": "programs table (first outbound connection)",
+     "points": 20,
+     "reason": "This program made its first outbound connection at 15:13:20; it had not used the network since Vigil started watching",
+     "stats": {
+      "at": 1790003600.0,
+      "signal": "new_program"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "uncommon_port",
+     "data": "connections table: remote port",
+     "points": 10,
+     "reason": "tcp/4444 is not a common service port",
+     "stats": {
+      "port": 4444,
+      "proto": "tcp",
+      "signal": "odd_port"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "process_location",
+     "data": "/proc/7000/exe and cmdline at last poll",
+     "points": 25,
+     "reason": "Runs from /tmp/.x/agent: a world-writable temporary directory, a common drop location for downloaded payloads",
+     "stats": {
+      "path": "/tmp/.x/agent",
+      "signal": "temp_dir"
+     }
+    }
+   ],
+   "key": [
+    "/tmp/.x/agent",
+    "203.0.113.10",
+    4444,
+    "tcp",
+    "out"
+   ],
+   "pair": {
+    "direction": "out",
+    "ip": "203.0.113.10",
+    "port": 4444,
+    "program": "/tmp/.x/agent",
+    "proto": "tcp",
+    "scope": "internet"
+   },
+   "score": 100.0,
+   "view": {
+    "severity": "High",
+    "title": "agent checks in every ~1 min",
+    "to": "203.0.113.10 on your network",
+    "who": "agent"
+   }
+  },
+  "script-http": {
+   "conns": [
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000201.964,
+     "id": 1,
+     "last_seen": 1790000201.964,
+     "local_port": 40000,
+     "opened_at": 1790000200.964
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000320.022,
+     "id": 2,
+     "last_seen": 1790000320.022,
+     "local_port": 40001,
+     "opened_at": 1790000319.022
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000439.653,
+     "id": 3,
+     "last_seen": 1790000439.653,
+     "local_port": 40002,
+     "opened_at": 1790000438.653
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000559.338,
+     "id": 4,
+     "last_seen": 1790000559.338,
+     "local_port": 40003,
+     "opened_at": 1790000558.338
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000682.365,
+     "id": 5,
+     "last_seen": 1790000682.365,
+     "local_port": 40004,
+     "opened_at": 1790000681.365
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000802.482,
+     "id": 6,
+     "last_seen": 1790000802.482,
+     "local_port": 40005,
+     "opened_at": 1790000801.482
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000921.682,
+     "id": 7,
+     "last_seen": 1790000921.682,
+     "local_port": 40006,
+     "opened_at": 1790000920.682
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001040.128,
+     "id": 8,
+     "last_seen": 1790001040.128,
+     "local_port": 40007,
+     "opened_at": 1790001039.128
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001159.969,
+     "id": 9,
+     "last_seen": 1790001159.969,
+     "local_port": 40008,
+     "opened_at": 1790001158.969
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001280.172,
+     "id": 10,
+     "last_seen": 1790001280.172,
+     "local_port": 40009,
+     "opened_at": 1790001279.172
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001400.838,
+     "id": 11,
+     "last_seen": 1790001400.838,
+     "local_port": 40010,
+     "opened_at": 1790001399.838
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001519.63,
+     "id": 12,
+     "last_seen": 1790001519.63,
+     "local_port": 40011,
+     "opened_at": 1790001518.63
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001640.783,
+     "id": 13,
+     "last_seen": 1790001640.783,
+     "local_port": 40012,
+     "opened_at": 1790001639.783
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001760.053,
+     "id": 14,
+     "last_seen": 1790001760.053,
+     "local_port": 40013,
+     "opened_at": 1790001759.053
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001882.847,
+     "id": 15,
+     "last_seen": 1790001882.847,
+     "local_port": 40014,
+     "opened_at": 1790001881.847
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002002.89,
+     "id": 16,
+     "last_seen": 1790002002.89,
+     "local_port": 40015,
+     "opened_at": 1790002001.89
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002121.188,
+     "id": 17,
+     "last_seen": 1790002121.188,
+     "local_port": 40016,
+     "opened_at": 1790002120.188
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002239.978,
+     "id": 18,
+     "last_seen": 1790002239.978,
+     "local_port": 40017,
+     "opened_at": 1790002238.978
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002362.863,
+     "id": 19,
+     "last_seen": 1790002362.863,
+     "local_port": 40018,
+     "opened_at": 1790002361.863
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002480.238,
+     "id": 20,
+     "last_seen": 1790002480.238,
+     "local_port": 40019,
+     "opened_at": 1790002479.238
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002600.426,
+     "id": 21,
+     "last_seen": 1790002600.426,
+     "local_port": 40020,
+     "opened_at": 1790002599.426
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002719.004,
+     "id": 22,
+     "last_seen": 1790002719.004,
+     "local_port": 40021,
+     "opened_at": 1790002718.004
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002840.527,
+     "id": 23,
+     "last_seen": 1790002840.527,
+     "local_port": 40022,
+     "opened_at": 1790002839.527
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002960.899,
+     "id": 24,
+     "last_seen": 1790002960.899,
+     "local_port": 40023,
+     "opened_at": 1790002959.899
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003081.011,
+     "id": 25,
+     "last_seen": 1790003081.011,
+     "local_port": 40024,
+     "opened_at": 1790003080.011
+    }
+   ],
+   "explain": {
+    "confidence": {
+     "level": "Medium",
+     "reason": "Several separate signals point the same way, but none of them is conclusive."
+    },
+    "signals": [
+     {
+      "signal": "timer",
+      "strength": 1.0,
+      "text": "Contacts it on a steady timer (about every 2 min, very regular)"
+     },
+     {
+      "signal": "new_program",
+      "strength": 1.0,
+      "text": "First time this program used the network since Vigil started watching"
+     },
+     {
+      "signal": "new_destination",
+      "strength": 1.0,
+      "text": "First time this PC has talked to this server since Vigil started watching"
+     },
+     {
+      "signal": "hidden_dir",
+      "strength": 1.0,
+      "text": "Runs from a hidden folder (/home/a/.cache/u.py)"
+     },
+     {
+      "signal": "duration",
+      "strength": 0.79,
+      "text": "Has kept this up for 48 min"
+     },
+     {
+      "signal": "rare",
+      "strength": 1.0,
+      "text": "No other program on this PC talks to this server"
+     },
+     {
+      "signal": "plain_http",
+      "strength": 0.5,
+      "text": "Uses unencrypted HTTP, so anyone on the network path can read it"
+     }
+    ],
+    "summary": "u.py has contacted 93.184.216.34 over plain HTTP about every 2 min since 14:16.",
+    "why": [
+     {
+      "group": "timer",
+      "text": "Updaters, sync tools and chat apps do this. So does malware checking in with its owner. A timer alone is never enough to raise an alert."
+     },
+     {
+      "group": "new",
+      "text": "Most new things are harmless: a new app or a new website. But almost everything bad is new too."
+     },
+     {
+      "group": "location",
+      "text": "Installed software lives in /usr or /opt. Temporary and hidden folders are where downloaded payloads hide."
+     },
+     {
+      "group": "rare",
+      "text": "Popular servers are shared by many programs. One only this program uses is worth a look."
+     },
+     {
+      "group": "plain_http",
+      "text": "Anyone between you and the server can read or change unencrypted traffic. Some background checks still use it on purpose, because they carry nothing private."
+     }
+    ]
+   },
+   "findings": [
+    {
+     "at": 1790021600.0,
+     "check": "beacon",
+     "data": "connections table: 25 connections to tcp 93.184.216.34:80 opened 14:16:40–15:04:40, start times measured to ±2 s",
+     "points": 45.0,
+     "reason": "Periodic: every 120 s ± 1% (coefficient of variation 0.01 over 25 check-ins)",
+     "stats": {
+      "checkins": 25,
+      "connections": 25,
+      "cv": 0.012,
+      "first": 1790000200.964,
+      "interval": 120.0,
+      "last": 1790003080.011,
+      "missed": 0,
+      "pauses": [],
+      "poll": 2.0,
+      "signal": "timer"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "beacon",
+     "data": "connections table: 25 connections to tcp 93.184.216.34:80 opened 14:16:40–15:04:40, start times measured to ±2 s",
+     "points": 7.9,
+     "reason": "Kept up for 47m 59s (25 check-ins counting missed ones)",
+     "stats": {
+      "first": 1790000200.964,
+      "last": 1790003080.011,
+      "samples": 25,
+      "signal": "duration",
+      "span": 2879
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "first_seen",
+     "data": "destinations table (first-seen tracking)",
+     "points": 15,
+     "reason": "New destination: first contacted at 14:16:40, after Vigil's baseline of 2026-09-21 14:13",
+     "stats": {
+      "at": 1790000200.0,
+      "baseline": 1790000000.0,
+      "signal": "new_destination"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "first_seen",
+     "data": "programs table (first outbound connection)",
+     "points": 20,
+     "reason": "This program made its first outbound connection at 14:15:00; it had not used the network since Vigil started watching",
+     "stats": {
+      "at": 1790000100.0,
+      "signal": "new_program"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "rarity",
+     "data": "pairs table (all programs, all time)",
+     "points": 5,
+     "reason": "Rare: only this program has ever contacted this address (3 connections in Vigil's history)",
+     "stats": {
+      "connections": 3,
+      "programs": 1,
+      "signal": "rare"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "process_location",
+     "data": "/proc/5120/exe and cmdline at last poll",
+     "points": 10,
+     "reason": "Runs from a hidden directory (/home/a/.cache/u.py)",
+     "stats": {
+      "path": "/home/a/.cache/u.py",
+      "signal": "hidden_dir"
+     }
+    }
+   ],
+   "key": [
+    "/usr/bin/python3.12 /home/a/.cache/u.py",
+    "93.184.216.34",
+    80,
+    "tcp",
+    "out"
+   ],
+   "pair": {
+    "direction": "out",
+    "ip": "93.184.216.34",
+    "port": 80,
+    "program": "/usr/bin/python3.12 /home/a/.cache/u.py",
+    "proto": "tcp",
+    "scope": "internet"
+   },
+   "score": 100.0,
+   "view": {
+    "severity": "High",
+    "title": "u.py sends plain HTTP to 93.184.216.34 every ~2 min",
+    "to": "93.184.216.34",
+    "who": "u.py"
+   }
+  },
+  "ssh-in": {
+   "conns": [
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": null,
+     "id": 1,
+     "last_seen": 1790021600.0,
+     "local_port": 22,
+     "opened_at": 1790012600.0
+    }
+   ],
+   "explain": {
+    "confidence": {
+     "level": "Low",
+     "reason": "Only common patterns, each with innocent explanations."
+    },
+    "signals": [
+     {
+      "signal": "long",
+      "strength": 0.61,
+      "text": "Has kept one connection open for 2 h 30 min"
+     },
+     {
+      "signal": "new_destination",
+      "strength": 1.0,
+      "text": "First time this PC has talked to this server since Vigil started watching"
+     }
+    ],
+    "summary": "SSH has kept one connection to 203.0.113.10 on your network open for 2 h 30 min.",
+    "why": [
+     {
+      "group": "long",
+      "text": "Chat apps, sync tools and VPNs keep connections open for hours. So do remote-control tools."
+     },
+     {
+      "group": "new",
+      "text": "Most new things are harmless: a new app or a new website. But almost everything bad is new too."
+     }
+    ]
+   },
+   "findings": [
+    {
+     "at": 1790021600.0,
+     "check": "long_connection",
+     "data": "connections table: connection #1, local port 22",
+     "points": 18.2,
+     "reason": "One connection open 2h 30m (since 17:43:20, still open)",
+     "stats": {
+      "at_least": false,
+      "closed_at": null,
+      "duration": 9000,
+      "opened_at": 1790012600.0,
+      "signal": "long"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "first_seen",
+     "data": "destinations table (first-seen tracking)",
+     "points": 15,
+     "reason": "New destination: first contacted at 15:13:20, after Vigil's baseline of 2026-09-21 14:13",
+     "stats": {
+      "at": 1790003600.0,
+      "baseline": 1790000000.0,
+      "signal": "new_destination"
+     }
+    }
+   ],
+   "key": [
+    "/usr/bin/ssh",
+    "203.0.113.10",
+    22,
+    "tcp",
+    "in"
+   ],
+   "pair": {
+    "direction": "in",
+    "ip": "203.0.113.10",
+    "port": 22,
+    "program": "/usr/bin/ssh",
+    "proto": "tcp",
+    "scope": "internet"
+   },
+   "score": 33.2,
+   "view": {
+    "severity": "Medium",
+    "title": "203.0.113.10 on your network connects in to SSH",
+    "to": "203.0.113.10 on your network",
+    "who": "SSH"
+   }
+  },
+  "ssh-long": {
+   "conns": [
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": null,
+     "id": 1,
+     "last_seen": 1790021600.0,
+     "local_port": 50000,
+     "opened_at": 1789999900.0
+    }
+   ],
+   "explain": {
+    "confidence": {
+     "level": "Low",
+     "reason": "Only common patterns, each with innocent explanations."
+    },
+    "signals": [
+     {
+      "signal": "long",
+      "strength": 0.86,
+      "text": "Has kept one connection open for 6 h 1 min or more"
+     }
+    ],
+    "summary": "SSH has kept one connection to 192.168.1.5 on your network open for 6 h 1 min.",
+    "why": [
+     {
+      "group": "long",
+      "text": "Chat apps, sync tools and VPNs keep connections open for hours. So do remote-control tools."
+     }
+    ]
+   },
+   "findings": [
+    {
+     "at": 1790021600.0,
+     "check": "long_connection",
+     "data": "connections table: connection #1, local port 50000",
+     "points": 25.8,
+     "reason": "One connection open at least 6h 1m (since 14:11:40, still open)",
+     "stats": {
+      "at_least": true,
+      "closed_at": null,
+      "duration": 21700,
+      "opened_at": 1789999900.0,
+      "signal": "long"
+     }
+    }
+   ],
+   "key": [
+    "/usr/bin/ssh",
+    "192.168.1.5",
+    22,
+    "tcp",
+    "out"
+   ],
+   "pair": {
+    "direction": "out",
+    "ip": "192.168.1.5",
+    "port": 22,
+    "program": "/usr/bin/ssh",
+    "proto": "tcp",
+    "scope": "lan"
+   },
+   "score": 25.8,
+   "view": {
+    "severity": "Medium",
+    "title": "SSH keeps a connection open for 6 hours",
+    "to": "192.168.1.5 on your network",
+    "who": "SSH"
+   }
+  },
+  "syncd-timer": {
+   "conns": [
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1789999999.74,
+     "id": 1,
+     "last_seen": 1789999999.74,
+     "local_port": 40000,
+     "opened_at": 1789999998.74
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000301.001,
+     "id": 2,
+     "last_seen": 1790000301.001,
+     "local_port": 40001,
+     "opened_at": 1790000300.001
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000599.067,
+     "id": 3,
+     "last_seen": 1790000599.067,
+     "local_port": 40002,
+     "opened_at": 1790000598.067
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790000900.082,
+     "id": 4,
+     "last_seen": 1790000900.082,
+     "local_port": 40003,
+     "opened_at": 1790000899.082
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001198.109,
+     "id": 5,
+     "last_seen": 1790001198.109,
+     "local_port": 40004,
+     "opened_at": 1790001197.109
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001499.503,
+     "id": 6,
+     "last_seen": 1790001499.503,
+     "local_port": 40005,
+     "opened_at": 1790001498.503
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790001798.092,
+     "id": 7,
+     "last_seen": 1790001798.092,
+     "local_port": 40006,
+     "opened_at": 1790001797.092
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002102.398,
+     "id": 8,
+     "last_seen": 1790002102.398,
+     "local_port": 40007,
+     "opened_at": 1790002101.398
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002401.306,
+     "id": 9,
+     "last_seen": 1790002401.306,
+     "local_port": 40008,
+     "opened_at": 1790002400.306
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790002699.137,
+     "id": 10,
+     "last_seen": 1790002699.137,
+     "local_port": 40009,
+     "opened_at": 1790002698.137
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003000.849,
+     "id": 11,
+     "last_seen": 1790003000.849,
+     "local_port": 40010,
+     "opened_at": 1790002999.849
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003303.608,
+     "id": 12,
+     "last_seen": 1790003303.608,
+     "local_port": 40011,
+     "opened_at": 1790003302.608
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003598.638,
+     "id": 13,
+     "last_seen": 1790003598.638,
+     "local_port": 40012,
+     "opened_at": 1790003597.638
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790003902.914,
+     "id": 14,
+     "last_seen": 1790003902.914,
+     "local_port": 40013,
+     "opened_at": 1790003901.914
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004200.593,
+     "id": 15,
+     "last_seen": 1790004200.593,
+     "local_port": 40014,
+     "opened_at": 1790004199.593
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004500.97,
+     "id": 16,
+     "last_seen": 1790004500.97,
+     "local_port": 40015,
+     "opened_at": 1790004499.97
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790004803.008,
+     "id": 17,
+     "last_seen": 1790004803.008,
+     "local_port": 40016,
+     "opened_at": 1790004802.008
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005100.359,
+     "id": 18,
+     "last_seen": 1790005100.359,
+     "local_port": 40017,
+     "opened_at": 1790005099.359
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005401.04,
+     "id": 19,
+     "last_seen": 1790005401.04,
+     "local_port": 40018,
+     "opened_at": 1790005400.04
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790005702.126,
+     "id": 20,
+     "last_seen": 1790005702.126,
+     "local_port": 40019,
+     "opened_at": 1790005701.126
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790006003.895,
+     "id": 21,
+     "last_seen": 1790006003.895,
+     "local_port": 40020,
+     "opened_at": 1790006002.895
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790006300.056,
+     "id": 22,
+     "last_seen": 1790006300.056,
+     "local_port": 40021,
+     "opened_at": 1790006299.056
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790006602.994,
+     "id": 23,
+     "last_seen": 1790006602.994,
+     "local_port": 40022,
+     "opened_at": 1790006601.994
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790006902.24,
+     "id": 24,
+     "last_seen": 1790006902.24,
+     "local_port": 40023,
+     "opened_at": 1790006901.24
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790007201.816,
+     "id": 25,
+     "last_seen": 1790007201.816,
+     "local_port": 40024,
+     "opened_at": 1790007200.816
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790007500.428,
+     "id": 26,
+     "last_seen": 1790007500.428,
+     "local_port": 40025,
+     "opened_at": 1790007499.428
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790007800.085,
+     "id": 27,
+     "last_seen": 1790007800.085,
+     "local_port": 40026,
+     "opened_at": 1790007799.085
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790008098.326,
+     "id": 28,
+     "last_seen": 1790008098.326,
+     "local_port": 40027,
+     "opened_at": 1790008097.326
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790008398.779,
+     "id": 29,
+     "last_seen": 1790008398.779,
+     "local_port": 40028,
+     "opened_at": 1790008397.779
+    },
+    {
+     "bytes_recv": null,
+     "bytes_sent": null,
+     "closed_at": 1790008698.424,
+     "id": 30,
+     "last_seen": 1790008698.424,
+     "local_port": 40029,
+     "opened_at": 1790008697.424
+    }
+   ],
+   "explain": {
+    "confidence": {
+     "level": "Low",
+     "reason": "Only common patterns, each with innocent explanations."
+    },
+    "signals": [
+     {
+      "signal": "timer",
+      "strength": 1.0,
+      "text": "Contacts it on a steady timer (about every 5 min, very regular)"
+     },
+     {
+      "signal": "duration",
+      "strength": 1.0,
+      "text": "Has kept this up for 2 h 24 min"
+     }
+    ],
+    "summary": "syncd has contacted 198.51.100.20 on your network about every 5 min since 14:13.",
+    "why": [
+     {
+      "group": "timer",
+      "text": "Updaters, sync tools and chat apps do this. So does malware checking in with its owner. A timer alone is never enough to raise an alert."
+     }
+    ]
+   },
+   "findings": [
+    {
+     "at": 1790021600.0,
+     "check": "beacon",
+     "data": "connections table: 30 connections to tcp 198.51.100.20:443 opened 14:13:18–16:38:17, start times measured to ±2 s",
+     "points": 45.0,
+     "reason": "Periodic: every 4m 59s ± 1% (coefficient of variation 0.01 over 30 check-ins)",
+     "stats": {
+      "checkins": 30,
+      "connections": 30,
+      "cv": 0.007,
+      "first": 1789999998.74,
+      "interval": 300.0,
+      "last": 1790008697.424,
+      "missed": 0,
+      "pauses": [],
+      "poll": 2.0,
+      "signal": "timer"
+     }
+    },
+    {
+     "at": 1790021600.0,
+     "check": "beacon",
+     "data": "connections table: 30 connections to tcp 198.51.100.20:443 opened 14:13:18–16:38:17, start times measured to ±2 s",
+     "points": 10.0,
+     "reason": "Kept up for 2h 24m (30 check-ins counting missed ones)",
+     "stats": {
+      "first": 1789999998.74,
+      "last": 1790008697.424,
+      "samples": 30,
+      "signal": "duration",
+      "span": 8699
+     }
+    }
+   ],
+   "key": [
+    "/usr/bin/syncd",
+    "198.51.100.20",
+    443,
+    "tcp",
+    "out"
+   ],
+   "pair": {
+    "direction": "out",
+    "ip": "198.51.100.20",
+    "port": 443,
+    "program": "/usr/bin/syncd",
+    "proto": "tcp",
+    "scope": "internet"
+   },
+   "score": 55.0,
+   "view": {
+    "severity": "Medium",
+    "title": "syncd checks in every ~5 min",
+    "to": "198.51.100.20 on your network",
+    "who": "syncd"
+   }
+  }
+ },
+ "rules": {
+  "hits": [
+   "builtin-loopback",
+   "builtin-ntp",
+   "builtin-ntp",
+   "builtin-dns-lan",
+   "user-1",
+   "builtin-networkmanager",
+   null,
+   "builtin-packagekit",
+   "builtin-apt",
+   "builtin-mdns",
+   null,
+   "user-4"
+  ],
+  "pairs": [
+   {
+    "direction": "out",
+    "ip": "127.0.0.1",
+    "port": 80,
+    "program": "/usr/bin/curl",
+    "proto": "tcp"
+   },
+   {
+    "direction": "out",
+    "ip": "162.159.200.1",
+    "port": 123,
+    "program": "/usr/sbin/chronyd",
+    "proto": "udp"
+   },
+   {
+    "direction": "out",
+    "ip": "203.0.113.4",
+    "port": 123,
+    "program": "/usr/bin/x",
+    "proto": "udp"
+   },
+   {
+    "direction": "out",
+    "ip": "192.168.1.1",
+    "port": 53,
+    "program": "/usr/bin/x",
+    "proto": "udp"
+   },
+   {
+    "direction": "out",
+    "ip": "8.8.8.8",
+    "port": 53,
+    "program": "/usr/bin/x",
+    "proto": "udp"
+   },
+   {
+    "direction": "out",
+    "ip": "34.107.221.82",
+    "port": 80,
+    "program": "/usr/sbin/NetworkManager",
+    "proto": "tcp"
+   },
+   {
+    "direction": "in",
+    "ip": "34.107.221.82",
+    "port": 80,
+    "program": "/usr/bin/NetworkManager",
+    "proto": "tcp"
+   },
+   {
+    "direction": "out",
+    "ip": "1.2.3.4",
+    "port": 443,
+    "program": "/usr/lib64/packagekitd",
+    "proto": "tcp"
+   },
+   {
+    "direction": "out",
+    "ip": "1.2.3.4",
+    "port": 80,
+    "program": "/usr/lib/apt/methods/http",
+    "proto": "tcp"
+   },
+   {
+    "direction": "out",
+    "ip": "224.0.0.251",
+    "port": 5353,
+    "program": "/usr/bin/avahi",
+    "proto": "udp"
+   },
+   {
+    "direction": "out",
+    "ip": "34.107.221.82",
+    "port": 80,
+    "program": "/tmp/NetworkManager",
+    "proto": "tcp"
+   },
+   {
+    "direction": "out",
+    "ip": "2001:db8::5",
+    "port": 9,
+    "program": "/usr/bin/y",
+    "proto": "tcp"
+   }
+  ],
+  "user": [
+   {
+    "enabled": true,
+    "id": "user-1",
+    "ip": "8.8.0.0/16",
+    "program": "/usr/bin/x",
+    "reason": "test"
+   },
+   {
+    "enabled": true,
+    "id": "user-2",
+    "ip": "*",
+    "port": 443,
+    "program": "*",
+    "proto": "tcp",
+    "reason": "test"
+   },
+   {
+    "enabled": true,
+    "id": "user-3",
+    "ip": "lan",
+    "program": "/usr/bin/[xy]",
+    "reason": "test"
+   },
+   {
+    "enabled": true,
+    "id": "user-4",
+    "ip": "2001:db8::/32",
+    "program": "/usr/bin/?",
+    "reason": "test"
+   }
+  ]
+ },
+ "series": {
+  "bursty": [
+   1789999999.274,
+   1790000001.165,
+   1790000089.243,
+   1790000089.823,
+   1790000179.884,
+   1790000180.363,
+   1790000269.145,
+   1790000270.531,
+   1790000359.481,
+   1790000360.178,
+   1790000449.146,
+   1790000449.891,
+   1790000540.137,
+   1790000540.339,
+   1790000630.568,
+   1790000630.944,
+   1790000719.539,
+   1790000720.794,
+   1790000809.309,
+   1790000810.608,
+   1790000900.381,
+   1790000900.432,
+   1790000989.536,
+   1790000990.321,
+   1790001079.286,
+   1790001080.163,
+   1790001170.748,
+   1790001170.766,
+   1790001260.525,
+   1790001260.935,
+   1790001349.439,
+   1790001349.629,
+   1790001440.905,
+   1790001441.47,
+   1790001529.797,
+   1790001531.077,
+   1790001619.975,
+   1790001621.443,
+   1790001709.71,
+   1790001710.98
+  ],
+  "jitter-15pct": [
+   1789999984.184,
+   1790000127.254,
+   1790000245.297,
+   1790000377.751,
+   1790000491.589,
+   1790000592.245,
+   1790000715.888,
+   1790000846.071,
+   1790000942.812,
+   1790001078.621,
+   1790001188.05,
+   1790001306.215,
+   1790001424.122,
+   1790001569.656,
+   1790001666.656,
+   1790001790.914,
+   1790001916.074,
+   1790002053.371,
+   1790002144.901,
+   1790002278.171,
+   1790002401.78,
+   1790002533.802,
+   1790002651.494,
+   1790002773.103,
+   1790002872.023,
+   1790002996.951,
+   1790003114.916,
+   1790003253.831,
+   1790003376.478,
+   1790003467.433
+  ],
+  "jitter-30pct": [
+   1789999976.688,
+   1790000100.701,
+   1790000220.8,
+   1790000358.917,
+   1790000486.417,
+   1790000582.918,
+   1790000684.295,
+   1790000834.164,
+   1790000950.586,
+   1790001084.777,
+   1790001232.623,
+   1790001333.716,
+   1790001441.115,
+   1790001568.467,
+   1790001692.686,
+   1790001767.887,
+   1790001948.766,
+   1790002060.158,
+   1790002186.965,
+   1790002301.447,
+   1790002392.251,
+   1790002512.726,
+   1790002611.455,
+   1790002769.669,
+   1790002848.482,
+   1790002968.849,
+   1790003099.031,
+   1790003215.686,
+   1790003348.484,
+   1790003447.785
+  ],
+  "missed": [
+   1790000000.363,
+   1790000060.196,
+   1790000119.761,
+   1790000179.867,
+   1790000239.667,
+   1790000420.272,
+   1790000480.033,
+   1790000540.279,
+   1790000599.83,
+   1790000659.723,
+   1790000720.312,
+   1790000780.485,
+   1790000840.353,
+   1790000900.306,
+   1790000960.318,
+   1790001080.24,
+   1790001139.727,
+   1790001200.018,
+   1790001259.856,
+   1790001319.529,
+   1790001379.528,
+   1790001439.779,
+   1790001499.759,
+   1790001560.193,
+   1790001620.457,
+   1790001679.947,
+   1790001740.437,
+   1790001860.488,
+   1790001920.455,
+   1790001979.865,
+   1790002039.72,
+   1790002099.727,
+   1790002159.697,
+   1790002219.704,
+   1790002280.124,
+   1790002340.4
+  ],
+  "noisy": [
+   1789999940.028,
+   1790000058.152,
+   1790000152.176,
+   1790000283.633,
+   1790000343.06,
+   1790000544.92,
+   1790000613.688,
+   1790000657.826,
+   1790000770.271,
+   1790000881.687,
+   1790000983.7,
+   1790001054.741,
+   1790001241.872,
+   1790001359.172,
+   1790001395.919,
+   1790001498.06,
+   1790001550.306,
+   1790001652.263,
+   1790001781.116,
+   1790001871.771,
+   1790002039.463,
+   1790002059.373,
+   1790002142.771,
+   1790002354.118,
+   1790002403.391,
+   1790002457.592,
+   1790002605.181,
+   1790002643.245,
+   1790002803.373,
+   1790002957.42
+  ],
+  "pause": [
+   1790000000.34,
+   1790000059.979,
+   1790000120.153,
+   1790000180.3,
+   1790000239.585,
+   1790000300.161,
+   1790000360.41,
+   1790000420.282,
+   1790000480.25,
+   1790000539.978,
+   1790000599.679,
+   1790000660.289,
+   1790000719.833,
+   1790000780.301,
+   1790000840.472,
+   1790005899.896,
+   1790005959.901,
+   1790006020.447,
+   1790006080.225,
+   1790006139.67,
+   1790006199.627,
+   1790006259.651,
+   1790006320.405,
+   1790006380.307,
+   1790006439.646,
+   1790006500.327,
+   1790006560.48,
+   1790006620.157,
+   1790006679.85,
+   1790006740.049
+  ],
+  "steady-300": [
+   1789999999.719,
+   1790000298.799,
+   1790000601.766,
+   1790000901.194,
+   1790001198.465,
+   1790001500.447,
+   1790001800.151,
+   1790002102.251,
+   1790002401.377,
+   1790002698.728,
+   1790003002.881,
+   1790003297.708,
+   1790003599.509,
+   1790003901.543,
+   1790004197.912,
+   1790004499.934,
+   1790004797.235,
+   1790005101.009,
+   1790005401.587,
+   1790005700.438,
+   1790006002.253,
+   1790006298.882,
+   1790006601.172,
+   1790006900.566,
+   1790007200.479,
+   1790007499.737,
+   1790007802.04,
+   1790008102.668,
+   1790008399.845,
+   1790008700.985
+  ],
+  "steady-60": [
+   1789999999.824,
+   1790000059.651,
+   1790000120.151,
+   1790000179.572,
+   1790000240.036,
+   1790000299.866,
+   1790000359.558,
+   1790000420.007,
+   1790000479.537,
+   1790000539.934,
+   1790000599.57,
+   1790000659.591,
+   1790000719.925,
+   1790000780.327,
+   1790000839.624,
+   1790000899.723,
+   1790000960.127,
+   1790001020.448,
+   1790001080.077,
+   1790001139.897,
+   1790001200.476,
+   1790001259.547,
+   1790001320.358,
+   1790001379.79,
+   1790001439.644,
+   1790001499.618,
+   1790001559.808,
+   1790001620.316,
+   1790001679.681,
+   1790001740.082,
+   1790001800.139,
+   1790001859.872,
+   1790001920.048,
+   1790001979.563,
+   1790002039.56,
+   1790002099.706,
+   1790002160.18,
+   1790002219.928,
+   1790002279.814,
+   1790002340.086
+  ],
+  "too-fast": [
+   1790000000.173,
+   1790000003.974,
+   1790000008.149,
+   1790000012.13,
+   1790000015.884,
+   1790000019.901,
+   1790000023.917,
+   1790000027.896,
+   1790000032.035,
+   1790000035.904,
+   1790000039.968,
+   1790000043.852,
+   1790000048.164,
+   1790000051.942,
+   1790000055.983,
+   1790000060.033,
+   1790000064.162,
+   1790000067.968,
+   1790000072.167,
+   1790000076.001,
+   1790000080.013,
+   1790000084.009,
+   1790000087.807,
+   1790000091.976,
+   1790000095.873,
+   1790000099.802,
+   1790000104.12,
+   1790000107.869,
+   1790000111.989,
+   1790000116.09,
+   1790000120.023,
+   1790000123.93,
+   1790000128.007,
+   1790000132.022,
+   1790000136.114,
+   1790000139.842,
+   1790000144.024,
+   1790000147.899,
+   1790000151.911,
+   1790000156.109,
+   1790000160.003,
+   1790000164.025,
+   1790000168.104,
+   1790000172.165,
+   1790000175.977,
+   1790000180.045,
+   1790000184.002,
+   1790000188.005,
+   1790000192.077,
+   1790000195.981,
+   1790000200.013,
+   1790000203.991,
+   1790000208.177,
+   1790000212.08,
+   1790000216.151,
+   1790000220.177,
+   1790000223.904,
+   1790000228.024,
+   1790000232.177,
+   1790000236.136
+  ],
+  "too-few": [
+   1790000000.0,
+   1790000060.0,
+   1790000120.0,
+   1790000180.0,
+   1790000240.0
+  ]
+ },
+ "t0": 1790000000.0
+}

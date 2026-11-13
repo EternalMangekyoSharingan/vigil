@@ -93,3 +93,29 @@ fn events_and_findings_round_trip() {
     s.put_finding(&f, 9.0).unwrap();
     assert_eq!(s.findings().unwrap(), vec![f]);
 }
+
+/// Milestone 3: the first look sets the baseline once; the scorer's queries see the fixture.
+#[test]
+fn baseline_and_scorer_queries() {
+    let d = std::env::temp_dir().join(format!("vigil-store-m3-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    materialise_fixture(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/proc"),
+        &d.join("proc"),
+    )
+    .unwrap();
+    let root = ProcRoot::at(d.join("proc"));
+    let mut s = Store::memory().unwrap();
+    assert_eq!(s.baseline().unwrap(), None);
+    s.record_net(&root.net_snapshot(1000.0, 0)).unwrap();
+    s.record_net(&root.net_snapshot(1002.0, 0)).unwrap();
+    assert_eq!(s.baseline().unwrap(), Some(1000.0), "set by the first look, never moved");
+    let rows = s.scoring_rows(1002.0, 3600.0).unwrap();
+    assert!(!rows.is_empty() && rows.iter().all(|r| !r.program.is_empty()));
+    assert!(rows.iter().any(|r| r.ip == "198.51.100.20" && r.remote_port == 4444), "the planted agent");
+    let prev = s.prevalence().unwrap();
+    assert!(prev.iter().any(|(ip, programs, conns)| ip == "198.51.100.20" && *programs == 1 && *conns >= 1));
+    assert!(!s.destination_rows().unwrap().is_empty() && !s.program_rows().unwrap().is_empty());
+    let _ = std::fs::remove_dir_all(&d);
+}

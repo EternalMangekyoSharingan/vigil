@@ -359,3 +359,145 @@ paths = [f"{H}/.ssh/id_ed25519", f"{H}/.ssh/id_ed25519.pub", f"{H}/.ssh/known_ho
     "classify": {p: TS.classify(p) for p in paths},
 }, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
 print(f"wrote {OUT / 'tasks.json'}: {len(fixture_procs)} fixture processes, {len(case_procs)} cases")
+
+
+# ---- Network: Vigil 1's scoring and alert wording (net/scoring.py, net/wording.py) ---------
+# SYNTHETIC connection histories. Times are printed as clock times, so this part runs in UTC
+# (the Rust side is given a UTC offset of 0).
+import os as _os  # noqa: E402
+import random  # noqa: E402
+import time as _time  # noqa: E402
+
+_os.environ["TZ"] = "UTC"
+_time.tzset()
+from vigil.net import scoring as NS  # noqa: E402
+from vigil.net import wording as NW  # noqa: E402
+
+rng = random.Random(7)
+T0 = 1_790_000_000.0
+NOW = T0 + 6 * 3600
+
+
+def series(interval, n, jitter=0.0, start=T0, skip=(), pause_after=None, pause=0.0):
+    out, t = [], start
+    for i in range(n):
+        if i not in skip:
+            out.append(round(t + rng.uniform(-jitter, jitter), 3))
+        t += interval
+        if pause_after is not None and i == pause_after:
+            t += pause
+    return out
+
+
+SERIES = {
+    "steady-60": series(60, 40, 0.5), "steady-300": series(300, 30, 3),
+    "jitter-15pct": series(120, 30, 18), "jitter-30pct": series(120, 30, 36),
+    "noisy": series(100, 30, 60), "missed": series(60, 40, 0.5, skip={5, 6, 17, 30}),
+    "pause": series(60, 30, 0.5, pause_after=14, pause=5000), "too-few": series(60, 5),
+    "too-fast": series(4, 60, 0.2), "bursty": sorted(series(90, 20, 1) + series(90, 20, 1, start=T0 + 0.5)),
+}
+beacon = {k: NS.beacon_stats(v, 2.0) for k, v in SERIES.items()}
+
+
+def conns_of(times, closed_after=1.0, start_id=1):
+    return [{"id": start_id + i, "opened_at": t, "closed_at": t + closed_after, "last_seen": t + closed_after,
+             "bytes_sent": None, "bytes_recv": None, "local_port": 40000 + i} for i, t in enumerate(times)]
+
+
+beacon_f = {k: NS.beacon_findings(conns_of(v), 2.0, "tcp 203.0.113.7:443") for k, v in SERIES.items()}
+LONG = {
+    "short": [{"id": 1, "opened_at": NOW - 600, "closed_at": None, "local_port": 5}],
+    "open-2h": [{"id": 2, "opened_at": NOW - 7200, "closed_at": None, "local_port": 6}],
+    "closed-9h": [{"id": 3, "opened_at": NOW - 40000, "closed_at": NOW - 7000, "local_port": 7}],
+    "baseline": [{"id": 4, "opened_at": T0 - 100, "closed_at": None, "local_port": 8}],
+}
+long_f = {k: NS.long_connection_finding(v, NOW, T0) for k, v in LONG.items()}
+LOC = {
+    "tmp": ({"exe": "/tmp/x/agent", "pid": 7}, "/tmp/x/agent"),
+    "hidden": ({"exe": "/home/a/.hidden/bin/m", "pid": 8}, "/home/a/.hidden/bin/m"),
+    "hidden-ok": ({"exe": "/home/a/.local/bin/tool", "pid": 9}, "/home/a/.local/bin/tool"),
+    "script-tmp": ({"exe": "/usr/bin/python3.12", "pid": 10}, "/usr/bin/python3.12 /tmp/s.py"),
+    "deleted": ({"exe": "/usr/bin/x (deleted)", "pid": 11, "exe_deleted": True}, "/usr/bin/x"),
+    "plain": ({"exe": "/usr/bin/curl", "pid": 12}, "/usr/bin/curl"),
+}
+loc_f = {k: NS.location_findings(i, key) for k, (i, key) in LOC.items()}
+PAIRS = [
+    {"program": "/usr/bin/curl", "ip": "127.0.0.1", "port": 80, "proto": "tcp", "direction": "out"},
+    {"program": "/usr/sbin/chronyd", "ip": "162.159.200.1", "port": 123, "proto": "udp", "direction": "out"},
+    {"program": "/usr/bin/x", "ip": "203.0.113.4", "port": 123, "proto": "udp", "direction": "out"},
+    {"program": "/usr/bin/x", "ip": "192.168.1.1", "port": 53, "proto": "udp", "direction": "out"},
+    {"program": "/usr/bin/x", "ip": "8.8.8.8", "port": 53, "proto": "udp", "direction": "out"},
+    {"program": "/usr/sbin/NetworkManager", "ip": "34.107.221.82", "port": 80, "proto": "tcp", "direction": "out"},
+    {"program": "/usr/bin/NetworkManager", "ip": "34.107.221.82", "port": 80, "proto": "tcp", "direction": "in"},
+    {"program": "/usr/lib64/packagekitd", "ip": "1.2.3.4", "port": 443, "proto": "tcp", "direction": "out"},
+    {"program": "/usr/lib/apt/methods/http", "ip": "1.2.3.4", "port": 80, "proto": "tcp", "direction": "out"},
+    {"program": "/usr/bin/avahi", "ip": "224.0.0.251", "port": 5353, "proto": "udp", "direction": "out"},
+    {"program": "/tmp/NetworkManager", "ip": "34.107.221.82", "port": 80, "proto": "tcp", "direction": "out"},
+]
+USER_RULES = [
+    {"id": "user-1", "program": "/usr/bin/x", "ip": "8.8.0.0/16", "reason": "test", "enabled": True},
+    {"id": "user-2", "program": "*", "ip": "*", "port": 443, "proto": "tcp", "reason": "test", "enabled": True},
+    {"id": "user-3", "program": "/usr/bin/[xy]", "ip": "lan", "reason": "test", "enabled": True},
+    {"id": "user-4", "program": "/usr/bin/?", "ip": "2001:db8::/32", "reason": "test", "enabled": True},
+]
+rules = [dict(r, enabled=True) for r in NS.BUILTIN_RULES] + USER_RULES
+PAIRS.append({"program": "/usr/bin/y", "ip": "2001:db8::5", "port": 9, "proto": "tcp", "direction": "out"})
+rule_hits = [next((r["id"] for r in rules if NS.rule_matches(r, p)), None) for p in PAIRS]
+
+# Whole pairs: score_pair with a context, then the alert's words (no names, places or
+# known-service matches: Vigil 2 has no offline databases yet).
+scorer = NS.Scorer(None, None, poll_interval=2.0)
+PROGS = {
+    "/tmp/.x/agent": {"key": "/tmp/.x/agent", "name": "agent", "first_outbound": T0 + 3600,
+                      "info": json.dumps({"exe": "/tmp/.x/agent", "pid": 7000})},
+    "/usr/bin/syncd": {"key": "/usr/bin/syncd", "name": "syncd", "first_outbound": T0 - 50000,
+                       "info": json.dumps({"exe": "/usr/bin/syncd", "pid": 400})},
+    "/usr/bin/python3.12 /home/a/.cache/u.py": {"key": "/usr/bin/python3.12 /home/a/.cache/u.py",
+                                                "name": "u.py (python3.12)", "first_outbound": T0 + 100,
+                                                "info": json.dumps({"exe": "/usr/bin/python3.12", "pid": 5120})},
+    "/usr/bin/ssh": {"key": "/usr/bin/ssh", "name": "ssh", "first_outbound": T0 - 99999,
+                     "info": json.dumps({"exe": "/usr/bin/ssh", "pid": 6000})},
+}
+DESTS = {"203.0.113.10": {"ip": "203.0.113.10", "scope": "internet", "first_seen": T0 + 3600},
+         "198.51.100.20": {"ip": "198.51.100.20", "scope": "internet", "first_seen": T0 - 9999},
+         "93.184.216.34": {"ip": "93.184.216.34", "scope": "internet", "first_seen": T0 + 200},
+         "192.168.1.5": {"ip": "192.168.1.5", "scope": "lan", "first_seen": T0 - 10}}
+CTX = {"now": NOW, "baseline": T0, "programs": PROGS, "destinations": DESTS,
+       "prevalence": {"203.0.113.10": (1, 30), "198.51.100.20": (3, 90), "93.184.216.34": (1, 3),
+                      "192.168.1.5": (1, 2)}}
+CASES = [
+    ("agent-beacon", ("/tmp/.x/agent", "203.0.113.10", 4444, "tcp", "out"),
+     conns_of(series(60, 40, 0.5, start=T0 + 3600))),
+    ("syncd-timer", ("/usr/bin/syncd", "198.51.100.20", 443, "tcp", "out"), conns_of(series(300, 30, 3))),
+    ("script-http", ("/usr/bin/python3.12 /home/a/.cache/u.py", "93.184.216.34", 80, "tcp", "out"),
+     conns_of(series(120, 25, 2, start=T0 + 200))),
+    ("ssh-long", ("/usr/bin/ssh", "192.168.1.5", 22, "tcp", "out"),
+     [{"id": 1, "opened_at": T0 - 100, "closed_at": None, "last_seen": NOW, "bytes_sent": None,
+       "bytes_recv": None, "local_port": 50000}]),
+    ("ssh-in", ("/usr/bin/ssh", "203.0.113.10", 22, "tcp", "in"),
+     [{"id": 1, "opened_at": NOW - 9000, "closed_at": None, "last_seen": NOW, "bytes_sent": None,
+       "bytes_recv": None, "local_port": 22}]),
+]
+pair_out = {}
+for name, key, conns in CASES:
+    pair, score, fs = scorer.score_pair(key, conns, dict(CTX))
+    prog = PROGS[key[0]]
+    ctx = {"program": key[0], "name": prog["name"], "hidden": None, "info": json.loads(prog["info"]),
+           "ip": key[1], "port": key[2], "proto": key[3], "direction": key[4], "score": score, "findings": fs,
+           "first_raised": NOW, "hosts": [], "geo": None, "scope": pair["scope"], "service": None, "poll": 2.0}
+    view = NW.present(ctx, now=NOW)
+    pair_out[name] = {"key": list(key), "conns": conns, "pair": pair, "score": score, "findings": fs,
+                      "view": {k: view[k] for k in ("title", "severity", "who", "to")},
+                      "explain": {k: view["explain"][k] for k in ("summary", "signals", "why", "confidence")}}
+(OUT / "net.json").write_text(json.dumps({
+    "_note": "SYNTHETIC: Vigil 1's network scoring and alert wording on made-up connection histories, in UTC. "
+             "Regenerate with make_golden.py.",
+    "t0": T0, "now": NOW, "series": SERIES, "beacon_stats": beacon, "beacon_findings": beacon_f,
+    "long": {"cases": LONG, "findings": long_f}, "location": {"cases": {k: [i, key] for k, (i, key) in LOC.items()},
+                                                             "findings": loc_f},
+    "rules": {"user": USER_RULES, "pairs": PAIRS, "hits": rule_hits},
+    "context": {"programs": PROGS, "destinations": DESTS,
+                "prevalence": {k: list(v) for k, v in CTX["prevalence"].items()}},
+    "pairs": pair_out,
+}, indent=1, ensure_ascii=False, sort_keys=True) + "\n")
+print(f"wrote {OUT / 'net.json'}: {len(SERIES)} series, {len(CASES)} scored pairs")

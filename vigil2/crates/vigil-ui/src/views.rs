@@ -118,6 +118,17 @@ pub fn proc_findings(d: &Snapshot, pid: u32) -> Vec<&vigil_model::finding::Findi
     v
 }
 
+/// Current network alerts about program `key` (their evidence names the program), worst first.
+pub fn program_findings<'a>(d: &'a Snapshot, key: &str) -> Vec<&'a vigil_model::finding::Finding> {
+    let mut v: Vec<_> = d
+        .findings
+        .iter()
+        .filter(|f| f.tool == "net" && f.evidence.iter().any(|e| e.kind == "program" && e.value.as_str() == Some(key)))
+        .collect();
+    v.sort_by_key(|f| std::cmp::Reverse(f.severity.rank()));
+    v
+}
+
 /// The colour for a severity.
 pub fn sev_colour(t: &vigil_ui_core::theme::Theme, s: vigil_model::finding::Severity) -> Rgba {
     use vigil_model::finding::Severity;
@@ -131,6 +142,15 @@ pub fn sev_colour(t: &vigil_ui_core::theme::Theme, s: vigil_model::finding::Seve
 
 /// One program's processes: (count, CPU %, memory kB, executable).
 type ProgUse = (usize, f32, u64, String);
+
+/// "1 alert", "3 alerts", "2 addresses".
+pub fn count(n: usize, word: &str) -> String {
+    match (n, word.ends_with("ss")) {
+        (1, _) => format!("1 {word}"),
+        (_, true) => format!("{n} {word}es"),
+        _ => format!("{n} {word}s"),
+    }
+}
 
 /// "689 MB", "1.6 GB".
 pub fn mem(kb: u64) -> String {
@@ -1190,11 +1210,12 @@ impl Vigil {
                             .flex()
                             .gap(px(6.0))
                             .child(chip(
-                                format!("{} connections", socks.iter().filter(|s| s.kind == "connection").count()),
+                                count(socks.iter().filter(|s| s.kind == "connection").count(), "connection"),
                                 t.live,
                             ))
-                            .child(chip(format!("{} addresses", addrs.len()), t.text[1])),
+                            .child(chip(count(addrs.len(), "address"), t.text[1])),
                     )
+                    .children(self.findings_block(program_findings(d, key), cx))
                     .child(section("PROGRAM"))
                     .child(kv("Path", wording::printable(key)))
                     .child(kv("Processes", pids.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")))
@@ -1271,7 +1292,7 @@ impl Vigil {
                             .flex()
                             .gap(px(6.0))
                             .child(chip(where_.to_string(), t.live))
-                            .child(chip(format!("{} connections", socks.len()), t.text[1])),
+                            .child(chip(count(socks.len(), "connection"), t.text[1])),
                     )
                     .child(section("SERVICES"))
                     .child(div().child(ports.into_iter().collect::<Vec<_>>().join(", ")))
@@ -1604,7 +1625,7 @@ impl Vigil {
                     .child(self.stat("users", users.len().to_string()))
                     .child(self.stat("CPU in use", format!("{total_cpu:.0}%"))),
             )
-            .child(self.section_head("FLAGGED BY VIGIL", format!("{} findings", flagged.len())))
+            .child(self.section_head("FLAGGED BY VIGIL", count(flagged.len(), "finding")))
             .children(flagged_rows)
             .when(flagged.is_empty(), |el| {
                 el.child(div().text_size(px(12.5)).text_color(c(t.text[2])).child(
@@ -1677,6 +1698,30 @@ impl Vigil {
         let mut progs: Vec<(String, (usize, BTreeSet<&str>))> = per.into_iter().collect();
         progs.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then(a.0.cmp(&b.0)));
         let pmax = progs.first().map_or(1, |x| x.1 .0).max(1) as f32;
+        let alerts: Vec<&vigil_model::finding::Finding> = d.findings.iter().filter(|f| f.tool == "net").collect();
+        let mut alert_rows = vec![];
+        for (i, f) in alerts.iter().take(6).enumerate() {
+            let key = f.evidence.iter().find(|e| e.kind == "program").and_then(|e| e.value.as_str()).map(String::from);
+            alert_rows.push(
+                div()
+                    .id(("ov-alert", i as u64))
+                    .py(px(6.0))
+                    .px(px(6.0))
+                    .mx(px(-6.0))
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .rounded(px(t.radius_sm))
+                    .cursor_pointer()
+                    .hover(|s| s.bg(ca(Rgba(0xffffff0a), 1.0)))
+                    .child(chip(f.severity.as_str(), sev_colour(t, f.severity)))
+                    .child(div().flex_1().min_w(px(0.0)).truncate().child(wording::printable(&f.title)))
+                    .on_click(cx.listener(move |this, _: &ClickEvent, _w, cx| {
+                        this.sel = key.clone().map(Sel::Program);
+                        cx.notify();
+                    })),
+            );
+        }
         let mut prog_rows = vec![];
         for (i, (k, (n, addrs))) in progs.iter().take(9).enumerate() {
             prog_rows.push(self.rank_row(
@@ -1698,6 +1743,9 @@ impl Vigil {
             .flex()
             .flex_col()
             .child(div().text_size(px(16.0)).child("Talking right now"))
+            .when(!alerts.is_empty(), |el| {
+                el.child(self.section_head("FLAGGED BY VIGIL", count(alerts.len(), "alert"))).children(alert_rows)
+            })
             .child(
                 div()
                     .pt(px(12.0))

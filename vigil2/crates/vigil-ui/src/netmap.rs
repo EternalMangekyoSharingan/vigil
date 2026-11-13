@@ -470,6 +470,8 @@ impl Vigil {
                 .collect();
             let icon = self.icons.as_ref().and_then(|i| i.for_exe(&p.key)).map(|p| p.to_string_lossy().into_owned());
             let name = p.label.clone();
+            // A flagged program says so on its node; the inspector says why.
+            let flag = crate::views::program_findings(d, &p.key).into_iter().next();
             nodes.push(
                 div()
                     .id(id2("mprog", self.nav, i as u64))
@@ -513,6 +515,9 @@ impl Vigil {
                             .text_color(if hidden { c(t.text[2]) } else { c(t.text[0]) })
                             .child(p.label.clone()),
                     )
+                    .when_some(flag, |el, f| {
+                        el.child(crate::ui::chip(f.severity.as_str(), crate::views::sev_colour(&t, f.severity)))
+                    })
                     .child(
                         div()
                             .flex_none()

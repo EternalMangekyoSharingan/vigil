@@ -77,9 +77,29 @@ const MIGRATIONS: &[&str] = &[
         title TEXT NOT NULL, body TEXT NOT NULL, first_seen REAL NOT NULL, last_seen REAL NOT NULL
     );
     "#,
+    // 2: milestone 3: small facts the daemon keeps (when watching began).
+    r#"
+    CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT OR IGNORE INTO meta (key, value) SELECT 'baseline_at', CAST(min(first_seen) AS TEXT) FROM programs
+        WHERE EXISTS (SELECT 1 FROM programs);
+    "#,
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
+
+/// One connection as the network scorer reads it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScoringRow {
+    pub id: i64,
+    pub program: String,
+    pub ip: String,
+    pub direction: String,
+    pub proto: String,
+    pub local_port: u32,
+    pub remote_port: u32,
+    pub first_seen: f64,
+    pub last_seen: f64,
+}
 
 /// One connection as stored: when it was first and last seen open.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -185,6 +205,7 @@ impl Store {
     pub fn record_net(&mut self, snap: &NetSnapshot) -> Result<Recorded> {
         let now = snap.taken_at;
         let tx = self.conn.transaction()?;
+        tx.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('baseline_at', ?1)", params![now.to_string()])?;
         let mut out = Recorded::default();
         {
             let mut conn_up = tx.prepare_cached(
@@ -320,6 +341,71 @@ impl Store {
                 last_seen: r.get(12)?,
             })
         })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    pub fn meta(&self, key: &str) -> Result<Option<String>> {
+        Ok(self.conn.query_row("SELECT value FROM meta WHERE key = ?1", params![key], |r| r.get(0)).optional()?)
+    }
+
+    pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    /// When Vigil started watching: set by the first look, never moved.
+    pub fn baseline(&self) -> Result<Option<f64>> {
+        Ok(self.meta("baseline_at")?.and_then(|v| v.parse().ok()))
+    }
+
+    /// Connections between programs and other machines seen in the last `secs` before `now`
+    /// (attributed ones only), oldest first, for the network scorer.
+    pub fn scoring_rows(&self, now: f64, secs: f64) -> Result<Vec<ScoringRow>> {
+        let mut st = self.conn.prepare(
+            "SELECT id, program, remote_ip, direction, proto, local_port, remote_port, first_seen, last_seen
+             FROM connections WHERE kind = 'connection' AND program IS NOT NULL AND last_seen >= ?1
+             ORDER BY first_seen",
+        )?;
+        let rows = st.query_map(params![now - secs], |r| {
+            Ok(ScoringRow {
+                id: r.get(0)?,
+                program: r.get(1)?,
+                ip: r.get(2)?,
+                direction: r.get(3)?,
+                proto: r.get(4)?,
+                local_port: r.get(5)?,
+                remote_port: r.get(6)?,
+                first_seen: r.get(7)?,
+                last_seen: r.get(8)?,
+            })
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Every program's name and first sighting (key -> (name, first_seen)).
+    pub fn program_rows(&self) -> Result<Vec<(String, String, f64)>> {
+        let mut st = self.conn.prepare("SELECT key, name, first_seen FROM programs")?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Every destination's first sighting and scope (ip -> (first_seen, scope)).
+    pub fn destination_rows(&self) -> Result<Vec<(String, f64, String)>> {
+        let mut st = self.conn.prepare("SELECT ip, first_seen, scope FROM destinations")?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
+    /// Per address: how many programs ever contacted it and how many connections went there.
+    pub fn prevalence(&self) -> Result<Vec<(String, usize, usize)>> {
+        let mut st = self.conn.prepare(
+            "SELECT remote_ip, COUNT(DISTINCT program), COUNT(*) FROM connections
+             WHERE kind = 'connection' AND program IS NOT NULL GROUP BY remote_ip",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as usize, r.get::<_, i64>(2)? as usize)))?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
 

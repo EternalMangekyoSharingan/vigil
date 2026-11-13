@@ -279,3 +279,27 @@ flagged twice through `Findings.List` and `Findings.Recent`.
   event sensors (netlink proc connector, then eBPF) are next, then DNS per process and Network's
   checks (beaconing and the rest of Vigil 1's scoring).
 - No package database yet (D-024).
+
+---
+
+## Milestone 3, step 2: Network at parity (2026-11-13)
+
+### Built
+- `vigil-engine::net`: Vigil 1's scoring (beacons, long connections, first-seen, rarity, odd
+  ports, where the program runs from), allowlist rules with `fnmatch` and CIDR matching, the
+  70-point threshold, one alert per program/address/direction, and the alert's words and finding.
+- Store schema 2 (`meta`: the baseline), queries for the scorer.
+- `vigild`: scores the last 24 hours once a minute; built-in and user allowlist; alerts become
+  findings and events. Clock times in findings use the local time zone (read before threads start).
+- App: a flagged program carries its severity on the map; the inspector explains the alert;
+  the network overview lists alerts.
+
+### Tests
+68 pass. New: the network golden tests (beacon statistics, observations, rules, five scored pairs
+with their words), a whole scoring run (threshold, allowlist, one alert per program/address),
+the store's baseline and scorer queries. Seen end to end in the container: a SYNTHETIC beaconing
+history for the fixture's planted agent raised "agent checks in every ~1 min" (High).
+
+### Limits
+See docs/vigil2/engine.md (no byte counts, names, countries or feeds yet). Next: catching short-
+lived processes and connections as they happen (process events), then DNS per program and eBPF.

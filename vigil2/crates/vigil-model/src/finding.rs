@@ -193,6 +193,9 @@ pub struct Scored {
     pub means: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stats: Option<Value>,
+    /// When a scoring run produced it (the Network scorer stamps every observation).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<f64>,
 }
 
 pub fn scored(
@@ -210,6 +213,7 @@ pub fn scored(
         data,
         means: means.filter(|m| !m.is_empty()).map(String::from),
         stats: stats.filter(truthy),
+        at: None,
     }
 }
 

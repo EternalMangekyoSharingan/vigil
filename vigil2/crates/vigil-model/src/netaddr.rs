@@ -71,6 +71,35 @@ pub fn is_global(ip: IpAddr) -> bool {
     }
 }
 
+/// Python's `ipaddress` `is_private` (3.12 rules): the private and reserved ranges,
+/// documentation ranges included, minus their exceptions. Unparseable text is not private.
+pub fn is_private(ip: &str) -> bool {
+    match ip.parse::<IpAddr>() {
+        Ok(a @ IpAddr::V4(v)) => !is_global(a) && !in_v4(v, [100, 64, 0, 0], 10),
+        Ok(a) => !is_global(a),
+        Err(_) => false,
+    }
+}
+
+/// `ip` lies in the network written "addr/len" (or equals a bare address).
+pub fn in_network(ip: &str, net: &str) -> Option<bool> {
+    let (addr, len) = match net.split_once('/') {
+        Some((a, l)) => (a, Some(l.parse::<u32>().ok()?)),
+        None => (net, None),
+    };
+    match (ip.parse::<IpAddr>().ok()?, addr.parse::<IpAddr>().ok()?) {
+        (IpAddr::V4(i), IpAddr::V4(n)) => {
+            let l = len.unwrap_or(32);
+            (l <= 32).then(|| in_v4(i, n.octets(), l))
+        }
+        (IpAddr::V6(i), IpAddr::V6(n)) => {
+            let l = len.unwrap_or(128);
+            (l <= 128).then(|| in_v6(i, n.segments(), l))
+        }
+        _ => Some(false),
+    }
+}
+
 /// Where an address lives: loopback, lan, link-local, multicast, internet, unspecified,
 /// reserved. "LAN" means ranges a home or office network actually uses.
 pub fn scope_of(ip: &str) -> &'static str {
