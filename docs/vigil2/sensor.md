@@ -56,3 +56,11 @@ and ending, and a program that connects to the test's own loopback listener and 
 
 Still missed until the eBPF sensor: short connections made by long-running programs between two
 looks, and programs that end within a millisecond or two (counted, not shown).
+
+## Package ownership (milestone 4)
+
+`pkgdb.rs` answers "which package owns this file?" from the package database files: pacman's
+`local/*/files`, dpkg's `info/*.list` (trying the merged-/usr spelling too), and rpm's
+`rpmdb.sqlite` via its `Basenames` index and the packages' headers (entry count and data length,
+16-byte index entries, then the data; tags 1000 name, 1116 dir indexes, 1117 base names, 1118 dir
+names). Lookups are batched and cached per path. Nothing is executed.

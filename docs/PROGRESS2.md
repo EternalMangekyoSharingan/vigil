@@ -295,7 +295,7 @@ flagged twice through `Findings.List` and `Findings.Recent`.
   the network overview lists alerts.
 
 ### Tests
-68 pass. New: the network golden tests (beacon statistics, observations, rules, five scored pairs
+62 pass (corrected 2026-11-13; first written as 68). New: the network golden tests (beacon statistics, observations, rules, five scored pairs
 with their words), a whole scoring run (threshold, allowlist, one alert per program/address),
 the store's baseline and scorer queries. Seen end to end in the container: a SYNTHETIC beaconing
 history for the fixture's planted agent raised "agent checks in every ~1 min" (High).
@@ -319,7 +319,7 @@ lived processes and connections as they happen (process events), then DNS per pr
   the service does.
 
 ### Tests
-70 pass. New: the real-kernel event tests (exec and exit of `/bin/true`; a 50 ms program's
+64 pass (corrected 2026-11-13; first written as 70). New: the real-kernel event tests (exec and exit of `/bin/true`; a 50 ms program's
 loopback connection caught and attributed). Daemon CPU in the container with the fast path on:
 0.47 %. cargo deny: advisories, bans and licences ok.
 
@@ -330,3 +330,26 @@ laptop: `vigil-cli status` shows "processes: proc-connector" when the events are
 
 ### Next
 DNS per program (which name a connection's address came from) and the eBPF sensor.
+
+---
+
+## Milestone 4, step 1: which package owns a file (2026-11-13)
+
+### Built
+- `vigil-sensor::pkgdb`: package ownership from the database files, no tools run: pacman
+  (`local/*/files`), dpkg (`info/*.list`, with merged-/usr spellings) and, new compared with
+  Vigil 1, rpm: `rpmdb.sqlite` (Fedora 33+, openSUSE since 2022) through its `Basenames` index
+  and the packages' binary headers, opened read-only (an immutable snapshot if rpm's shared-
+  memory file is not writable). Answers are cached per path and refreshed every ten minutes.
+- The process checks now know each program file's package, so the two parts that were quiet
+  (D-024) work: a program named like a system program whose file belongs to no package, and
+  "belongs to no package" as a reason when a database was asked.
+
+### Tests
+68 pass (exact count). New: SYNTHETIC pacman, dpkg (merged /usr) and rpm databases (headers
+built in the test in rpm's layout, a base name shipped by two packages, a copy elsewhere owned by
+none), and no database at all. Daemon CPU in the container: 0.50 %.
+
+### Limits
+- rpm's older Berkeley DB and ndb databases are not read (answers are unknown, never "no package").
+- Integrity checks (a package file changed on disk) come with Software.

@@ -23,6 +23,10 @@ pub struct Checker {
     /// Finding ids already in the store.
     known: HashSet<String>,
     osr: OsRelease,
+    /// Which package owns a program file (pacman, dpkg or rpm), cached; and when the cache
+    /// was last cleared (every ten minutes, so installs and removals are noticed).
+    packages: vigil_sensor::pkgdb::PackageFiles,
+    packages_at: std::time::Instant,
     /// The user's allowlist rules (`<state dir>/allowlist.json`), read on every scoring run.
     allowlist: std::path::PathBuf,
     /// Network alerts open after the last scoring run.
@@ -38,6 +42,8 @@ impl Checker {
             osr: vigil_model::distro::os_release(Path::new("/etc/os-release")),
             allowlist: state_dir.join("allowlist.json"),
             network_alerts: 0,
+            packages: vigil_sensor::pkgdb::PackageFiles::open(Path::new("/")),
+            packages_at: std::time::Instant::now(),
         }
     }
 
@@ -199,11 +205,25 @@ impl Checker {
         if only.is_none() {
             self.ld.retain(|k, _| alive.contains(k));
         }
+        if self.packages_at.elapsed() > std::time::Duration::from_secs(600) {
+            self.packages.clear();
+            self.packages_at = std::time::Instant::now();
+        }
+        let paths: Vec<String> = procs
+            .processes
+            .iter()
+            .filter_map(|p| p.exe.as_deref())
+            .map(|e| e.strip_suffix(" (deleted)").unwrap_or(e).to_string())
+            .filter(|e| e.starts_with('/') && !e.starts_with("/memfd:"))
+            .collect();
+        let owners = self.packages.owners(&paths.iter().map(String::as_str).collect::<Vec<_>>());
+        let package_db = self.packages.kind.map(|k| k.name().to_string());
         let mut facts: HashMap<u32, tasks::ProcFacts> = HashMap::new();
         for p in &procs.processes {
             let exe = p.exe.clone();
             let path =
                 exe.as_deref().map(|e| e.strip_suffix(" (deleted)").unwrap_or(e).to_string()).filter(|e| !e.is_empty());
+            let package = path.as_deref().and_then(|x| owners.get(x).cloned().flatten());
             let kernel = exe.is_none() && (p.ppid == 2 || p.pid == 2) && p.cmdline.is_empty();
             let ld = self.ld.entry(key(p.pid, p.started)).or_insert_with(|| root.ld_vars(p.pid)).clone();
             let sockets = net
@@ -238,8 +258,8 @@ impl Checker {
                     path,
                     exists_now,
                     // The package database arrives with Software (milestone 4).
-                    package: None,
-                    package_db: None,
+                    package,
+                    package_db: package_db.clone(),
                     ld,
                     sockets,
                     secrets: held,

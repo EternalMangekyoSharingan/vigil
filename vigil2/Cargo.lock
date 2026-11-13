@@ -5780,6 +5780,7 @@ version = "0.2.0"
 dependencies = [
  "neli",
  "nix",
+ "rusqlite",
  "serde_json",
  "vigil-model",
 ]

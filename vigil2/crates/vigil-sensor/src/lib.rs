@@ -9,5 +9,6 @@
 
 pub mod device;
 pub mod events;
+pub mod pkgdb;
 pub mod procfs;
 pub mod visibility;
