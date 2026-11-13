@@ -36,3 +36,23 @@ normal user, so the "hidden" explanations are tested without being root.
 Reads facts about the kernel (BTF present, `unprivileged_bpf_disabled`, lockdown mode, LSMs) and
 reports, per signal, which source is live and why, in sentences. Sources that are not built yet
 say so. The daemon includes this in `Status`, and `vigil-cli status` and `doctor` show it.
+
+## Process events (milestone 3)
+
+`events.rs` subscribes to the kernel's proc connector (netlink, through `neli`): every exec,
+fork and exit as it happens. It needs CAP_NET_ADMIN (the service has it) and the host's PID
+namespace; without them the daemon says so in the visibility panel and polls /proc as before.
+
+The daemon's fast path (`vigild/src/fast.rs`) reads each new program from /proc at once,
+records it, runs the process checks on it, and watches it for its first 4 seconds: every 20 ms
+it lists the program's socket inodes (`ProcRoot::socket_inodes`) and attributes new ones from
+the program's own socket tables (`ProcRoot::sockets_of`, `/proc/<pid>/net/*`). When a watched
+program that made connections exits, an event says what it did ("curl ran for 60 ms and
+connected to ..."). With nothing to watch the thread sleeps until the next event.
+
+Tested on the real kernel (`tests/events.rs`): a millisecond-long `/bin/true` is seen starting
+and ending, and a program that connects to the test's own loopback listener and exits after
+50 ms is caught with its connection attributed to it.
+
+Still missed until the eBPF sensor: short connections made by long-running programs between two
+looks, and programs that end within a millisecond or two (counted, not shown).

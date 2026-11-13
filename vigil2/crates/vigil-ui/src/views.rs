@@ -1830,6 +1830,7 @@ impl Vigil {
         let word = |k: &str| match k {
             "first-seen" => "New on the network".to_string(),
             "finding" => "Findings".to_string(),
+            "short-lived" => "Short-lived programs that connected".to_string(),
             "daemon" => "Vigil itself".to_string(),
             other => other.to_string(),
         };

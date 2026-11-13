@@ -165,9 +165,40 @@ impl Checker {
         store: &Store,
         now: f64,
     ) -> usize {
+        self.run_filtered(root, procs, net, viewer, store, now, None)
+    }
+
+    /// Check one process (a new one, from the fast path): its facts and its parent's only.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run_only(
+        &mut self,
+        root: &ProcRoot,
+        procs: &ProcessList,
+        net: &NetSnapshot,
+        viewer: u32,
+        store: &Store,
+        now: f64,
+        pid: u32,
+    ) -> usize {
+        self.run_filtered(root, procs, net, viewer, store, now, Some(pid))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_filtered(
+        &mut self,
+        root: &ProcRoot,
+        procs: &ProcessList,
+        net: &NetSnapshot,
+        viewer: u32,
+        store: &Store,
+        now: f64,
+        only: Option<u32>,
+    ) -> usize {
         let key = |pid: u32, started: Option<f64>| (pid, started.map_or(0, |s| (s * 100.0) as u64));
         let alive: HashSet<(u32, u64)> = procs.processes.iter().map(|p| key(p.pid, p.started)).collect();
-        self.ld.retain(|k, _| alive.contains(k));
+        if only.is_none() {
+            self.ld.retain(|k, _| alive.contains(k));
+        }
         let mut facts: HashMap<u32, tasks::ProcFacts> = HashMap::new();
         for p in &procs.processes {
             let exe = p.exe.clone();
@@ -216,7 +247,7 @@ impl Checker {
             );
         }
         let mut current = 0;
-        for p in &procs.processes {
+        for p in procs.processes.iter().filter(|p| only.is_none_or(|o| o == p.pid)) {
             let Some(f) = facts.get(&p.pid) else { continue };
             for flag in tasks::flags(f, &facts, "") {
                 let cx = tasks::Context {

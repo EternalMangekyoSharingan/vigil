@@ -17,7 +17,7 @@ pgrep -x dbus-daemon >/dev/null || { rm -f /run/dbus/pid /run/dbus/system_bus_so
 pgrep -x polkitd >/dev/null || (/usr/lib/polkit-1/polkitd --no-debug >/tmp/polkitd.log 2>&1 &)
 sleep 1
 setpriv --reuid=vigil --regid=vigil --init-groups \
-  --inh-caps=+sys_ptrace,+dac_read_search --ambient-caps=+sys_ptrace,+dac_read_search \
+  --inh-caps=+sys_ptrace,+dac_read_search,+net_admin --ambient-caps=+sys_ptrace,+dac_read_search,+net_admin \
   "$here/target/release/vigild" --bus system --state-dir /var/lib/vigil >/tmp/vigild.log 2>&1 &
 sleep 2
 echo "vigild runs as: $(ps -o user= -p "$(pgrep -x vigild)") with $(grep CapEff /proc/"$(pgrep -x vigild)"/status)"

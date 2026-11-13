@@ -8,5 +8,6 @@
 //! others arrive with milestone 3, behind the same functions.
 
 pub mod device;
+pub mod events;
 pub mod procfs;
 pub mod visibility;

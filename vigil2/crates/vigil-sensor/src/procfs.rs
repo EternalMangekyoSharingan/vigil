@@ -256,6 +256,46 @@ impl ProcRoot {
         Some((ticks, pages * 4))
     }
 
+    /// The socket inodes one process holds (None if its fd table cannot be read).
+    pub fn socket_inodes(&self, pid: u32) -> Option<Vec<u64>> {
+        let fds = self.list_fd(pid).ok()?;
+        Some(
+            fds.iter()
+                .filter_map(|fd| self.readlink(&format!("{pid}/fd/{fd}")).ok())
+                .filter_map(|t| t.strip_prefix("socket:[")?.strip_suffix(']')?.parse().ok())
+                .collect(),
+        )
+    }
+
+    /// The sockets with these inodes, read from the process's own view of the socket tables
+    /// (`/proc/<pid>/net/*`, its network namespace) and attributed to it. For short-lived
+    /// processes, caught between two looks.
+    pub fn sockets_of(&self, pid: u32, inodes: &[u64], info: &ProcessInfo) -> Vec<Socket> {
+        let mut all = vec![];
+        for table in TABLES {
+            if let Ok(text) = self.read(&format!("{pid}/net/{table}")) {
+                all.extend(parse_table(&text, table));
+            }
+        }
+        let listening: HashSet<(String, u32)> = all
+            .iter()
+            .filter(|s| s.kind == "listen" && s.state == "LISTEN")
+            .map(|s| (s.proto.clone(), s.local_port))
+            .collect();
+        all.into_iter()
+            .filter(|s| s.inode != 0 && inodes.contains(&s.inode))
+            .map(|mut s| {
+                let inbound = s.kind == "connection" && listening.contains(&(s.proto.clone(), s.local_port));
+                s.direction = if inbound { "in" } else { "out" }.into();
+                s.pid = Some(pid);
+                s.pids = vec![pid];
+                s.program = Some(info.key.clone());
+                s.hidden = None;
+                s
+            })
+            .collect()
+    }
+
     /// Map socket inodes to the pids holding them: (every pid, {inode: pids}, the pids
     /// whose fd table the kernel would not show).
     pub fn scan_fds(&self) -> (Vec<u32>, BTreeMap<u64, Vec<u32>>, Vec<u32>) {

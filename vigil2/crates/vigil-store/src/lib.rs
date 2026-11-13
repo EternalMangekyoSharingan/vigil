@@ -304,6 +304,30 @@ impl Store {
         Ok(n)
     }
 
+    /// Insert processes not yet stored (the fast path's new processes); known ones are left as
+    /// they are.
+    pub fn insert_processes(&self, list: &ProcessList) -> Result<()> {
+        let mut st = self.conn.prepare_cached(
+            "INSERT OR IGNORE INTO processes (pid, started, key, name, exe, cmdline, uid, ppid, first_seen, last_seen)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+        )?;
+        for p in &list.processes {
+            let Some(started) = p.started else { continue };
+            st.execute(params![
+                p.pid,
+                started,
+                p.key,
+                p.name,
+                p.exe,
+                serde_json::to_string(&p.cmdline)?,
+                p.uid,
+                p.ppid,
+                list.taken_at
+            ])?;
+        }
+        Ok(())
+    }
+
     /// Connections open at `t` (seconds since the epoch). `slack` covers the poll
     /// interval: a connection last seen 2 s before `t` was probably still open.
     pub fn connections_at(&self, t: f64, slack: f64) -> Result<Vec<StoredConnection>> {

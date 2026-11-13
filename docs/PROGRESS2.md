@@ -303,3 +303,30 @@ history for the fixture's planted agent raised "agent checks in every ~1 min" (H
 ### Limits
 See docs/vigil2/engine.md (no byte counts, names, countries or feeds yet). Next: catching short-
 lived processes and connections as they happen (process events), then DNS per program and eBPF.
+
+---
+
+## Milestone 3, step 3: process events and short-lived programs (2026-11-13)
+
+### Built
+- Sensor: the proc connector (`neli`, on the allowed list) for exec/fork/exit events; a
+  process's socket inodes and its own socket tables, for attributing connections quickly.
+- `vigild` fast path: each new program read, recorded and checked at once; watched for 4 s so
+  its connections are caught within 20 ms even if it exits before the next look; an event for
+  each short-lived program that connected; counters for programs gone before they could be read.
+- The visibility panel says whether process events are on, and what is still missed.
+- Store: `insert_processes` for the fast path. Demo script gives the daemon CAP_NET_ADMIN, as
+  the service does.
+
+### Tests
+70 pass. New: the real-kernel event tests (exec and exit of `/bin/true`; a 50 ms program's
+loopback connection caught and attributed). Daemon CPU in the container with the fast path on:
+0.47 %. cargo deny: advisories, bans and licences ok.
+
+### Not verified
+Running `curl` by hand against a local test server was refused by this session's auto-mode
+permission check; the automated loopback test above covers the same path. On the owner's
+laptop: `vigil-cli status` shows "processes: proc-connector" when the events are on.
+
+### Next
+DNS per program (which name a connection's address came from) and the eBPF sensor.

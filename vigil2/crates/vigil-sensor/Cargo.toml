@@ -10,6 +10,7 @@ publish.workspace = true
 [dependencies]
 vigil-model.workspace = true
 nix.workspace = true
+neli.workspace = true
 serde_json.workspace = true
 
 [lints]

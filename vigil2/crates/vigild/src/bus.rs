@@ -247,6 +247,48 @@ pub async fn serve(
     );
     notify::notify("READY=1");
 
+    // The fast path: process events between looks (real /proc only: events name real pids).
+    if root.root == std::path::Path::new("/proc") {
+        let secs = interval.as_secs_f64();
+        let mut sources = shared.sources.write().unwrap_or_else(|e| e.into_inner());
+        match crate::fast::start(shared.clone(), &root, viewer) {
+            Ok(()) => {
+                log!(6, "process events on (proc connector)");
+                for s in sources.iter_mut() {
+                    match s.signal.as_str() {
+                        "processes" => {
+                            s.source = "proc-connector".into();
+                            s.note = format!(
+                                "Every program start and exit as it happens (the kernel's proc connector); each new \
+                                 program is read from /proc at once and checked, plus a full look every {secs:.0} s. \
+                                 A program that ends within a millisecond or two can be gone before it is read; \
+                                 those are counted."
+                            );
+                        }
+                        "connections" => {
+                            s.source = "proc-poll + exec watch".into();
+                            s.note = format!(
+                                "Reads /proc/net every {secs:.0} s and matches sockets to programs; new programs are \
+                                 watched for their first 4 s, so connections they make are caught within 20 ms even \
+                                 if they exit before the next look. A long-running program's short connections between \
+                                 looks can still be missed until the eBPF sensor arrives."
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Err(e) => {
+                log!(5, "process events off ({e}); polling /proc only");
+                if let Some(s) = sources.iter_mut().find(|s| s.signal == "processes") {
+                    s.note.push_str(&format!(
+                        " Process events are off: {e} (they need CAP_NET_ADMIN and the host's PID namespace)."
+                    ));
+                }
+            }
+        }
+    }
+
     // The sensor thread: look, record, tell listeners. Never blocks on a slow client.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<f64>(1);
     let stop = Arc::new(AtomicBool::new(false));

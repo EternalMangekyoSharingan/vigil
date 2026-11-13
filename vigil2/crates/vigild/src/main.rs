@@ -19,6 +19,7 @@
 mod auth;
 mod bus;
 mod checks;
+mod fast;
 mod notify;
 
 use clap::Parser;
@@ -86,6 +87,8 @@ pub struct Shared {
     pub state_dir: PathBuf,
     /// Seconds between looks.
     pub interval_s: f64,
+    /// The fast path's counters (process events).
+    pub fast: fast::Stats,
     /// Seconds east of UTC (local time for the words of findings).
     pub utc_offset: i64,
     pub current_findings: Mutex<usize>,
@@ -282,6 +285,7 @@ fn main() -> std::process::ExitCode {
         checker: Mutex::new(None),
         state_dir: dir.clone(),
         interval_s: args.interval_ms as f64 / 1000.0,
+        fast: fast::Stats::default(),
         utc_offset,
         current_findings: Mutex::new(0),
     });
